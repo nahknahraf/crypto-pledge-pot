@@ -1835,3 +1835,10 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
   - open quotes count against inventory;
   - a source timeout exactly at the minimum is accepted, and one second less is refused.
 - S1 ("wrong hashlock") doesn't apply to the LP: it locks with the hashlock it reads from the donor's lock. The donor side already checks that the BSV lock uses *its* hashlock.
+
+**8.6 Donor budget edges and malformed model output** (D1, D9; `donor.rules`):
+- A 99-sat budget is refused by the mandate.
+- A 100-sat budget pledges 100 only at a high score: at a mid score, half of 100 rounds down below one pledge, so it pledges nothing.
+- Once the budget is spent, it pledges 0.
+- From a model: NaN, ±Infinity, nulls and missing fields become 0 or empty, and non-string risk flags are dropped. A **string "80" scores 0, not 80**: we give no credit for a malformed answer. That was my test's wrong expectation, not a bug.
+- **Noted, not fixed:** in co-pilot without `donorIdentityKey` in the mandate, `approve` can't check *who* paid. This only affects the agent's bookkeeping, never funds, and is in TODO.
