@@ -22,7 +22,9 @@
     "data-provider": "vite-node --config vitest.config.ts agent/providerMain.ts",
     "import": "vite-node --config vitest.config.ts server/importTx.ts --",
     "share": "vite build app && vite preview app",
-    "share:internet": "bash scripts/share.sh"
+    "share:internet": "bash scripts/share.sh",
+    "demo:agent": "vite-node --config vitest.config.ts server/agentDemoMain.ts",
+    "typecheck:mock": "tsc --noEmit -p tsconfig.mock.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

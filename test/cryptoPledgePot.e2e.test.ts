@@ -35,7 +35,7 @@ beforeAll(async () => {
   const db = new CryptoPledgePotDb(memoryKnex())
   await db.migrate()
   const app = createCryptoPledgePotApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => clock })
-  await new Promise<void>(resolve => { server = app.listen(0, resolve) })
+  await new Promise<void>(resolve => { server = app.listen(0, () => resolve()) })
   url = `http://127.0.0.1:${(server.address() as any).port}`
 })
 

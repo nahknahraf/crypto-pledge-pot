@@ -35,10 +35,32 @@ function Header () {
   )
 }
 
+interface DemoStory { title: string, step: number, total: number, text: string, done: boolean, error?: string, campaignId?: string }
+
 function DemoBanner () {
   const { serverNetwork } = useWallet()
+  const [story, setStory] = useState<DemoStory>()
+  useEffect(() => {
+    if (serverNetwork !== 'mock') return
+    const poll = (): void => { fetch('/api/demo').then(async r => (r.ok ? await r.json() : undefined)).then(setStory, () => setStory(undefined)) }
+    poll()
+    const t = setInterval(poll, 2_000)
+    return () => clearInterval(t)
+  }, [serverNetwork])
   if (serverNetwork !== 'mock') return null
-  return <div className="demo-banner">Offline demo: campaigns and payments are simulated. Wallet actions are disabled, so your real wallet is never contacted.</div>
+  return (
+    <div className="demo-banner">
+      {story !== undefined && (
+        <div className="story">
+          <strong>{story.title} · step {story.step}/{story.total}{story.done ? ' · complete' : ''}</strong>
+          <span>{story.error !== undefined ? `Stopped: ${story.error}` : story.text}</span>
+          {story.campaignId !== undefined && <a href={`#/c/${story.campaignId}`}>Watch the campaign →</a>}
+          <div className="story-bar"><div style={{ width: `${(story.step / Math.max(1, story.total)) * 100}%` }} /></div>
+        </div>
+      )}
+      <span className="small">Offline demo: campaigns and payments are simulated. Wallet actions are disabled, so your real wallet is never contacted.</span>
+    </div>
+  )
 }
 
 function App () {

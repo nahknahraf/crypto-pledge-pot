@@ -14,6 +14,7 @@ interface AgentStatus {
   balance: number
   spent: { calls: number, sats: number }
   lastOutcome: { action: string, reason?: string } | null
+  activity?: Array<{ at: number, line: string }>
 }
 interface SpendEntry { milestone: number, topic: string, why: string, sats: number, txid?: string, at: number }
 
@@ -72,6 +73,16 @@ export function AgentPanel ({ agentUrl }: { agentUrl: string }) {
           </div>
           {status.lastOutcome !== null && <p className="muted small">Last action: {status.lastOutcome.action}{status.lastOutcome.reason !== undefined ? `: ${status.lastOutcome.reason}` : ''}</p>}
           <p className="muted small">Agent identity <code title={status.identityKey}>{short(status.identityKey)}</code></p>
+        </>
+      )}
+      {status !== undefined && (status.activity ?? []).length > 0 && (
+        <>
+          <h4>What the agent is doing</h4>
+          <ul className="activity">
+            {[...(status.activity ?? [])].reverse().slice(0, 12).map((a, i) => (
+              <li key={`${a.at}-${i}`} className={/refused/.test(a.line) ? 'refused' : /^paid/.test(a.line) ? 'paid' : ''}>{a.line}</li>
+            ))}
+          </ul>
         </>
       )}
       <h4>Every payment it made</h4>

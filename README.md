@@ -245,6 +245,15 @@ left.
   allow-listed and prices over the cap, before paying anything.
 - Purchased data goes to the model as data, never as instructions.
 
+**Watch it live, with no wallet and no sats:** `npm run demo:agent` (then
+`npm run app`) plays **"AirWatch live"**. The agent launches its campaign,
+five backers pledge, it withdraws milestones, pays a data API per call, refuses
+an overpriced "premium" reading, reports, and backers vote, in about 1½
+minutes. Everything is real code on the offline mock chain; only the pace is
+staged. The demo banner shows each step; the agent panel shows what it's doing.
+
+![AirWatch live: step 12](docs/screenshots/live-2-agent-working.png)
+
 **Run it on mainnet** (four terminals):
 ```bash
 npm run server           # CryptoPledgePot indexer + arbiter

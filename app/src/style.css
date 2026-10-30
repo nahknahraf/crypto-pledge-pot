@@ -134,3 +134,12 @@ blockquote, .description, .feed li p { overflow-wrap: anywhere; }
   .right { text-align: left; }
 }
 .demo-banner { background: #fff1d6; color: #7a4a00; text-align: center; padding: 0.5rem 1rem; font-size: 0.9rem; }
+
+.demo-banner .story { display: grid; gap: 0.2rem; max-width: 760px; margin: 0 auto 0.4rem; text-align: left; }
+.demo-banner .story a { font-weight: 600; }
+.story-bar { height: 6px; background: rgba(0,0,0,0.1); border-radius: 999px; overflow: hidden; }
+.story-bar div { height: 100%; background: #b25d00; transition: width 0.6s ease; }
+.activity { list-style: none; padding: 0; margin: 0 0 0.6rem; font-size: 0.8rem; font-family: ui-monospace, monospace; max-height: 220px; overflow: auto; }
+.activity li { padding: 0.2rem 0; border-bottom: 1px dashed var(--line); overflow-wrap: anywhere; }
+.activity li.refused { color: var(--err); font-weight: 600; }
+.activity li.paid { color: var(--brand); }

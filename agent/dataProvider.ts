@@ -38,15 +38,28 @@ export function syntheticReading (city: City, date = new Date().toISOString().sl
   return { city, date, pm25, pm10, no2, aqi: Math.round(Math.max(pm25 * 2.1, pm10 * 1.0, no2 * 0.9)), synthetic: true }
 }
 
-export function createDataProviderApp (merchant: WalletInterface, priceSats: number): Express {
+/**
+ * @param premium  cities sold at a different price, e.g. { zurich: 500 } (the demo
+ *                 uses this to show the agent refusing to overpay). The payment
+ *                 middleware only sees the path after the mount point, so each
+ *                 premium city gets its own middleware and the generic one skips it.
+ */
+export function createDataProviderApp (merchant: WalletInterface, priceSats: number, premium: Partial<Record<City, number>> = {}): Express {
   const app = express()
   app.use((_req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Expose-Headers', '*')
     next()
   })
-  app.get('/', (_req, res) => { res.json({ service: 'CryptoPledgePot demo air-quality data', priceSats, topics: CITIES, synthetic: true }) })
-  app.use('/data/:city', createPaymentMiddleware({ wallet: merchant, calculatePrice: () => priceSats }))
+  app.get('/', (_req, res) => { res.json({ service: 'CryptoPledgePot demo air-quality data', priceSats, premium, topics: CITIES, synthetic: true }) })
+  for (const [city, price] of Object.entries(premium)) {
+    app.use(`/data/${city}`, createPaymentMiddleware({ wallet: merchant, calculatePrice: () => price }))
+  }
+  const standard = createPaymentMiddleware({ wallet: merchant, calculatePrice: () => priceSats })
+  app.use('/data/:city', (req, res, next) => {
+    if (String(req.params.city).toLowerCase() in premium) { next(); return }
+    void standard(req, res, next)
+  })
   app.get('/data/:city', (req, res) => {
     const city = String(req.params.city).toLowerCase()
     if (!isCity(city)) { res.status(404).json({ error: 'unknown city' }); return }

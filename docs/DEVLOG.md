@@ -1089,3 +1089,74 @@ wasn't published.
 - the tunnel port → `200` with the app;
 - `/agent/…` → `502` with no backend running, but no redirect;
 - the port is bound to `127.0.0.1` only.
+
+## "AirWatch live": the agentic idea as a demo you can watch
+
+The old offline demo set everything up at start-up, so you only saw the
+result. For a video, judges or testers without wallets, the agent story needs
+to *happen* on screen. Plan, then execution:
+
+**The story (`server/agentDemo.ts`, `npm run demo:agent`).** It's real code on
+the offline mock chain: the server, the escrow contract, the paid data API,
+the agent with its capped payer, and five backers using the browser's client.
+Only the pace is staged (one beat every `DEMO_PACE_S`, default 6 s), plus a
+virtual clock that jumps past the deadline. The 16 beats:
+1. the agent launches "AirWatch";
+2. Ana, Ben, Chloe (a 1,000-sat micro-pledge), Dev and Eli back it, passing
+   the 25,000-sat goal;
+3. the deadline passes;
+4. the agent withdraws milestone 1, plans, and pays per city;
+5. backers vote on milestone 2 (Ben says no; the majority says yes);
+6. the agent withdraws it and buys more, **refusing Zurich's 500-sat
+   "premium" price**;
+7. a last vote, the final withdrawal, a data refresh, done.
+
+Every beat checks the agent did what the story claims, so the demo fails
+loudly instead of drifting.
+
+**Making the agent's judgement visible:**
+- an activity log (`agent/activity.ts`), returned by `/api/agent` and shown as
+  "What the agent is doing" on the agent panel, with refusals in red. The real
+  mainnet agent has it too;
+- the agent logs its brain's plan ("brain (mock) plans 5 purchase(s): …");
+- the demo banner shows "AirWatch live · step 12/16", the beat's text, a
+  progress bar and a link to the campaign, from `GET /api/demo`, which exists
+  only when a story is running.
+
+**Supporting changes:**
+- **The data shop can price cities individually.** We found the 402
+  middleware only sees the path *after* the mount point (`/`), so one price
+  function can't tell cities apart. Each premium city now gets its own payment
+  middleware, and the standard one skips it.
+- **The mock brain:** fresh cities first, then refreshes older ones, so a
+  refused purchase doesn't leave a milestone empty.
+- **Type-checking tests and demos (new).** Anything importing the mock-chain
+  helper saw two copies of the SDK types, so tests had never been
+  type-checked. `tsconfig.mock.json` maps `@bsv/sdk` to the CommonJS types (as
+  vitest does at runtime): `npm run typecheck:mock`. It found exactly two
+  slips (`listen(0, resolve)`), now fixed, one of them in the starter kit's
+  test.
+- Docker profile `agent-demo`, and `SHARE_MODE=agent-demo` for ngrok. Both
+  are safe to share: demo mode never contacts a wallet.
+
+**How we tested it:**
+- `test/agentDemo.e2e.test.ts`, the whole story at full speed:
+  - 16/16 beats; the campaign ends **completed** (30,000 raised and released,
+    0 escrowed, 5 donors);
+  - votes as scripted: milestone 2 YES 20,000 / NO 6,000, milestone 3 YES
+    16,000;
+  - purchases 5 + 4 + 4 at exactly 50 sats each, **650 sats in total**, no
+    Zurich in the ledger, **2 refusals**;
+  - the agent's status page shows its plan and the refusals.
+- Full suite: **108 passing** (15 files). Both type-checks clean; production
+  build OK.
+- **Live in a browser** (Playwright, read-only, demo mode so no wallet can be
+  contacted): screenshots at step 4, step 12 and the end
+  (`docs/screenshots/live-*.png`). Banner progress, the red refusal, the
+  ledger growing 9 → 13, "Completed", no page errors, no dialogs.
+- **In containers** (Podman, spare ports): the `agent-demo` profile behind
+  Caddy plays to step 16/16 with the same final numbers; `/agent` works; the
+  ngrok target port answers `200`.
+
+**Not run:** `SHARE_MODE=agent-demo` through `share.sh` itself. Its branch is
+the same as `demo` and passes a syntax check, but we didn't rehearse it.

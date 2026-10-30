@@ -120,6 +120,7 @@ export class CryptoPledgePotAgent {
     this.log(`milestone ${milestone} "${m.title}": balance ${balance} sats, budget ${budget} sats → up to ${maxCalls} calls`)
 
     const plan = await this.deps.brain.planCalls({ mission: this.config.mission, milestone: { index: milestone, title: m.title }, maxCalls, alreadyBought: bought })
+    this.log(`brain (${this.deps.brain.name}) plans ${plan.length} purchase(s): ${plan.map(p => p.topic).join(', ') || 'none'}`)
     const results: AirQualityReport[] = []
     const txids: string[] = []
     let spent = 0

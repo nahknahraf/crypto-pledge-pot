@@ -12,6 +12,7 @@
     "jsx": "react-jsx"
   },
   "include": ["core", "overlay", "client", "examples", "server", "agent", "web/src", "app/src"],
-  // Like test/, the demo runs on the mock chain helper (CJS SDK build): run under vite-node, not type-checked here.
-  "exclude": ["server/demo.ts"]
+  // Code on the offline mock chain (demos, tests) loads the CJS SDK build: it is
+  // type-checked by tsconfig.mock.json instead (npm run typecheck:mock).
+  "exclude": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts"]
 }

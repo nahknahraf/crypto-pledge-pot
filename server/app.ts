@@ -60,6 +60,8 @@ export interface CryptoPledgePotServerOptions {
    * Behind Caddy in Docker Compose: 'loopback, uniquelocal' (private networks).
    */
   trustProxy?: string
+  /** Live demo only: the story's progress, served at GET /api/demo for the banner. */
+  demoStatus?: () => unknown
 }
 
 class HttpError extends Error {
@@ -193,6 +195,11 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
   // ════════════════════════════ public ════════════════════════════
 
   app.get('/api/health', wrap(async () => ({ ok: true, network: opts.network ?? 'main', identityKey: (await wallet.getPublicKey({ identityKey: true })).publicKey, now: now() })))
+
+  app.get('/api/demo', (_req, res) => {
+    if (opts.demoStatus === undefined) { res.status(404).json({ error: 'no live demo running' }); return }
+    res.json(opts.demoStatus())
+  })
 
   app.get('/api/arbiter-key', wrap(async (req) => {
     const nonce = String(req.query.nonce ?? '')

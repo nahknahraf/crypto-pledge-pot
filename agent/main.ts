@@ -22,6 +22,7 @@ import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
 import { CryptoPledgePotAgent, type AgentConfig, type StepOutcome } from './agent'
 import { defaultBrain } from './brain'
+import { createActivityLog } from './activity'
 import { createAgentApp } from './http'
 import { fileStore, Ledger, type AgentState, type SpendEntry } from './ledger'
 import { createCappedPayer } from './pay402'
@@ -72,7 +73,9 @@ async function main (): Promise<void> {
   const brain = defaultBrain()
   const ledger = new Ledger(fileStore<SpendEntry[]>(path.join(dataDir, 'agent-ledger.json'), []))
   const state = fileStore<AgentState>(path.join(dataDir, 'agent-state.json'), { worked: [] })
+  const activity = createActivityLog()
   const agent = new CryptoPledgePotAgent(config, {
+    log: activity.log,
     wallet,
     cryptopledgepot: new CryptoPledgePot(wallet, api),
     api,
@@ -84,7 +87,7 @@ async function main (): Promise<void> {
 
   let last: StepOutcome | undefined
   const chainTracker = new ArcadeChainTracker(chain === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
-  createAgentApp({ wallet, ledger, state, chainTracker, mission, spendable: async () => await agent.spendable(), lastOutcome: () => last })
+  createAgentApp({ wallet, ledger, state, chainTracker, mission, spendable: async () => await agent.spendable(), lastOutcome: () => last, activity: activity.recent })
     .listen(port, () => console.log(`[agent] identity ${setup.identityKey} · brain ${brain.name} · status on http://localhost:${port}/api/agent`))
 
   const tick = async (): Promise<void> => {

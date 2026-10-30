@@ -23,6 +23,7 @@ or your domain. Check: `curl -k https://localhost:8443/api/health` →
 | `docker compose --env-file .env.docker logs -f agent` | Follow a service's log |
 | `docker compose --env-file .env.docker down` | Stop (data is kept in volumes) |
 | `docker compose --env-file .env.docker --profile demo up -d caddy demo` | **Offline demo** instead (simulated; wallets disabled). Stop the main stack first |
+| `docker compose --env-file .env.docker --profile agent-demo up -d caddy agent-demo` | **"AirWatch live"**: the agent story playing step by step (`DEMO_PACE_S`, default 6). Stop the main stack first |
 | `docker compose --env-file .env.docker --profile tunnel up -d` | Add **ngrok** in front (set `NGROK_DOMAIN`, `NGROK_AUTHTOKEN`, `PUBLIC_URL`) |
 | `ngrok http 8081 --url <your-domain>` | Your **own** ngrok instead: point it at port **8081** (`TUNNEL_PORT`), never at 80, which redirects to https and loops through the tunnel ("page isn't redirecting properly"). Set `DOMAIN=localhost` and `PUBLIC_URL=https://<your-domain>` |
 | `docker compose --env-file .env.docker exec server npm run import -- <txid>` | Re-import a campaign or pledge from chain |

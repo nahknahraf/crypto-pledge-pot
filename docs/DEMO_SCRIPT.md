@@ -1,8 +1,10 @@
 # CryptoPledgePot: demo video script (2–3 minutes)
 
-Record either **mainnet** (preferred; the track wants real transactions) or the
-**offline demo** (`npm run demo` + `npm run app`) if sats aren't available yet.
-Say which one you're showing.
+Record either **mainnet** (preferred; the track wants real transactions) or
+**"AirWatch live"** (`npm run demo:agent` + `npm run app`, or the Docker
+`agent-demo` profile) if sats aren't available yet. AirWatch plays the whole
+agent story by itself in ~1½ minutes (`DEMO_PACE_S=6`): just narrate while the
+banner advances. Say which one you're showing.
 
 **Before recording (mainnet):** start `npm run server`,
 `npm run data-provider`, `npm run agent` and `npm run app`. Top up the agent

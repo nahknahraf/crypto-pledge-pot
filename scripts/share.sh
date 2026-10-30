@@ -16,7 +16,7 @@ cd "$(dirname "$0")/.."
 [ -f .env.share ] || { echo "Missing .env.share. Run: cp .env.share.example .env.share and fill it in."; exit 1; }
 set -a; . ./.env.share; set +a
 : "${NGROK_DOMAIN:?set NGROK_DOMAIN in .env.share (e.g. calm-otter-123.ngrok-free.app)}"
-SHARE_MODE="${SHARE_MODE:-main}"   # main = real mainnet · demo = offline demo (wallets disabled)
+SHARE_MODE="${SHARE_MODE:-main}"   # main = real mainnet · demo = offline demo · agent-demo = "AirWatch live" story (both demos: wallets disabled)
 WITH_AGENT="${WITH_AGENT:-yes}"
 PUBLIC_URL="https://${NGROK_DOMAIN}"
 
@@ -53,6 +53,9 @@ export AGENT_PUBLIC_URL="$PUBLIC_URL/agent"
 
 if [ "$SHARE_MODE" = "demo" ]; then
   start demo npm run demo
+  wait_for http://localhost:8787/api/health server
+elif [ "$SHARE_MODE" = "agent-demo" ]; then
+  start agent-demo npm run demo:agent
   wait_for http://localhost:8787/api/health server
 else
   start server npm run server

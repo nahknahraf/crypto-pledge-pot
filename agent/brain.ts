@@ -108,9 +108,13 @@ export class MockBrain implements Brain {
   readonly name = 'mock'
 
   async planCalls (input: PlanInput): Promise<PlannedCall[]> {
+    // Cities not covered yet first, then refresh the ones bought longest ago.
     const fresh = CITIES.filter(c => !input.alreadyBought.includes(c))
-    const pool = fresh.length > 0 ? fresh : [...CITIES]
-    return sanitizePlan(pool.map(topic => ({ topic, why: `coverage for ${input.milestone.title}` })), input.maxCalls)
+    const refresh = [...new Set(input.alreadyBought)]
+    return sanitizePlan([
+      ...fresh.map(topic => ({ topic, why: `new coverage for "${input.milestone.title}"` })),
+      ...refresh.map(topic => ({ topic, why: `refresh an older reading for "${input.milestone.title}"` }))
+    ], input.maxCalls)
   }
 
   async writeReport (input: ReportInput): Promise<string> {

@@ -21,6 +21,8 @@ export interface AgentHttpOptions {
   mission: string
   spendable: () => Promise<number>
   lastOutcome: () => StepOutcome | undefined
+  /** Recent activity lines (decisions, payments, refusals), newest last. */
+  activity?: () => Array<{ at: number, line: string }>
 }
 
 export function createAgentApp (o: AgentHttpOptions): Express {
@@ -41,7 +43,8 @@ export function createAgentApp (o: AgentHttpOptions): Express {
       campaignId: o.state.load().campaignId ?? null,
       balance: await o.spendable(),
       spent: o.ledger.totals(),
-      lastOutcome: o.lastOutcome() ?? null
+      lastOutcome: o.lastOutcome() ?? null,
+      activity: o.activity?.() ?? []
     })
   })
 

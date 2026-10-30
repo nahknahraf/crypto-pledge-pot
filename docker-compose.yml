@@ -12,6 +12,8 @@
 #   tunnel → also run ngrok in front (laptop sharing; no domain or open ports needed)
 #   demo   → run the offline demo instead of server/agent/data-provider:
 #            docker compose --env-file .env.docker --profile demo up -d caddy demo
+#   agent-demo → "AirWatch live", the agent story as it happens (wallets disabled):
+#            docker compose --env-file .env.docker --profile agent-demo up -d caddy agent-demo
 
 x-app: &app
   build: { context: ., target: app }
@@ -115,6 +117,22 @@ services:
     networks:
       default:
         aliases: [server, agent]   # Caddy's routes reach the demo under the usual names
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8787/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  # ── optional: "AirWatch live", the agent story playing at a watchable pace (profile "agent-demo") ──
+  agent-demo:
+    <<: *app
+    profiles: [agent-demo]
+    command: ["npm", "run", "demo:agent"]
+    environment:
+      DEMO_PACE_S: ${DEMO_PACE_S:-6}
+      AGENT_PUBLIC_URL: ${PUBLIC_URL:-https://localhost}/agent
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    networks:
+      default:
+        aliases: [server, agent]   # Caddy's routes reach it under the usual names
     healthcheck:
       <<: *health
       test: ["CMD", "node", "-e", "fetch('http://localhost:8787/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]

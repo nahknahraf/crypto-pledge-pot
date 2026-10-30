@@ -103,7 +103,7 @@ describe('authenticated airdrop (BRC-103/104)', () => {
     treasury = await chain.makeWallet()
     await chain.fund(treasury)
     dave = await chain.makeWallet()
-    await new Promise<void>(resolve => { server = createAirdropApp(treasury, { satoshis: 2_000 }).listen(18092, resolve) })
+    await new Promise<void>(resolve => { server = createAirdropApp(treasury, { satoshis: 2_000 }).listen(18092, () => resolve()) })
     url = 'http://localhost:18092'
   })
   afterAll(async () => { await new Promise(resolve => server?.close(resolve)) })

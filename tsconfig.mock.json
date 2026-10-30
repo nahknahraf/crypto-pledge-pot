@@ -1,0 +1,11 @@
+{
+  // Type-checks code that runs on the offline mock chain (tests, demos) the way
+  // it runs: with ONE copy of @bsv/sdk, the CommonJS build wallet-toolbox uses
+  // (same idea as the alias in vitest.config.ts). npm run typecheck:mock
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": { "@bsv/sdk": ["./node_modules/@bsv/sdk/dist/cjs/mod.d.ts"] }
+  },
+  "include": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts", "test"],
+  "exclude": []
+}
