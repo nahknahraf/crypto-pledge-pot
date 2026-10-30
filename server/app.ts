@@ -12,16 +12,19 @@
  */
 import express, { type Express, type Request, type Response } from 'express'
 import { createAuthMiddleware, type AuthRequest } from '@bsv/auth-express-middleware'
-import { Beef, Hash, OP, Signature, Transaction, TransactionSignature, Utils, type ChainTracker, type WalletInterface } from '@bsv/sdk'
+import { Beef, Hash, OP, PublicKey, Signature, Transaction, TransactionSignature, Utils, type ChainTracker, type WalletInterface } from '@bsv/sdk'
 import {
-  ARBITER_PROTOCOL,
+  claimMessage,
+  CRYPTOPLEDGEPOT,
+  protocolsFor,
   campaignIdOf,
   LIMITS,
   parseCryptoPledgePotRecord,
   pledgeScriptFor,
   pledgeTerms,
   validateCampaign,
-  type CampaignMeta
+  type CampaignMeta,
+  type ProtocolTag
 } from '../core/campaign'
 import { ALL_SCOPE, cumulativeSchedule, escrowedAfter, METHOD, MIN_PLEDGE, scheduleIsStrict, parsePledgeScript, pledgeLockingScript, preimage } from '../core/pledge'
 import type { CampaignDetail, CampaignEvent, ReleasablePledges, SpendablePledge } from '../core/api'
@@ -63,10 +66,36 @@ function parseAtomic (hex: unknown): { tx: Transaction, bytes: number[] } {
   }
 }
 
+/** AtomicBEEF, or plain BEEF (e.g. from WhatsOnChain's /tx/{txid}/beef) plus the subject txid. Stored as AtomicBEEF. */
+function parseAnyBeef (hex: unknown, txid?: unknown): { tx: Transaction, bytes: number[] } {
+  if (!isHex(hex) || hex.length === 0) throw new HttpError(400, 'beef must be hex')
+  const raw = Utils.toArray(hex, 'hex')
+  try { return { tx: Transaction.fromAtomicBEEF(raw), bytes: raw } } catch { /* plain BEEF */ }
+  if (!isHex(txid, 32)) throw new HttpError(400, 'plain BEEF needs the subject txid')
+  try {
+    const tx = Transaction.fromBEEF(raw, txid.toLowerCase())
+    return { tx, bytes: Array.from(tx.toAtomicBEEF()) }
+  } catch (e) {
+    throw new HttpError(400, `invalid BEEF: ${(e as Error).message}`)
+  }
+}
+
 const outpointOf = (tx: Transaction, i: number): string =>
   `${tx.inputs[i].sourceTXID ?? tx.inputs[i].sourceTransaction!.id('hex')}.${tx.inputs[i].sourceOutputIndex}`
 
-export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): Express {
+export interface CryptoPledgePotService {
+  app: Express
+  /** Index a release or refund (same as POST /api/spends). */
+  recordSpend: (tx: Transaction, atomicBeef: number[]) => Promise<{ txid: string, pledges: string[] }>
+  /** Index campaigns and original pledges found in a transaction (same as POST /api/import). */
+  importTx: (tx: Transaction, atomicBeef: number[]) => Promise<ImportResult>
+}
+
+export interface ImportResult { txid: string, campaigns: string[], pledges: string[], skipped: string[] }
+
+export const createCryptoPledgePotApp = (opts: CryptoPledgePotServerOptions): Express => createCryptoPledgePotService(opts).app
+
+export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions): CryptoPledgePotService {
   const { wallet, db, chainTracker } = opts
   const now = opts.now ?? (() => Math.floor(Date.now() / 1000))
   const app = express()
@@ -105,14 +134,15 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
     }
   }
 
-  async function arbiterKey (nonce: string): Promise<string> {
-    return (await wallet.getPublicKey({ protocolID: ARBITER_PROTOCOL, keyID: nonce, counterparty: 'self' })).publicKey
+  async function arbiterKey (nonce: string, tag: ProtocolTag = CRYPTOPLEDGEPOT): Promise<string> {
+    return (await wallet.getPublicKey({ protocolID: protocolsFor(tag).arbiter, keyID: nonce, counterparty: 'self' })).publicKey
   }
 
-  async function arbiterSign (meta: CampaignMeta, sighashPreimage: number[]): Promise<string> {
+  /** Sign with the arbiter key of the campaign's protocol tag (legacy 'bitfund' campaigns keep their old key). */
+  async function arbiterSign (meta: CampaignMeta, sighashPreimage: number[], tag: ProtocolTag): Promise<string> {
     const { signature } = await wallet.createSignature({
       hashToDirectlySign: Hash.hash256(sighashPreimage),
-      protocolID: ARBITER_PROTOCOL,
+      protocolID: protocolsFor(tag).arbiter,
       keyID: meta.nonce,
       counterparty: 'self'
     })
@@ -204,8 +234,7 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
    * it: the transaction itself is the proof. Public so that a donor's refund is
    * indexed even if they lost access to CryptoPledgePot.
    */
-  app.post('/api/spends', wrap(async (req) => {
-    const { tx, bytes } = parseAtomic(req.body?.beef)
+  async function recordSpend (tx: Transaction, bytes: number[]): Promise<{ txid: string, pledges: string[] }> {
     await spv(tx)
     const txid = tx.id('hex')
     const touched: string[] = []
@@ -239,6 +268,73 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
       emit(releaseCampaign, { type: 'release', milestone: releaseMilestone, txid, amount: releasedSats })
     }
     return { txid, pledges: touched }
+  }
+
+  /**
+   * Rebuild index entries from a transaction on chain: campaign anchors (current
+   * or legacy tag, only if they name THIS server's arbiter key) and original
+   * pledge escrows of known campaigns. Imported pledges are unclaimed until the
+   * donor proves control of the donor key (POST /api/pledges/:id/claim).
+   */
+  async function importTx (tx: Transaction, bytes: number[]): Promise<ImportResult> {
+    await spv(tx)
+    const txid = tx.id('hex')
+    const result: ImportResult = { txid, campaigns: [], pledges: [], skipped: [] }
+    for (const o of tx.outputs) {
+      const r = parseCryptoPledgePotRecord(o.lockingScript)
+      if (r?.kind !== 'campaign') continue
+      try { validateCampaign(r.meta) } catch (e) { result.skipped.push(`campaign ${r.campaignId}: ${(e as Error).message}`); continue }
+      if (r.meta.arbiterKey !== await arbiterKey(r.meta.nonce, r.tag)) { result.skipped.push(`campaign ${r.campaignId}: arbiter key is not this server's`); continue }
+      if (await db.campaign(r.campaignId) !== undefined) { result.skipped.push(`campaign ${r.campaignId}: already indexed`); continue }
+      await db.insertCampaign({ id: r.campaignId, meta: r.meta, creatorIdentity: r.meta.creatorIdentityKey, anchorTxid: txid, createdAt: now(), protocolTag: r.tag })
+      result.campaigns.push(r.campaignId)
+    }
+    for (let i = 0; i < tx.outputs.length; i++) {
+      const o = tx.outputs[i]
+      const terms = parsePledgeScript(o.lockingScript)
+      if (terms === undefined) continue
+      const id = `${txid}.${i}`
+      const c = await db.campaign(terms.campaignId)
+      if (c === undefined) { result.skipped.push(`${id}: campaign ${terms.campaignId} not indexed (import its anchor first)`); continue }
+      if (await db.pledge(id) !== undefined || await db.pledgeAt(id) !== undefined) { result.skipped.push(`${id}: already indexed`); continue }
+      if (o.satoshis !== terms.pledged) { result.skipped.push(`${id}: a released remainder, not an original pledge`); continue }
+      if (pledgeScriptFor(c.meta, terms.donor, terms.pledged).toHex() !== o.lockingScript.toHex()) { result.skipped.push(`${id}: escrow terms do not match the campaign`); continue }
+      const memo = tx.outputs.map(x => parseCryptoPledgePotRecord(x.lockingScript)).find(m => m?.kind === 'pledge' && m.campaignId === c.id)
+      await db.insertPledge({
+        id,
+        campaignId: c.id,
+        donorIdentity: '',
+        donorKey: terms.donor,
+        donorKeyId: '',
+        amount: terms.pledged,
+        name: memo?.kind === 'pledge' ? (memo.memo.name?.slice(0, LIMITS.name) ?? null) : null,
+        message: memo?.kind === 'pledge' ? (memo.memo.message?.slice(0, LIMITS.message) ?? null) : null,
+        createdAt: now(),
+        outpoint: id,
+        stage: 0,
+        status: 'active',
+        spentBy: null
+      })
+      result.pledges.push(id)
+    }
+    if (result.campaigns.length + result.pledges.length > 0) await db.putTx(txid, Utils.toHex(bytes))
+    return result
+  }
+
+  /**
+   * Record that a pledge escrow was spent (release or refund). Anyone may report
+   * it: the transaction itself is the proof. Public so that a donor's refund is
+   * indexed even if they lost access to CryptoPledgePot.
+   */
+  app.post('/api/spends', wrap(async (req) => {
+    const { tx, bytes } = parseAtomic(req.body?.beef)
+    return await recordSpend(tx, bytes)
+  }))
+
+  /** Rebuild index entries from chain. Body: { beef, txid? } (AtomicBEEF, or plain BEEF + txid). */
+  app.post('/api/import', wrap(async (req) => {
+    const { tx, bytes } = parseAnyBeef(req.body?.beef, req.body?.txid)
+    return await importTx(tx, bytes)
   }))
 
   // ═════════════════════════ authenticated ═════════════════════════
@@ -262,12 +358,12 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
     const id = campaignIdOf(meta)
     if (await db.campaign(id) !== undefined) throw new HttpError(409, 'campaign already registered')
     const { tx, bytes } = parseAtomic(req.body?.anchorBeef)
-    const anchored = tx.outputs.some(o => { const r = parseCryptoPledgePotRecord(o.lockingScript); return r?.kind === 'campaign' && r.campaignId === id })
+    const anchored = tx.outputs.some(o => { const r = parseCryptoPledgePotRecord(o.lockingScript); return r?.kind === 'campaign' && r.tag === CRYPTOPLEDGEPOT && r.campaignId === id })
     if (!anchored) throw new HttpError(400, 'anchor transaction does not carry this campaign\'s record')
     await spv(tx)
     const txid = tx.id('hex')
     await db.putTx(txid, Utils.toHex(bytes))
-    await db.insertCampaign({ id, meta, creatorIdentity: identity, anchorTxid: txid, createdAt: now() })
+    await db.insertCampaign({ id, meta, creatorIdentity: identity, anchorTxid: txid, createdAt: now(), protocolTag: CRYPTOPLEDGEPOT })
     return { id, anchorTxid: txid }
   }))
 
@@ -360,10 +456,30 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
       const p = await db.pledgeAt(outpointOf(tx, i))
       if (p === undefined || p.campaignId !== c.id) continue
       if (!mayRelease(view, p)) throw new HttpError(403, `milestone ${p.stage + 1} is not approved: ${view.milestones[p.stage]?.pending ?? 'already fully released'}`)
-      signatures[i] = await arbiterSign(c.meta, preimage(tx, i, ALL_SCOPE, escrowSource(c.meta, p)))
+      signatures[i] = await arbiterSign(c.meta, preimage(tx, i, ALL_SCOPE, escrowSource(c.meta, p)), c.protocolTag)
     }
     if (Object.keys(signatures).length === 0) throw new HttpError(400, 'transaction spends no pledge of this campaign')
     return { signatures }
+  }))
+
+  /**
+   * Claim an imported (or own) pledge for the caller's identity. Body:
+   * { keyID, signature } where signature is the donor key's DER signature over
+   * sha256(claimMessage(pledgeId, callerIdentity)). Proves control of the escrow's
+   * donor key, so votes and arbiter-assisted refunds work for imported pledges.
+   */
+  app.post('/api/pledges/:id/claim', wrap(async (req) => {
+    const identity = caller(req)
+    const p = await db.pledge(String(req.params.id))
+    if (p === undefined) throw new HttpError(404, 'pledge not found')
+    if (p.donorIdentity !== '' && p.donorIdentity !== identity) throw new HttpError(409, 'pledge already claimed by another identity')
+    const keyID = String(req.body?.keyID ?? '')
+    if (!isHex(keyID, 16)) throw new HttpError(400, 'keyID must be 16 bytes hex')
+    let ok = false
+    try { ok = PublicKey.fromString(p.donorKey).verify(Utils.toArray(claimMessage(p.id, identity), 'utf8'), Signature.fromDER(Utils.toArray(String(req.body?.signature ?? ''), 'hex'))) } catch { ok = false }
+    if (!ok) throw new HttpError(403, 'signature does not prove control of this pledge\'s donor key')
+    await db.updatePledge(p.id, { donorIdentity: identity, donorKeyId: keyID.toLowerCase() })
+    return { ok: true }
   }))
 
   /** Arbiter co-signature for an early refund (campaign failed). Body: { beef }. */
@@ -377,10 +493,10 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
     const { tx } = parseAtomic(req.body?.beef)
     const inputIndex = tx.inputs.findIndex((_, i) => outpointOf(tx, i) === p.outpoint)
     if (inputIndex < 0) throw new HttpError(400, 'transaction does not spend this pledge')
-    return { inputIndex, signature: await arbiterSign(c.meta, preimage(tx, inputIndex, ALL_SCOPE, escrowSource(c.meta, p))) }
+    return { inputIndex, signature: await arbiterSign(c.meta, preimage(tx, inputIndex, ALL_SCOPE, escrowSource(c.meta, p)), c.protocolTag) }
   }))
 
-  return app
+  return { app, recordSpend, importTx }
 }
 
 const schedule = (meta: CampaignMeta): number[] => cumulativeSchedule(meta.milestones.map(m => m.percent))

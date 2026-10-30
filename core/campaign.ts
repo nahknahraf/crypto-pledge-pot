@@ -13,11 +13,29 @@
 import { Hash, OP, Script, Utils, type LockingScript, type WalletProtocol } from '@bsv/sdk'
 import { cumulativeSchedule, MAX_MILESTONES, pledgeLockingScript, type PledgeTerms } from './pledge'
 
-export const CRYPTOPLEDGEPOT = 'cryptopledgepot'
-export const CREATOR_PROTOCOL: WalletProtocol = [1, 'cryptopledgepot creator']
-export const DONOR_PROTOCOL: WalletProtocol = [1, 'cryptopledgepot donor']
-export const ARBITER_PROTOCOL: WalletProtocol = [1, 'cryptopledgepot arbiter']
-export const PLEDGE_BASKET = 'cryptopledgepot pledges'
+/**
+ * Protocol tag: names the OP_RETURN records and every key-derivation protocol.
+ * 'bitfund' is the app's pre-rename name: campaigns and pledges made with it
+ * stay readable and spendable (their keys were derived with 'bitfund …').
+ */
+export type ProtocolTag = 'cryptopledgepot' | 'bitfund'
+export const CRYPTOPLEDGEPOT: ProtocolTag = 'cryptopledgepot'
+export const PROTOCOL_TAGS: readonly ProtocolTag[] = ['cryptopledgepot', 'bitfund']
+export const isProtocolTag = (s: unknown): s is ProtocolTag => typeof s === 'string' && (PROTOCOL_TAGS as readonly string[]).includes(s)
+
+export interface Protocols { creator: WalletProtocol, donor: WalletProtocol, arbiter: WalletProtocol, basket: string }
+export const protocolsFor = (tag: ProtocolTag): Protocols => ({
+  creator: [1, `${tag} creator`],
+  donor: [1, `${tag} donor`],
+  arbiter: [1, `${tag} arbiter`],
+  basket: `${tag} pledges`
+})
+
+const CURRENT = protocolsFor(CRYPTOPLEDGEPOT)
+export const CREATOR_PROTOCOL: WalletProtocol = CURRENT.creator
+export const DONOR_PROTOCOL: WalletProtocol = CURRENT.donor
+export const ARBITER_PROTOCOL: WalletProtocol = CURRENT.arbiter
+export const PLEDGE_BASKET = CURRENT.basket
 
 export const LIMITS = { title: 80, description: 4000, milestoneTitle: 80, name: 40, message: 280 } as const
 
@@ -115,22 +133,22 @@ function opReturn (fields: number[][]): Script {
   return s
 }
 
-export const campaignAnchorScript = (meta: CampaignMeta): Script =>
-  opReturn([utf8(CRYPTOPLEDGEPOT), utf8('campaign'), Utils.toArray(campaignIdOf(meta), 'hex'), utf8(canonicalJson(meta))])
+export const campaignAnchorScript = (meta: CampaignMeta, tag: ProtocolTag = CRYPTOPLEDGEPOT): Script =>
+  opReturn([utf8(tag), utf8('campaign'), Utils.toArray(campaignIdOf(meta), 'hex'), utf8(canonicalJson(meta))])
 
 export interface PledgeMemo { name?: string, message?: string }
 
-export function pledgeMemoScript (campaignId: string, memo: PledgeMemo): Script {
+export function pledgeMemoScript (campaignId: string, memo: PledgeMemo, tag: ProtocolTag = CRYPTOPLEDGEPOT): Script {
   const clean: PledgeMemo = {
     name: memo.name?.trim().slice(0, LIMITS.name) || undefined,
     message: memo.message?.trim().slice(0, LIMITS.message) || undefined
   }
-  return opReturn([utf8(CRYPTOPLEDGEPOT), utf8('pledge'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(clean))])
+  return opReturn([utf8(tag), utf8('pledge'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(clean))])
 }
 
 export type CryptoPledgePotRecord =
-  | { kind: 'campaign', campaignId: string, meta: CampaignMeta }
-  | { kind: 'pledge', campaignId: string, memo: PledgeMemo }
+  | { kind: 'campaign', tag: ProtocolTag, campaignId: string, meta: CampaignMeta }
+  | { kind: 'pledge', tag: ProtocolTag, campaignId: string, memo: PledgeMemo }
 
 /** Decode a CryptoPledgePot OP_RETURN output, or undefined if it is not one. */
 export function parseCryptoPledgePotRecord (script: Script | string): CryptoPledgePotRecord | undefined {
@@ -141,16 +159,17 @@ export function parseCryptoPledgePotRecord (script: Script | string): CryptoPled
     const c = Script.fromBinary(s.chunks[1].data ?? []).chunks
     if (c.length !== 4) return undefined
     const text = (i: number): string => Utils.toUTF8(c[i].data ?? [])
-    if (text(0) !== CRYPTOPLEDGEPOT) return undefined
+    const tag = text(0)
+    if (!isProtocolTag(tag)) return undefined
     const campaignId = Utils.toHex(c[2].data ?? [])
     if (campaignId.length !== 64) return undefined
     const payload = JSON.parse(text(3))
     if (text(1) === 'campaign') {
       if (campaignIdOf(payload) !== campaignId) return undefined
-      return { kind: 'campaign', campaignId, meta: payload }
+      return { kind: 'campaign', tag, campaignId, meta: payload }
     }
     if (text(1) === 'pledge') {
-      return { kind: 'pledge', campaignId, memo: { name: typeof payload.name === 'string' ? payload.name : undefined, message: typeof payload.message === 'string' ? payload.message : undefined } }
+      return { kind: 'pledge', tag, campaignId, memo: { name: typeof payload.name === 'string' ? payload.name : undefined, message: typeof payload.message === 'string' ? payload.message : undefined } }
     }
   } catch { /* not ours */ }
   return undefined
@@ -165,3 +184,6 @@ export function campaignStatus (meta: CampaignMeta, raised: number, milestonesRe
   if (now < meta.deadline) return 'active'
   return raised >= meta.goal ? 'funded' : 'failed'
 }
+
+/** Message a donor signs (with the escrow's donor key) to claim an imported pledge for their identity. */
+export const claimMessage = (pledgeId: string, identityKey: string): string => `cryptopledgepot claim ${pledgeId} for ${identityKey}`

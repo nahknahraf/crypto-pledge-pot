@@ -726,3 +726,76 @@ clicked (Donate, Create, agent top-up).
   without any confirmation dialog. The code returns before the wallet is
   reached.
 - Phone widths re-measured (above).
+
+## Fix 2: recovering from lost indexes and the old name
+
+The evaluation found three related gaps. A deleted index meant lost
+campaigns. Pledges made under the old name couldn't be used by the renamed
+app. And an escrow whose campaign disappeared (the demo incident) had no way
+back. They all have the same answer: **the chain is the source of truth, so
+the app has to be able to rebuild from it.**
+
+**Old names keep working.** `protocolsFor(tag)` gives the key-derivation
+names, basket and record tag for either the current name (`cryptopledgepot`)
+or the legacy one (`bitfund`). The record parser accepts both and says which
+it saw. Every campaign remembers its tag: there's a new `protocol_tag` column,
+added automatically to existing databases. The arbiter signs with the
+campaign's own tag, and the client derives the creator and donor keys with it.
+New campaigns always use the current name.
+
+**Rebuilding the index from chain:**
+- `POST /api/import` takes a transaction (AtomicBEEF, or plain BEEF + txid
+  from WhatsOnChain), checks it by SPV, and indexes:
+  - campaign anchors, but only if they name *this* server's arbiter key;
+  - original pledge escrows of known campaigns.
+
+  Anything it can't take is listed in `skipped` with a reason: already indexed,
+  another server's arbiter, a released remainder, unknown campaign.
+- `npm run import -- <txid> …` fetches from WhatsOnChain and calls it. It
+  reads the chain only; no wallet is involved.
+
+**Proving a pledge is yours.** An imported pledge doesn't know its donor. The
+donor's wallet proves ownership by signing
+`cryptopledgepot claim <pledge> for <identity>` with the escrow's donor key
+(`POST /api/pledges/:id/claim`). The server checks the signature against the
+key inside the escrow script. Unclaimed pledges count toward "raised" but have
+no vote until claimed. The Dashboard's new **Recover** panel has **Find my
+pledges**, which scans the wallet's pledge baskets (both names) and claims
+everything it finds.
+
+**Reclaiming any escrow without a server.** `reclaimEscrow(outpoint)` needs
+only the chain and the wallet:
+- it reads the escrow's terms from its script (fetched from WhatsOnChain);
+- it finds the donor key by trying the keys in the wallet's baskets until one
+  derives to the key in the script;
+- it spends via the donor-only timelock path.
+
+It's in the Recover panel ("Reclaim by outpoint") and refuses before the
+refund date, saying when it will work. This is how the 10,000-sat test
+donation comes back from 2027-01-28.
+
+**What broke:** only my own test. wallet-toolbox rejected
+`outputDescription: 'memo'` (descriptions need at least 5 characters).
+
+**How we checked it (`test/recovery.e2e.test.ts`, 7 tests),** replaying the real
+events on the mock chain:
+1. A campaign and pledge made the *old* way, with their index lost, are imported
+   from chain; the tag stays `bitfund`; importing twice changes nothing.
+2. A campaign naming another server's arbiter is refused.
+3. A forged claim is refused; a stranger's wallet "does not hold the donor
+   key"; the real donor's wallet claims it; a second claimer gets "already
+   claimed".
+4. The creator releases milestone 1 **with the legacy creator and arbiter
+   keys**.
+5. After the refund date the donor reclaims the remainder through the app,
+   with the legacy donor key.
+6. An escrow for a campaign *no server knows* is refused before its date,
+   refused for a stranger, and reclaimed by its donor from chain data alone.
+
+**And for real:** we started the mainnet server and ran
+`npm run import -- c1309193… 0e637517…`. **"Fund a  well" is back in the index**
+(tag `bitfund`, 1,000 sats raised, 1 pledge awaiting its claim). Its anchor
+passed SPV via Arcade and named this server's arbiter key, so it's the same
+arbiter as before. The test donation `217be330…` couldn't be imported
+(WhatsOnChain has no BEEF for it yet, HTTP 422; it was still unconfirmed), and
+it would be skipped anyway because its campaign only lived in the demo.

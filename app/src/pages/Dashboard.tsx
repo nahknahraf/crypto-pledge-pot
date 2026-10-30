@@ -51,7 +51,51 @@ export function Dashboard () {
       <div className="table">
         {pledges.map(p => <PledgeRow key={p.id} p={p} view={views[p.campaignId]} onChange={() => { void load() }} />)}
       </div>
+
+      <RecoverPanel onChange={() => { void load() }} />
     </>
+  )
+}
+
+/**
+ * Recovery tools:
+ *  - find pledges this wallet made that the index imported from chain, and claim them;
+ *  - reclaim any escrow by its outpoint, without the server (after its refund date).
+ */
+function RecoverPanel ({ onChange }: { onChange: () => void }) {
+  const { cryptopledgepot } = useWallet()
+  const [outpoint, setOutpoint] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<Msg>()
+
+  async function run (fn: () => Promise<Msg>) {
+    setBusy(true); setMsg(undefined)
+    try { setMsg(await fn()); onChange() } catch (e) { setMsg({ ok: false, text: (e as Error).message }) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="card">
+      <h2>Recover</h2>
+      <p className="small muted">Pledges restored from the blockchain show up here once you claim them. Claiming proves, with your wallet, that you made them.</p>
+      <button disabled={busy || cryptopledgepot === undefined} onClick={() => {
+        void run(async () => {
+          const claimed = await cryptopledgepot!.claimWalletPledges()
+          return { ok: true, text: claimed.length === 0 ? 'Nothing to claim: all your pledges are already linked.' : `Claimed ${claimed.length} pledge(s).` }
+        })
+      }}>Find my pledges</button>
+      <p className="small muted" style={{ marginTop: '1rem' }}>Reclaim an escrow without CryptoPledgePot, e.g. one whose campaign no longer exists. Paste its outpoint (<code>txid.vout</code>). It works once the escrow's refund date has passed.</p>
+      <div className="row">
+        <input className="grow" placeholder="txid.vout" value={outpoint} onChange={e => setOutpoint(e.target.value.trim())} />
+        <button disabled={busy || cryptopledgepot === undefined || !/^[0-9a-f]{64}\.\d+$/i.test(outpoint)} onClick={() => {
+          if (!confirmSpend(`Reclaim the escrow ${outpoint.slice(0, 12)}… into your wallet?`)) return
+          void run(async () => {
+            const r = await cryptopledgepot!.reclaimEscrow(outpoint, { reportTo: api })
+            return { ok: true, text: `Reclaimed ${formatSats(r.satoshis)}.`, txid: r.txid }
+          })
+        }}>Reclaim</button>
+      </div>
+      {msg !== undefined && <Notice kind={msg.ok ? 'ok' : 'err'}>{msg.text} {msg.txid !== undefined && <a href={WOC_TX + msg.txid} target="_blank" rel="noreferrer">View</a>}</Notice>}
+    </div>
   )
 }
 

@@ -15,9 +15,13 @@ import { Hash, Random, Signature, Transaction, TransactionSignature, Utils, type
 import {
   campaignAnchorScript,
   campaignIdOf,
+  claimMessage,
   CREATOR_PROTOCOL,
   DONOR_PROTOCOL,
   PLEDGE_BASKET,
+  PROTOCOL_TAGS,
+  protocolsFor,
+  type ProtocolTag,
   pledgeMemoScript,
   pledgeScriptFor,
   validateCampaign,
@@ -35,7 +39,8 @@ import {
   refundUnlock,
   releaseUnlock,
   unlockLength,
-  cumulativeSchedule
+  cumulativeSchedule,
+  parsePledgeScript
 } from '../core/pledge'
 import type { PledgeView } from '../core/api'
 import type { CryptoPledgePotApi } from './cryptoPledgePotApi'
@@ -128,21 +133,21 @@ export class CryptoPledgePot {
    * is ready (in batches), with the arbiter's co-signature. Returns the txids.
    */
   async release (campaignId: string): Promise<{ milestone: number, txids: string[], released: number }> {
-    const { meta } = await this.api.campaign(campaignId)
+    const { meta, protocolTag } = await this.api.campaign(campaignId)
     const ready = await this.api.releasable(campaignId)
     if (ready.milestone === 0 || ready.pledges.length === 0) throw new Error('nothing to release: no milestone is approved yet')
     const txids: string[] = []
     let released = 0
     for (let i = 0; i < ready.pledges.length; i += RELEASE_BATCH) {
       const batch = ready.pledges.slice(i, i + RELEASE_BATCH)
-      const r = await this.releaseBatch(meta, ready.milestone, batch, ready.beef)
+      const r = await this.releaseBatch(meta, ready.milestone, batch, ready.beef, protocolTag ?? 'cryptopledgepot')
       txids.push(r.txid)
       released += r.released
     }
     return { milestone: ready.milestone, txids, released }
   }
 
-  private async releaseBatch (meta: CampaignMeta, milestone: number, pledges: PledgeView[], beefHex: string): Promise<{ txid: string, released: number }> {
+  private async releaseBatch (meta: CampaignMeta, milestone: number, pledges: PledgeView[], beefHex: string, tag: ProtocolTag): Promise<{ txid: string, released: number }> {
     const schedule = cumulativeSchedule(meta.milestones.map(m => m.percent))
     const scriptLen = pledgeScriptFor(meta, pledges[0].donorKey, pledges[0].amount).toBinary().length
     const outputs = pledges.flatMap(p => {
@@ -177,7 +182,7 @@ export class CryptoPledgePot {
     const spends: Record<number, { unlockingScript: string }> = {}
     for (let i = 0; i < pledges.length; i++) {
       if (arbiterSigs[i] === undefined) throw new Error(`arbiter did not sign input ${i}`)
-      const creatorSig = await this.signInput(tx, i, CREATOR_PROTOCOL, meta.nonce)
+      const creatorSig = await this.signInput(tx, i, protocolsFor(tag).creator, meta.nonce)
       spends[i] = { unlockingScript: releaseUnlock(creatorSig, Utils.toArray(arbiterSigs[i], 'hex'), preimage(tx, i, RELEASE_PREIMAGE_SCOPE)).toHex() }
     }
     const signed = await this.wallet.signAction({ reference: signable.reference, spends, options: { acceptDelayedBroadcast: false } }, this.originator)
@@ -225,6 +230,57 @@ export class CryptoPledgePot {
     await this.api.vote(campaignId, milestone, approve)
   }
 
+  // ── recovery: claiming, finding keys, reclaiming without the server ─────
+
+  /** Donor keyID for an escrow, found in this wallet's pledge baskets (current and legacy names). */
+  async findDonorKey (donorKey: string, outpoint?: string): Promise<{ keyID: string, tag: ProtocolTag } | undefined> {
+    for (const tag of PROTOCOL_TAGS) {
+      const { outputs } = await this.wallet.listOutputs({ basket: protocolsFor(tag).basket, includeCustomInstructions: true, limit: 1000 }, this.originator)
+      // Exact outpoint first, then any basket entry whose key derives to this donor key
+      // (an escrow moves to a new outpoint with every milestone release).
+      const ordered = [...outputs.filter(o => o.outpoint === outpoint), ...outputs.filter(o => o.outpoint !== outpoint)]
+      for (const o of ordered) {
+        let keyID: string | undefined
+        try { keyID = JSON.parse(o.customInstructions ?? '{}').keyID } catch { continue }
+        if (typeof keyID !== 'string') continue
+        if (await this.derivedKey(protocolsFor(tag).donor, keyID) === donorKey) return { keyID, tag }
+      }
+    }
+    return undefined
+  }
+
+  /** Prove control of a pledge's donor key and attach it to this identity (for imported pledges). */
+  async claim (pledgeId: string): Promise<void> {
+    const { pledge } = await this.api.pledge(pledgeId)
+    const found = await this.findDonorKey(pledge.donorKey, pledge.id)
+    if (found === undefined) throw new Error('this wallet does not hold the donor key of that pledge')
+    const message = claimMessage(pledge.id, await this.identityKey())
+    const { signature } = await this.wallet.createSignature({
+      hashToDirectlySign: Hash.sha256(message, 'utf8'),
+      protocolID: protocolsFor(found.tag).donor,
+      keyID: found.keyID,
+      counterparty: 'self'
+    }, this.originator)
+    await this.api.claimPledge(pledge.id, found.keyID, hex(signature))
+  }
+
+  /** Claim every unclaimed indexed pledge whose escrow this wallet made (e.g. after an import from chain). */
+  async claimWalletPledges (): Promise<string[]> {
+    const claimed: string[] = []
+    for (const tag of PROTOCOL_TAGS) {
+      const { outputs } = await this.wallet.listOutputs({ basket: protocolsFor(tag).basket, limit: 1000 }, this.originator)
+      for (const o of outputs) {
+        try {
+          const { pledge } = await this.api.pledge(o.outpoint)
+          if (pledge.donorIdentity !== '') continue
+          await this.claim(pledge.id)
+          claimed.push(pledge.id)
+        } catch { /* not indexed here, or not ours */ }
+      }
+    }
+    return claimed
+  }
+
   /**
    * Reclaim a pledge's remaining escrow into this wallet.
    *  - 'deadline': after refundAfter, signed by the donor alone (needs no CryptoPledgePot approval).
@@ -232,43 +288,108 @@ export class CryptoPledgePot {
    * Default: 'deadline' if refundAfter has passed, otherwise 'failed'.
    */
   async refund (pledgeId: string, mode?: 'deadline' | 'failed', now = Math.floor(Date.now() / 1000)): Promise<{ txid: string, satoshis: number }> {
-    const { pledge, beef } = await this.api.pledge(pledgeId)
+    let { pledge, beef } = await this.api.pledge(pledgeId)
     if (pledge.status !== 'active') throw new Error(`pledge is ${pledge.status}`)
-    const { meta } = await this.api.campaign(pledge.campaignId)
-    if (await this.derivedKey(DONOR_PROTOCOL, pledge.donorKeyId) !== pledge.donorKey) throw new Error('this pledge was not made from this wallet')
+    const { meta, protocolTag } = await this.api.campaign(pledge.campaignId)
     const path = mode ?? (now >= meta.refundAfter ? 'deadline' : 'failed')
-    const scriptLen = pledgeScriptFor(meta, pledge.donorKey, pledge.amount).toBinary().length
+    // Imported pledges have no keyID on the server yet; the arbiter also needs to know who we are.
+    if (pledge.donorKeyId === '' || (path === 'failed' && pledge.donorIdentity === '')) {
+      await this.claim(pledge.id)
+      ;({ pledge, beef } = await this.api.pledge(pledgeId))
+    }
+    const donorProtocol = protocolsFor(protocolTag ?? 'cryptopledgepot').donor
+    if (await this.derivedKey(donorProtocol, pledge.donorKeyId) !== pledge.donorKey) throw new Error('this pledge was not made from this wallet')
+    const r = await this.spendEscrowRefund({
+      outpoint: pledge.outpoint,
+      beefHex: beef,
+      scriptLen: pledgeScriptFor(meta, pledge.donorKey, pledge.amount).toBinary().length,
+      keyID: pledge.donorKeyId,
+      donorProtocol,
+      path,
+      refundAfter: meta.refundAfter,
+      arbiterSignature: async (signableHex) => await this.api.refundSignature(pledge.id, signableHex)
+    })
+    await this.api.reportSpend(r.beefHex)
+    return { txid: r.txid, satoshis: pledge.escrowed }
+  }
 
+  /**
+   * Reclaim ANY escrow made from this wallet, given only its current outpoint,
+   * without CryptoPledgePot's server: terms are read from the escrow script on
+   * chain, the donor key is found in this wallet's baskets (current or legacy
+   * names), and the transaction uses the donor-only timelock path. Works only
+   * once the escrow's refund date has passed.
+   */
+  async reclaimEscrow (outpoint: string, opts: { fetchBeef?: (txid: string) => Promise<string>, now?: number, reportTo?: CryptoPledgePotApi } = {}): Promise<{ txid: string, satoshis: number }> {
+    const [txid, voutText] = outpoint.split('.')
+    const vout = Number(voutText)
+    if (!/^[0-9a-f]{64}$/i.test(txid) || !Number.isInteger(vout)) throw new Error('outpoint must look like <txid>.<vout>')
+    const beefHex = await (opts.fetchBeef ?? (async (id: string) => await wocBeef(id, (await this.wallet.getNetwork({}, this.originator)).network)))(txid)
+    const raw = Utils.toArray(beefHex, 'hex')
+    let source: Transaction
+    try { source = Transaction.fromAtomicBEEF(raw) } catch { source = Transaction.fromBEEF(raw, txid) }
+    const out = source.outputs[vout]
+    const terms = out !== undefined ? parsePledgeScript(out.lockingScript) : undefined
+    if (out === undefined || terms === undefined) throw new Error('that output is not a CryptoPledgePot escrow')
+    const now = opts.now ?? Math.floor(Date.now() / 1000)
+    if (now < terms.refundAfter) throw new Error(`this escrow can be reclaimed alone from ${new Date(terms.refundAfter * 1000).toISOString()}`)
+    const found = await this.findDonorKey(terms.donor, outpoint)
+    if (found === undefined) throw new Error('this wallet does not hold the donor key of that escrow')
+    const r = await this.spendEscrowRefund({
+      outpoint,
+      beefHex: Utils.toHex(Array.from(source.toAtomicBEEF())),
+      scriptLen: out.lockingScript.toBinary().length,
+      keyID: found.keyID,
+      donorProtocol: protocolsFor(found.tag).donor,
+      path: 'deadline',
+      refundAfter: terms.refundAfter
+    })
+    if (opts.reportTo !== undefined) await opts.reportTo.reportSpend(r.beefHex).catch(() => undefined)
+    return { txid: r.txid, satoshis: out.satoshis! }
+  }
+
+  /** Build, sign and broadcast a refund of one escrow (donor-only timelock path, or arbiter-assisted). */
+  private async spendEscrowRefund (a: {
+    outpoint: string
+    beefHex: string
+    scriptLen: number
+    keyID: string
+    donorProtocol: WalletProtocol
+    path: 'deadline' | 'failed'
+    refundAfter: number
+    arbiterSignature?: (signableHex: string) => Promise<{ signature: string }>
+  }): Promise<{ txid: string, beefHex: string }> {
     const created = await this.wallet.createAction({
       description: 'Reclaim CryptoPledgePot pledge',
       labels: ['cryptopledgepot'],
-      inputBEEF: Utils.toArray(beef, 'hex'),
+      inputBEEF: Utils.toArray(a.beefHex, 'hex'),
       inputs: [{
-        outpoint: pledge.outpoint,
-        unlockingScriptLength: path === 'deadline' ? unlockLength.refund(scriptLen) : unlockLength.refundFailed(),
+        outpoint: a.outpoint,
+        unlockingScriptLength: a.path === 'deadline' ? unlockLength.refund(a.scriptLen) : unlockLength.refundFailed(),
         inputDescription: 'CryptoPledgePot escrow',
-        sequenceNumber: path === 'deadline' ? NON_FINAL : undefined
+        sequenceNumber: a.path === 'deadline' ? NON_FINAL : undefined
       }],
       outputs: [],
-      lockTime: path === 'deadline' ? meta.refundAfter : undefined,
+      lockTime: a.path === 'deadline' ? a.refundAfter : undefined,
       options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
     }, this.originator)
     const signable = created.signableTransaction
     if (signable === undefined) throw new Error('wallet did not return a signable transaction')
     const tx = Transaction.fromAtomicBEEF(signable.tx)
-    const i = tx.inputs.findIndex((_, k) => outpointOf(tx, k) === pledge.outpoint)
+    const i = tx.inputs.findIndex((_, k) => outpointOf(tx, k) === a.outpoint)
     if (i < 0) {
       await this.wallet.abortAction({ reference: signable.reference }, this.originator)
       throw new Error('escrow input missing from the refund transaction')
     }
-    const donorSig = await this.signInput(tx, i, DONOR_PROTOCOL, pledge.donorKeyId)
+    const donorSig = await this.signInput(tx, i, a.donorProtocol, a.keyID)
     let unlockingScript: string
-    if (path === 'deadline') {
+    if (a.path === 'deadline') {
       unlockingScript = refundUnlock(donorSig, preimage(tx, i, ALL_SCOPE)).toHex()
     } else {
-      let arbiter: { inputIndex: number, signature: string }
+      if (a.arbiterSignature === undefined) throw new Error('an early refund needs the arbiter')
+      let arbiter: { signature: string }
       try {
-        arbiter = await this.api.refundSignature(pledge.id, hex(signable.tx))
+        arbiter = await a.arbiterSignature(hex(signable.tx))
       } catch (e) {
         await this.wallet.abortAction({ reference: signable.reference }, this.originator)
         throw e
@@ -277,7 +398,14 @@ export class CryptoPledgePot {
     }
     const signed = await this.wallet.signAction({ reference: signable.reference, spends: { [i]: { unlockingScript } }, options: { acceptDelayedBroadcast: false } }, this.originator)
     if (signed.tx === undefined || signed.txid === undefined) throw new Error('wallet did not complete the refund')
-    await this.api.reportSpend(hex(signed.tx))
-    return { txid: signed.txid, satoshis: pledge.escrowed }
+    return { txid: signed.txid, beefHex: hex(signed.tx) }
   }
+}
+
+/** A transaction with its proof chain from WhatsOnChain (BEEF hex). */
+export async function wocBeef (txid: string, network: string): Promise<string> {
+  const net = network === 'testnet' || network === 'test' ? 'test' : 'main'
+  const res = await fetch(`https://api.whatsonchain.com/v1/bsv/${net}/tx/${txid}/beef`)
+  if (!res.ok) throw new Error(`WhatsOnChain has no BEEF for ${txid} (HTTP ${res.status})`)
+  return (await res.text()).trim().replace(/"/g, '')
 }

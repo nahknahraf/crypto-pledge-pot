@@ -68,6 +68,14 @@ export class CryptoPledgePotApi {
   refundSignature = async (pledgeId: string, beef: string): Promise<{ inputIndex: number, signature: string }> =>
     await this.post(`/api/pledges/${encodeURIComponent(pledgeId)}/refund-signature`, { beef })
 
+  /** Rebuild index entries from chain: AtomicBEEF, or plain BEEF (e.g. WhatsOnChain) plus its txid. */
+  importTx = async (beef: string, txid?: string): Promise<{ txid: string, campaigns: string[], pledges: string[], skipped: string[] }> =>
+    await this.post('/api/import', { beef, txid }, false)
+
+  claimPledge = async (pledgeId: string, keyID: string, signature: string): Promise<void> => {
+    await this.post(`/api/pledges/${encodeURIComponent(pledgeId)}/claim`, { keyID, signature })
+  }
+
   /** Live feed (browser): EventSource on the campaign's SSE stream. */
   eventsUrl = (campaignId: string): string => `${this.baseUrl}/api/campaigns/${campaignId}/events`
 }

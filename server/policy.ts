@@ -40,7 +40,7 @@ export function campaignView (
 
   // Vote weight: satoshis each donor still has pledged.
   const weight = new Map<string, number>()
-  for (const p of counted) weight.set(p.donorIdentity, (weight.get(p.donorIdentity) ?? 0) + p.amount)
+  for (const p of counted) if (p.donorIdentity !== '') weight.set(p.donorIdentity, (weight.get(p.donorIdentity) ?? 0) + p.amount)
 
   const milestones: MilestoneView[] = meta.milestones.map((m, i) => {
     const index = i + 1
@@ -71,11 +71,12 @@ export function campaignView (
     id: c.id,
     meta,
     anchorTxid: c.anchorTxid,
+    protocolTag: c.protocolTag,
     status,
     raised,
     released: releases.reduce((s, r) => s + r.amount, 0),
     escrowed,
-    donors: weight.size,
+    donors: weight.size + counted.filter(p => p.donorIdentity === '').length, // unclaimed imports count as one donor each
     pledges: counted.length,
     milestonesReleased: releasedCount,
     milestones

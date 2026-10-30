@@ -1,5 +1,5 @@
 /** Shapes of the CryptoPledgePot indexer API, shared by the server, the client library and the UI. */
-import type { CampaignMeta, CampaignStatus } from './campaign'
+import type { CampaignMeta, CampaignStatus, ProtocolTag } from './campaign'
 
 export interface MilestoneView {
   index: number // 1-based
@@ -20,6 +20,8 @@ export interface CampaignView {
   id: string
   meta: CampaignMeta
   anchorTxid: string
+  /** 'bitfund' for campaigns made before the rename (keys derived with the old names). */
+  protocolTag: ProtocolTag
   status: CampaignStatus
   /** Satoshis pledged and not refunded. */
   raised: number
@@ -36,8 +38,10 @@ export interface CampaignView {
 export interface PledgeView {
   id: string
   campaignId: string
+  /** '' while an imported pledge is unclaimed (see /api/pledges/:id/claim). */
   donorIdentity: string
   donorKey: string
+  /** '' while unknown (imported from chain); the donor's wallet basket has it. */
   donorKeyId: string
   amount: number
   name: string | null

@@ -5,9 +5,9 @@
  * browse campaigns and keeps the BEEF needed to spend each escrow.
  */
 import knexPkg, { type Knex } from 'knex'
-import type { CampaignMeta } from '../core/campaign'
+import type { CampaignMeta, ProtocolTag } from '../core/campaign'
 
-export interface CampaignRow { id: string, meta: CampaignMeta, creatorIdentity: string, anchorTxid: string, createdAt: number }
+export interface CampaignRow { id: string, meta: CampaignMeta, creatorIdentity: string, anchorTxid: string, createdAt: number, protocolTag: ProtocolTag }
 
 export type PledgeStatus = 'active' | 'released' | 'refunded'
 
@@ -53,7 +53,11 @@ export class CryptoPledgePotDb {
         t.string('creator_identity', 66).notNullable().index()
         t.string('anchor_txid', 64).notNullable()
         t.integer('created_at').notNullable()
+        t.string('protocol_tag', 32).notNullable().defaultTo('cryptopledgepot')
       })
+    } else if (!(await k.schema.hasColumn('campaigns', 'protocol_tag'))) {
+      // Databases created before legacy-tag support: every campaign in them used the current tag.
+      await k.schema.alterTable('campaigns', t => { t.string('protocol_tag', 32).notNullable().defaultTo('cryptopledgepot') })
     }
     if (!(await k.schema.hasTable('pledges'))) {
       await k.schema.createTable('pledges', t => {
@@ -111,7 +115,7 @@ export class CryptoPledgePotDb {
 
   // ── campaigns ──
   async insertCampaign (c: CampaignRow): Promise<void> {
-    await this.knex('campaigns').insert({ id: c.id, meta: JSON.stringify(c.meta), creator_identity: c.creatorIdentity, anchor_txid: c.anchorTxid, created_at: c.createdAt })
+    await this.knex('campaigns').insert({ id: c.id, meta: JSON.stringify(c.meta), creator_identity: c.creatorIdentity, anchor_txid: c.anchorTxid, created_at: c.createdAt, protocol_tag: c.protocolTag })
   }
 
   async campaign (id: string): Promise<CampaignRow | undefined> {
@@ -145,12 +149,18 @@ export class CryptoPledgePotDb {
     return (await q.orderBy('created_at', 'desc')).map(pledgeFromRow)
   }
 
+  async activePledges (): Promise<PledgeRow[]> {
+    return (await this.knex('pledges').where({ status: 'active' })).map(pledgeFromRow)
+  }
+
   async pledgesByDonor (donorIdentity: string): Promise<PledgeRow[]> {
     return (await this.knex('pledges').where({ donor_identity: donorIdentity }).orderBy('created_at', 'desc')).map(pledgeFromRow)
   }
 
-  async updatePledge (id: string, patch: Partial<Pick<PledgeRow, 'outpoint' | 'stage' | 'status' | 'spentBy'>>): Promise<void> {
+  async updatePledge (id: string, patch: Partial<Pick<PledgeRow, 'outpoint' | 'stage' | 'status' | 'spentBy' | 'donorIdentity' | 'donorKeyId'>>): Promise<void> {
     const row: Record<string, unknown> = {}
+    if (patch.donorIdentity !== undefined) row.donor_identity = patch.donorIdentity
+    if (patch.donorKeyId !== undefined) row.donor_key_id = patch.donorKeyId
     if (patch.outpoint !== undefined) row.outpoint = patch.outpoint
     if (patch.stage !== undefined) row.stage = patch.stage
     if (patch.status !== undefined) row.status = patch.status
@@ -202,7 +212,7 @@ export class CryptoPledgePotDb {
   }
 }
 
-const campaignFromRow = (r: any): CampaignRow => ({ id: r.id, meta: JSON.parse(r.meta), creatorIdentity: r.creator_identity, anchorTxid: r.anchor_txid, createdAt: r.created_at })
+const campaignFromRow = (r: any): CampaignRow => ({ id: r.id, meta: JSON.parse(r.meta), creatorIdentity: r.creator_identity, anchorTxid: r.anchor_txid, createdAt: r.created_at, protocolTag: r.protocol_tag ?? 'cryptopledgepot' })
 
 const pledgeToRow = (p: PledgeRow): Record<string, unknown> => ({
   id: p.id,
