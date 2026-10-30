@@ -40,12 +40,12 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | On mainnet | 🟡 real campaign, pledge and release transactions exist | txids in [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md); the full agent run on mainnet is still to do |
 | Fundraising agent | ✅ offline, with a scripted brain or Claude; 🟡 real Claude needs `ANTHROPIC_API_KEY` | 31 tests; `npm run demo:agent` |
 | Pay-per-call data API (HTTP 402) | ✅ real Open-Meteo data, synthetic fallback | `agent.pay402`, `pay-per-request` tests |
-| Donor agent | ✅ autopilot and co-pilot, budget caps, manipulation → score 0 | 22 tests; Donor page in the app |
+| Donor agent | ✅ autopilot and co-pilot, budget caps, manipulation → score 0 (enforced in code for every brain) | 25 tests; `npm run demo:donor`; Donor page in the app |
 | Liquidity agent / swaps | 🟡 the BSV side is real; the USDC side is simulated in `demo:swap`, and a **real Solidity HTLC on a local EVM chain** in `demo:bridge` | 15 tests; `npm run demo:swap`, `npm run demo:bridge` |
 | Real bridges | 🟡 EVM: the happy path works on a local chain (Anvil); a public testnet is untested · ❌ BTC, Lightning, DeFi, CeFi are planned | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **152 tests**, all passing (`npm test`), and both typechecks are clean.
+In total there are **156 tests**, all passing (`npm test`), and both typechecks are clean.
 
 ## Try it
 
@@ -54,9 +54,11 @@ Requires Node.js ≥ 22.
 ```bash
 npm install
 npm test               # everything, offline
+npm run test:happy     # only the happy paths (docs/HAPPY_PATHS.md)
 npm run demo:agent     # the AI-agent story, offline (then: npm run app → http://localhost:5174)
 npm run demo:swap      # USDC → sats → pledge, in the terminal (simulated USDC)
 npm run demo:bridge    # the same with a real Solidity HTLC on a local EVM chain
+npm run demo:donor     # the donor agent: co-pilot memo + approval, then autopilot
 ```
 
 - **Real use on mainnet:** install BSV Desktop, then `npm run server` and `npm run app`.
@@ -81,6 +83,8 @@ The table of which standard is used where is in the technical README.
 | [`docs/TECHNICAL_README.md`](docs/TECHNICAL_README.md) | architecture, the contract, wallet flows, agents, costs |
 | [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md) | problem, users, value for BSV, mainnet transactions |
 | [`docs/USE_CASES.md`](docs/USE_CASES.md) | 20 scenarios for agents raising and giving |
+| [`docs/HAPPY_PATHS.md`](docs/HAPPY_PATHS.md) | every happy path, how to check it, what doesn't work yet |
+| [`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md) | the 2.5-minute demo video, one page |
 | [`docs/VERIFICATION_PLAN.md`](docs/VERIFICATION_PLAN.md) | how each piece is verified, normal and edge cases |
 | [`docs/AGENT_TEST_PLAN.md`](docs/AGENT_TEST_PLAN.md) | edge-case tests for the three agents |
 | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) | real money from other chains, DeFi and CeFi |

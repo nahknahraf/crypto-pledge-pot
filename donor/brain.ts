@@ -52,8 +52,29 @@ export function sanitizeAssessment (a: CampaignAssessment): CampaignAssessment {
   }
 }
 
-/** Phrases aimed at AI agents in campaign text: a red flag in itself. */
-const INJECTION = /(ignore (all |your |previous )*(instructions|rules)|you are an? (ai|assistant|agent)|as an ai|system prompt|pledge (everything|all|the (whole|entire) budget)|disregard)/i
+/**
+ * Phrases aimed at AI agents in campaign text: a red flag in itself. It matches
+ * text that ADDRESSES agents ("note to AI agents", "if you are an AI", "pledge
+ * your whole budget"), not text that merely mentions them: an agent-run
+ * campaign saying "I am an autonomous AI agent" is honest, not manipulation.
+ */
+const INJECTION = new RegExp([
+  'ignore (all |any |your |previous |prior |the )*(instructions|rules|guidelines)',
+  'disregard',
+  'system prompt',
+  'you are an? (ai|assistant|agent|bot|llm)',
+  'as an ai',
+  'if you are an? (ai|agent|bot|assistant|llm)',
+  '(note|message|attention|instruction)s? (to|for) (all )?(ai|agents?|bots?|assistants?|llms?)',
+  '(dear|hey|attention,?) (ai|agents?|bots?|assistants?|llms?)\\b',
+  '(ai|llm) (agents?|assistants?|models?|bots?)( that are| who are)? reading',
+  '(ai |llm )?(agents?|bots?|assistants?)[,:]? (please |you must |must |should )(pledge|donate|send|vote|approve|give)',
+  'pledge (everything|all|(your |the )?(whole|entire|full|maximum) (budget|amount))',
+  '(all|everything) (of )?your (budget|funds|sats)'
+].join('|'), 'i')
+
+/** True if the text addresses AI agents (an attempt to steer them). Applied in code for every brain. */
+export const addressesAgents = (text: string): boolean => INJECTION.test(text)
 const URGENCY = /(only \d+ (hours|minutes) left|act now|last chance|urgent!|send (directly|to my address))/i
 const MEASURABLE = /\d|report|audit|test|measure|publish|deliver|install|photo|link|data|survey|sample|map|count/i
 

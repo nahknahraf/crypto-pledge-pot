@@ -32,7 +32,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 ## Edge cases: agents
 
 - [ ] Fundraising agent F1–F14. First F1 (paid but no data), F5 (no double pay on retry), F14 (no report before its anchor). F12 (single instance) needs a lock file.
-- [ ] Donor agent D1–D13. First D3, D4, D5 (the chain beats a lying server; needs code), D10 (scan every text field; needs code).
+- [ ] Donor agent D1–D13. First D3, D4, D5 (the chain beats a lying server; needs code). D10 is partly done: the agent-addressing rule now runs in code for every brain, over the title, the description and the milestone titles, plus reports.
 - [ ] Liquidity agent S1–S11. S4 (LP restart) needs **persisted swap state**: today it lives in memory only. S10 needs confirmations on the source chain.
 - [ ] A live-model eval: 20 scenarios × 3 runs, saved to `AGENT_EVAL_RESULTS.md`.
 
