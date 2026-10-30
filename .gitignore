@@ -20,3 +20,4 @@ data/donor-mandate.json
 data/lp.key
 data/lp-wallet.sqlite*
 data/lp-swaps.json*
+data/*.lock

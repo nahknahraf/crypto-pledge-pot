@@ -23,6 +23,7 @@ import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { anvil, base, baseSepolia } from 'viem/chains'
 import { fileStore } from '../agent/ledger'
+import { acquireLock } from '../agent/lock'
 import { createToolboxWallet, loadOrCreateKey } from '../agent/wallet'
 import { wocSpendSource } from '../server/watcher'
 import type { SpendFinder } from './bsv'
@@ -35,6 +36,7 @@ const env = process.env
 const need = (k: string): string => { const v = env[k] ?? ''; if (v === '') { console.error(`${k} is required`); process.exit(1) } return v }
 
 const network = env.NETWORK === 'test' ? 'test' : 'main'
+acquireLock(path.resolve('data', 'lp.lock')) // one liquidity agent per state: two would lock sats twice
 const evmChain = env.BRIDGE_CHAIN === 'base' ? base : env.BRIDGE_CHAIN === 'anvil' ? anvil : baseSepolia
 const lpEvm = privateKeyToAccount(need('LP_EVM_KEY') as Hex)
 const evm = new EvmUsdcChain({ name: `USDC on ${evmChain.name}`, rpcUrl: need('BRIDGE_RPC_URL'), chain: evmChain, htlc: need('BRIDGE_HTLC') as Hex, token: need('BRIDGE_TOKEN') as Hex, signers: [lpEvm], confirmations: evmChain.id === anvil.id ? 1 : 2 })

@@ -21,6 +21,7 @@ import { CryptoPledgePot } from '../client/cryptoPledgePot'
 import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
 import { fileStore } from '../agent/ledger'
+import { acquireLock } from '../agent/lock'
 import { createToolboxWallet, loadOrCreateKey } from '../agent/wallet'
 import { defaultDonorBrain } from './brain'
 import { DonorAgent, type StepSummary } from './donorAgent'
@@ -30,6 +31,7 @@ import { MemoBook, type Memo } from './memo'
 
 const network = process.env.NETWORK === 'test' ? 'test' : 'main'
 const dataDir = path.resolve('data')
+acquireLock(path.join(dataDir, 'donor.lock')) // one donor agent per state: two would pledge twice
 const mandateFile = process.env.DONOR_MANDATE ?? path.join(dataDir, 'donor-mandate.json')
 if (!fs.existsSync(mandateFile)) {
   console.error(`No terms found at ${mandateFile}. Copy donor-mandate.example.json there and edit it.`)

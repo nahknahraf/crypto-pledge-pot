@@ -25,6 +25,7 @@ import { defaultBrain } from './brain'
 import { createActivityLog } from './activity'
 import { createAgentApp } from './http'
 import { fileStore, Ledger, type AgentState, type SpendEntry } from './ledger'
+import { acquireLock } from './lock'
 import { createCappedPayer } from './pay402'
 import { createToolboxWallet, loadOrCreateKey } from './wallet'
 
@@ -35,6 +36,7 @@ const args = new Set(process.argv.slice(2))
 async function main (): Promise<void> {
   const chain = env('NETWORK', 'main') === 'test' ? 'test' : 'main'
   const dataDir = path.resolve('data')
+  acquireLock(path.join(dataDir, 'agent.lock')) // one agent per state: two would pay twice
   const setup = await createToolboxWallet({
     chain,
     rootKey: loadOrCreateKey('AGENT_ROOT_KEY', path.join(dataDir, 'agent.key')),

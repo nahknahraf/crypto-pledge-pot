@@ -1907,3 +1907,8 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 Test (`agent.e2e`): the anchor fails once. Nothing is posted, the milestone isn't marked done, and 2 payments are in the ledger. The retry anchors and posts one report that contains both earlier txids and a real anchor link, and buys nothing new. It fails on the old code (checked with a stash).
 
 **8.15 A pledge whose SPV proof fails is refused** (§4). The other tests use the mock chain's tracker, which accepts its own proofs. This test serves the same index from a second process whose block headers confirm nothing. The donation is refused with an SPV error, and `raised` stays 0. The code was already right; this is the proof.
+
+**8.16 One process per agent** (F12). `agent/lock.ts`: `acquireLock(file)` writes the pid with `wx`. If a **live** process holds the lock, it refuses ("another process … is already running"). A lock left by a dead process is taken over. The three entry points take `data/agent.lock`, `data/donor.lock` and `data/lp.lock`; two copies on the same state would pay, pledge or lock sats twice.
+- Tests: refused while held, works after release; a stale lock is taken over.
+- Checked for real: two `npm run lp` against one Anvil, and the second is refused.
+- `data/*.lock` is now gitignored.
