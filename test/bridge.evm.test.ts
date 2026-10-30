@@ -120,6 +120,19 @@ describe.skipIf(anvilBinary() === undefined)('bridge on a real EVM chain (Anvil)
     expect(cautious.state(r.quote.id)).toBe('locked')
   }, 120_000)
 
+  it('with an EIP-2612 permit the donor locks in ONE transaction (two without), and the lock is the same', async () => {
+    const withPermit = new EvmUsdcChain({ ...evm.opts, permit: true })
+    const txCount = async (): Promise<number> => await evm.client.getTransactionCount({ address: fay.address, blockTag: 'latest' })
+    let before = await txCount()
+    const { hashlock } = newSecret()
+    const id1 = await withPermit.account(fay.address).lock({ receiver: lpAccount.address, amount: 5 * USDC, hashlock, refundAfter: (await evm.now()) + 3600 })
+    expect(await txCount() - before).toBe(1)
+    before = await txCount()
+    const id2 = await evm.account(fay.address).lock({ receiver: lpAccount.address, amount: 5 * USDC, hashlock, refundAfter: (await evm.now()) + 3600 })
+    expect(await txCount() - before).toBe(2)
+    for (const id of [id1, id2]) expect(await evm.htlc(id)).toMatchObject({ state: 'locked', amount: 5 * USDC, hashlock, sender: fay.address })
+  }, 120_000)
+
   it('the contract itself refuses a wrong secret, a stranger, and a second claim', async () => {
     const { secret, hashlock } = newSecret()
     const id = await evm.account(fay.address).lock({ receiver: lpAccount.address, amount: 10 * USDC, hashlock, refundAfter: (await evm.now()) + 3600 })

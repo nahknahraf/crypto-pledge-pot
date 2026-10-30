@@ -1952,3 +1952,9 @@ The other §6 cases (the user cancels in the wallet, too few sats) fail inside t
 - **The donor never claims.** The agent refunds its sats at T2. The donor's early refund is refused ("early"); at T1 it works. The agent ends with 0 USDC.
 - **A short-changing agent.** It locks 100,000 sats less than quoted. The donor refuses to claim and gets the USDC back at T1.
 - To make the BSV refund valid on the mock chain, `startAnvil` takes a start `timestamp`. The EVM clock starts 30 days in the past, like the mock chain's clock in the other swap tests.
+
+**8.23 Locking USDC in one transaction** (bridging TBD):
+- `HashedTimelockERC20.lockWithPermit` takes an EIP-2612 permit instead of a prior `approve`. A front-run permit is tolerated: the allowance is already set. `lock` and `lockWithPermit` share one private `_lock`.
+- `TestUSDC` implements `permit` like real USDC (version "2").
+- `EvmUsdcChain({ permit: true })` signs the EIP-712 permit with the donor's account (`signTypedData`) and calls `lockWithPermit`. It's off by default, so nothing existing changes.
+- Test (`bridge.evm`): the donor's nonce goes up by 1 with permit and by 2 without; both locks are identical on chain.

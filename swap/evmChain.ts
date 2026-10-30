@@ -15,7 +15,7 @@
  * browser the donor's own EVM wallet would sign instead (EIP-1193); see
  * docs/BRIDGING_PLAN.md.
  */
-import { createPublicClient, createWalletClient, getAddress, http, parseEventLogs, type Abi, type Account, type Address, type Chain, type Hex, type PublicClient } from 'viem'
+import { createPublicClient, createWalletClient, getAddress, http, parseEventLogs, parseSignature, type Abi, type Account, type Address, type Chain, type Hex, type PublicClient } from 'viem'
 import artifacts from '../evm/artifacts.json'
 import type { SourceAccount, SourceChain, SourceHtlc } from './usdcChain'
 
@@ -34,6 +34,8 @@ export interface EvmChainOptions {
   signers: Account[]
   /** Blocks to wait after each transaction (1 on Anvil, more on a public chain). */
   confirmations?: number
+  /** Lock with an EIP-2612 permit (one transaction) instead of approve + lock (two). The token must support it, as USDC does. */
+  permit?: boolean
 }
 
 const STATES = ['none', 'locked', 'claimed', 'refunded'] as const
@@ -70,6 +72,22 @@ export class EvmUsdcChain implements SourceChain {
     return h
   }
 
+  /** deadline, v, r, s of an EIP-2612 permit letting the HTLC pull `value` from `owner`. */
+  private async permitSignature (signer: Account | undefined, owner: Address, value: bigint): Promise<[bigint, number, Hex, Hex]> {
+    if (signer?.signTypedData === undefined) throw new Error(`${this.name}: no signer for ${owner} that can sign a permit`)
+    const read = async (functionName: string, args: unknown[] = []): Promise<unknown> => await this.client.readContract({ address: this.opts.token, abi: TOKEN_ABI, functionName, args })
+    const [name, version, nonce] = await Promise.all([read('name'), read('version'), read('nonces', [owner])]) as [string, string, bigint]
+    const deadline = BigInt(await this.now()) + 3600n
+    const signature = await signer.signTypedData({
+      domain: { name, version, chainId: this.opts.chain.id, verifyingContract: this.opts.token },
+      types: { Permit: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] },
+      primaryType: 'Permit',
+      message: { owner, spender: this.opts.htlc, value, nonce, deadline }
+    })
+    const { r, s, v } = parseSignature(signature)
+    return [deadline, Number(v ?? 27n), r, s]
+  }
+
   account (address: string): SourceAccount {
     const signer = this.signers.get(address.toLowerCase())
     const addr = getAddress(address)
@@ -87,8 +105,14 @@ export class EvmUsdcChain implements SourceChain {
       address: addr,
       balance: async () => Number(await this.client.readContract({ address: this.opts.token, abi: TOKEN_ABI, functionName: 'balanceOf', args: [addr] }) as bigint),
       lock: async ({ receiver, amount, hashlock, refundAfter }) => {
-        await write(this.opts.token, TOKEN_ABI, 'approve', [this.opts.htlc, BigInt(amount)])
-        const hash = await write(this.opts.htlc, HTLC_ABI, 'lock', [getAddress(receiver), this.opts.token, BigInt(amount), hex32(hashlock), BigInt(refundAfter)])
+        const args = [getAddress(receiver), this.opts.token, BigInt(amount), hex32(hashlock), BigInt(refundAfter)]
+        let hash: Hex
+        if (this.opts.permit === true) {
+          hash = await write(this.opts.htlc, HTLC_ABI, 'lockWithPermit', [...args, ...await this.permitSignature(signer, addr, BigInt(amount))])
+        } else {
+          await write(this.opts.token, TOKEN_ABI, 'approve', [this.opts.htlc, BigInt(amount)])
+          hash = await write(this.opts.htlc, HTLC_ABI, 'lock', args)
+        }
         const receipt = await this.client.getTransactionReceipt({ hash })
         const [locked] = parseEventLogs({ abi: HTLC_ABI, eventName: 'Locked', logs: receipt.logs }) as unknown as Array<{ args: { id: Hex } }>
         if (locked === undefined) throw new Error(`${this.name}: no Locked event in ${hash}`)

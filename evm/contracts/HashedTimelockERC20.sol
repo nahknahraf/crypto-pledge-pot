@@ -7,6 +7,10 @@ interface IERC20 {
     function balanceOf(address who) external view returns (uint256);
 }
 
+interface IERC20Permit {
+    function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+}
+
 /// The other-chain half of a CryptoPledgePot atomic swap.
 ///
 /// The sender locks ERC-20 tokens for a receiver under sha256(secret), the
@@ -35,6 +39,17 @@ contract HashedTimelockERC20 {
     event Refunded(bytes32 indexed id);
 
     function lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external returns (bytes32 id) {
+        return _lock(receiver, token, amount, hashlock, refundAfter);
+    }
+
+    /// The same as lock, with an EIP-2612 permit instead of a separate approve transaction (USDC supports it).
+    /// If someone front-runs the permit, it is already spent but the allowance is set, so the lock still works.
+    function lockWithPermit(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external returns (bytes32 id) {
+        try IERC20Permit(token).permit(msg.sender, address(this), amount, deadline, v, r, s) {} catch {}
+        return _lock(receiver, token, amount, hashlock, refundAfter);
+    }
+
+    function _lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) private returns (bytes32 id) {
         require(receiver != address(0), "receiver");
         require(amount > 0, "amount");
         require(refundAfter > block.timestamp, "refundAfter");
