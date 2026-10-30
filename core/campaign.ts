@@ -12,6 +12,7 @@
  */
 import { Hash, OP, Script, Utils, type LockingScript, type WalletProtocol } from '@bsv/sdk'
 import { cumulativeSchedule, MAX_MILESTONES, pledgeLockingScript, type PledgeTerms } from './pledge'
+import { validatePaymentPlan, verifyPaymentPlanSignature, type PaymentPlan } from './paymentPlan'
 
 /**
  * Protocol tag: names the OP_RETURN records and every key-derivation protocol.
@@ -69,6 +70,13 @@ export interface CampaignMeta {
   kind?: 'agent'
   /** Where the agent publishes its status and spend ledger (http(s) URL). */
   agentUrl?: string
+  /**
+   * NGO payment plan (core/paymentPlan.ts): how each milestone's money will be
+   * spent. Part of the campaign id, so it is fixed once the campaign exists.
+   */
+  paymentPlan?: PaymentPlan
+  /** The creator's signature over the plan (DER hex, PAYMENT_PLAN_PROTOCOL, keyID = nonce, counterparty 'anyone'). */
+  paymentPlanSignature?: string
 }
 
 /** JSON with sorted keys, no whitespace: the form that is hashed and anchored. */
@@ -105,6 +113,17 @@ export function validateCampaign (meta: CampaignMeta): void {
   if (!Number.isSafeInteger(meta.createdAt)) fail('createdAt must be unix seconds')
   if (meta.kind !== undefined && meta.kind !== 'agent') fail('kind must be "agent" when set')
   if (meta.agentUrl !== undefined && (!/^https?:\/\/[^\s]+$/.test(meta.agentUrl) || meta.agentUrl.length > 200)) fail('agentUrl must be an http(s) URL')
+  if ((meta.paymentPlan === undefined) !== (meta.paymentPlanSignature === undefined)) fail('a payment plan needs the creator\'s signature, and a signature needs a plan')
+  if (meta.paymentPlan !== undefined) {
+    try { validatePaymentPlan(meta.paymentPlan, meta.milestones.length) } catch (e) { fail((e as Error).message) }
+    if (!/^([0-9a-f]{2}){8,80}$/.test(meta.paymentPlanSignature ?? '')) fail('paymentPlanSignature must be a DER signature in hex')
+  }
+}
+
+/** True when the campaign has no payment plan, or its plan carries a valid signature by the creator. */
+export async function paymentPlanSigned (meta: CampaignMeta): Promise<boolean> {
+  if (meta.paymentPlan === undefined) return true
+  return await verifyPaymentPlanSignature(meta.paymentPlan, meta.paymentPlanSignature ?? '', meta.creatorIdentityKey, meta.nonce)
 }
 
 /** Escrow terms for a pledge of `satoshis` from `donorKey` to this campaign. */

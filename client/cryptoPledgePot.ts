@@ -10,6 +10,9 @@
  *                       land in the creator's wallet as change
  *   refund()   donor    reclaim: alone after refundAfter (nLockTime), or with
  *                       the arbiter's co-signature if the campaign failed
+ *   payPlanLine() / reportSpending()
+ *              creator  pay a payment-plan budget line and prove it (SPV), or
+ *                       report an auditor-signed off-chain invoice
  */
 import { Hash, Random, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
 import {
@@ -42,6 +45,7 @@ import {
   cumulativeSchedule,
   parsePledgeScript
 } from '../core/pledge'
+import { lineOf, PAYMENT_PLAN_PROTOCOL, paymentPlanHash, type PaymentPlan, type SpendClaim, type SpendingResult } from '../core/paymentPlan'
 import type { PledgeView } from '../core/api'
 import type { CryptoPledgePotApi } from './cryptoPledgePotApi'
 
@@ -55,6 +59,8 @@ export interface LaunchInput {
   milestones: Milestone[]
   kind?: 'agent'
   agentUrl?: string
+  /** NGO payment plan: signed by this wallet and fixed into the campaign id. */
+  paymentPlan?: PaymentPlan
 }
 
 /** Release at most this many escrows per transaction. */
@@ -114,6 +120,16 @@ export class CryptoPledgePot {
       createdAt: Math.floor(Date.now() / 1000),
       kind: input.kind,
       agentUrl: input.agentUrl
+    }
+    if (input.paymentPlan !== undefined) {
+      const { signature } = await this.wallet.createSignature({
+        hashToDirectlySign: paymentPlanHash(input.paymentPlan),
+        protocolID: PAYMENT_PLAN_PROTOCOL,
+        keyID: nonce,
+        counterparty: 'anyone'
+      }, this.originator)
+      meta.paymentPlan = input.paymentPlan
+      meta.paymentPlanSignature = hex(signature)
     }
     validateCampaign(meta)
     const res = await this.wallet.createAction({
@@ -194,6 +210,33 @@ export class CryptoPledgePot {
   /** Post a progress report for milestone k (opens the donor vote). */
   async postUpdate (campaignId: string, milestone: number, note: string): Promise<void> {
     await this.api.postUpdate(campaignId, milestone, note)
+  }
+
+  /**
+   * Pay a budget line of the payment plan to its on-chain payee from this
+   * wallet, and report the payment (the server checks it by SPV).
+   */
+  async payPlanLine (campaignId: string, milestone: number, lineId: string, satoshis: number, note?: string): Promise<{ txid: string, spending: SpendingResult }> {
+    const { meta } = await this.api.campaign(campaignId)
+    const line = meta.paymentPlan !== undefined ? lineOf(meta.paymentPlan, milestone, lineId) : undefined
+    if (line === undefined) throw new Error(`no budget line "${lineId}" in milestone ${milestone}`)
+    const payee = line.payee
+    if (payee.kind !== 'onchain') throw new Error(`${payee.name} is paid off chain: report the auditor-signed invoice with reportSpending()`)
+    const res = await this.wallet.createAction({
+      description: `Pay ${payee.name}`.slice(0, 50).padEnd(5, '.'),
+      labels: ['cryptopledgepot', 'payment plan'],
+      outputs: [{ lockingScript: payee.lockingScript, satoshis, outputDescription: `${line.category}`.slice(0, 50).padEnd(5, '.') }],
+      options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
+    }, this.originator)
+    if (res.tx === undefined || res.txid === undefined) throw new Error('wallet did not return the payment transaction')
+    const vout = Transaction.fromAtomicBEEF(res.tx).outputs.findIndex(o => o.lockingScript.toHex() === payee.lockingScript && o.satoshis === satoshis)
+    const spending = await this.reportSpending(campaignId, milestone, [{ lineId, beef: hex(res.tx), vout, note }])
+    return { txid: res.txid, spending }
+  }
+
+  /** Report expenses against the payment plan: on-chain payments (AtomicBEEF + vout) or auditor-signed invoices. */
+  async reportSpending (campaignId: string, milestone: number, claims: Array<SpendClaim & { beef?: string }>): Promise<SpendingResult> {
+    return await this.api.reportSpending(campaignId, milestone, claims)
   }
 
   // ── donor ────────────────────────────────────────────────────────────────

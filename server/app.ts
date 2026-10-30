@@ -20,6 +20,7 @@ import {
   protocolsFor,
   campaignIdOf,
   LIMITS,
+  paymentPlanSigned,
   parseCryptoPledgePotRecord,
   pledgeScriptFor,
   pledgeTerms,
@@ -28,8 +29,9 @@ import {
   type ProtocolTag
 } from '../core/campaign'
 import { ALL_SCOPE, cumulativeSchedule, escrowedAfter, METHOD, MIN_PLEDGE, scheduleIsStrict, parsePledgeScript, pledgeLockingScript, preimage } from '../core/pledge'
-import type { CampaignDetail, CampaignEvent, ReleasablePledges, SpendablePledge } from '../core/api'
-import { CryptoPledgePotDb, type PledgeRow } from './db'
+import { PLAN_LIMITS, verifySpendClaim, type SpendClaim } from '../core/paymentPlan'
+import type { CampaignDetail, CampaignEvent, ReleasablePledges, SpendablePledge, SpendView } from '../core/api'
+import { CryptoPledgePotDb, type PledgeRow, type SpendRow } from './db'
 import { connectionCap, rateLimit } from './rateLimit'
 import { campaignView, mayRefundEarly, mayRelease, pledgeView } from './policy'
 
@@ -177,8 +179,8 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
   async function loadView (id: string) {
     const c = await db.campaign(id)
     if (c === undefined) throw new HttpError(404, 'campaign not found')
-    const [pledges, releases, updates, votes] = await Promise.all([db.pledges(id), db.releases(id), db.updates(id), db.votes(id)])
-    return { c, pledges, view: campaignView(c, pledges, releases, updates, votes, now()) }
+    const [pledges, releases, updates, votes, spends] = await Promise.all([db.pledges(id), db.releases(id), db.updates(id), db.votes(id), db.spends(id)])
+    return { c, pledges, view: campaignView(c, pledges, releases, updates, votes, now(), spends) }
   }
 
   async function spv (tx: Transaction): Promise<void> {
@@ -238,6 +240,13 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
     const ping = setInterval(() => res.write(': ping\n\n'), 25_000)
     req.on('close', () => { clearInterval(ping); listeners.get(id)?.delete(res) })
   })
+
+  /** Every verified expense the NGO reported against its payment plan. */
+  app.get('/api/campaigns/:id/spends', wrap(async (req): Promise<SpendView[]> => {
+    const c = await db.campaign(String(req.params.id))
+    if (c === undefined) throw new HttpError(404, 'campaign not found')
+    return (await db.spends(c.id)).map(({ milestone, lineId, outpoint, invoiceSha256, note, verifiedSats, reason, createdAt }) => ({ milestone, lineId, outpoint, invoiceSha256, note, verifiedSats, reason, createdAt }))
+  }))
 
   app.get('/api/donors/:identityKey/pledges', wrap(async (req) => {
     const rows = await db.pledgesByDonor(String(req.params.identityKey))
@@ -325,6 +334,7 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
       if (r?.kind !== 'campaign') continue
       try { validateCampaign(r.meta) } catch (e) { result.skipped.push(`campaign ${r.campaignId}: ${(e as Error).message}`); continue }
       if (r.meta.arbiterKey !== await arbiterKey(r.meta.nonce, r.tag)) { result.skipped.push(`campaign ${r.campaignId}: arbiter key is not this server's`); continue }
+      if (!(await paymentPlanSigned(r.meta))) { result.skipped.push(`campaign ${r.campaignId}: payment plan signature is invalid`); continue }
       if (await db.campaign(r.campaignId) !== undefined) { result.skipped.push(`campaign ${r.campaignId}: already indexed`); continue }
       await db.insertCampaign({ id: r.campaignId, meta: r.meta, creatorIdentity: r.meta.creatorIdentityKey, anchorTxid: txid, createdAt: now(), protocolTag: r.tag })
       result.campaigns.push(r.campaignId)
@@ -396,6 +406,7 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
     if (meta.creatorIdentityKey !== identity) throw new HttpError(403, 'creatorIdentityKey must be the authenticated identity')
     if (meta.deadline <= now()) throw new HttpError(400, 'deadline must be in the future')
     if (meta.arbiterKey !== await arbiterKey(meta.nonce)) throw new HttpError(400, 'arbiterKey is not this server\'s arbiter key for the nonce')
+    if (!(await paymentPlanSigned(meta))) throw new HttpError(400, 'the payment plan is not signed by the creator')
     const id = campaignIdOf(meta)
     if (await db.campaign(id) !== undefined) throw new HttpError(409, 'campaign already registered')
     const { tx, bytes } = parseAtomic(req.body?.anchorBeef)
@@ -467,6 +478,61 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
     await db.putUpdate({ campaignId: c.id, milestone: k, note, createdAt: now() })
     emit(c.id, { type: 'update', milestone: k })
     return { ok: true }
+  }))
+
+  /**
+   * The NGO reports what it spent from released milestone k, against its
+   * payment plan. Body: { claims: [{ lineId, beef?, vout?, sats?, invoiceSha256?, attestation?, note? }] }.
+   * On-chain lines: `beef` is the payment's AtomicBEEF; it must pass SPV and
+   * pay the line's payee script. Off-chain lines: the auditor's signature over
+   * the invoice. Every claim is checked before any is stored; a payment output
+   * or invoice counts only once.
+   */
+  app.post('/api/campaigns/:id/milestones/:k/spending', wrap(async (req) => {
+    const identity = caller(req)
+    const { c, view } = await loadView(String(req.params.id))
+    const plan = c.meta.paymentPlan
+    const k = Number(req.params.k)
+    if (identity !== c.meta.creatorIdentityKey) throw new HttpError(403, 'only the creator reports spending')
+    if (plan === undefined) throw new HttpError(400, 'this campaign has no payment plan')
+    if (!Number.isInteger(k) || k < 1 || k > c.meta.milestones.length) throw new HttpError(400, 'no such milestone')
+    if (!view.milestones[k - 1].released) throw new HttpError(400, `milestone ${k} has not been released yet`)
+    const claims = req.body?.claims as Array<SpendClaim & { beef?: string }>
+    if (!Array.isArray(claims) || claims.length < 1 || claims.length > 50) throw new HttpError(400, 'claims must be a list of 1–50 expenses')
+    const rows: SpendRow[] = []
+    const txs: Array<{ txid: string, bytes: number[] }> = []
+    const seen = new Set<string>()
+    for (const claim of claims) {
+      const note = typeof claim.note === 'string' ? claim.note.trim().slice(0, PLAN_LIMITS.note) || null : null
+      let outpoint: string | null = null
+      let output: { satoshis: number, lockingScript: string } | undefined
+      if (claim.beef !== undefined) {
+        const { tx, bytes } = parseAtomic(claim.beef)
+        const vout = Number(claim.vout)
+        const o = tx.outputs[vout]
+        if (!Number.isInteger(vout) || o === undefined) throw new HttpError(400, `line ${claim.lineId}: no output ${String(claim.vout)}`)
+        await spv(tx)
+        outpoint = `${tx.id('hex')}.${vout}`
+        output = { satoshis: o.satoshis ?? 0, lockingScript: o.lockingScript.toHex() }
+        txs.push({ txid: tx.id('hex'), bytes })
+      } else if (claim.invoiceSha256 !== undefined && !isHex(claim.invoiceSha256, 32)) {
+        throw new HttpError(400, `line ${claim.lineId}: invoiceSha256 must be 32 bytes hex`)
+      }
+      const key = outpoint ?? `invoice:${String(claim.invoiceSha256)}`
+      if (seen.has(key) || (outpoint !== null && await db.spendAt(outpoint) !== undefined)) throw new HttpError(409, `line ${claim.lineId}: that payment is already reported`)
+      seen.add(key)
+      const v = await verifySpendClaim(plan, c.id, k, { ...claim, sats: claim.sats === undefined ? undefined : Number(claim.sats) }, output)
+      if (!v.ok) throw new HttpError(400, `line ${claim.lineId}: ${v.reason}`)
+      rows.push({ campaignId: c.id, milestone: k, lineId: v.lineId, outpoint, invoiceSha256: outpoint === null ? claim.invoiceSha256!.toLowerCase() : null, attestation: outpoint === null ? claim.attestation ?? null : null, note, verifiedSats: v.verifiedSats, reason: v.reason, createdAt: now() })
+    }
+    try {
+      await db.transaction(async t => { for (const r of rows) await t.insertSpend(r) })
+    } catch {
+      throw new HttpError(409, 'a payment or invoice in this report is already reported')
+    }
+    for (const t of txs) await db.putTx(t.txid, Utils.toHex(t.bytes))
+    emit(c.id, { type: 'spending', milestone: k })
+    return (await loadView(c.id)).view.milestones[k - 1].spending
   }))
 
   /** Donor vote on milestone k. Weight = the voter's active pledged satoshis. */

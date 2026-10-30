@@ -34,6 +34,21 @@ export interface PledgeRow {
 export interface ReleaseRow { campaignId: string, milestone: number, txid: string, amount: number, createdAt: number }
 export interface UpdateRow { campaignId: string, milestone: number, note: string, createdAt: number }
 export interface VoteRow { campaignId: string, milestone: number, voter: string, approve: boolean, createdAt: number }
+/** A verified expense the NGO reported against its payment plan. */
+export interface SpendRow {
+  id?: number
+  campaignId: string
+  milestone: number
+  lineId: string
+  /** On-chain payment output, `txid.vout` (null for an off-chain invoice). */
+  outpoint: string | null
+  invoiceSha256: string | null
+  attestation: string | null
+  note: string | null
+  verifiedSats: number
+  reason: string
+  createdAt: number
+}
 
 // knex is CommonJS: take the factory from the default export so plain Node ESM (tsx) works too.
 const makeKnex = ((knexPkg as any).knex ?? knexPkg) as typeof knexPkg
@@ -109,6 +124,22 @@ export class CryptoPledgePotDb {
         t.boolean('approve').notNullable()
         t.integer('created_at').notNullable()
         t.primary(['campaign_id', 'milestone', 'voter'])
+      })
+    }
+    if (!(await k.schema.hasTable('spends'))) {
+      await k.schema.createTable('spends', t => {
+        t.increments('id')
+        t.string('campaign_id', 64).notNullable().index()
+        t.integer('milestone').notNullable()
+        t.string('line_id', 32).notNullable()
+        t.string('outpoint', 80).unique() // a payment counts once, across all campaigns
+        t.string('invoice_sha256', 64)
+        t.string('attestation', 200)
+        t.string('note', 600)
+        t.bigInteger('verified_sats').notNullable()
+        t.string('reason', 300).notNullable()
+        t.integer('created_at').notNullable()
+        t.unique(['campaign_id', 'invoice_sha256'])
       })
     }
   }
@@ -207,12 +238,43 @@ export class CryptoPledgePotDb {
       .map(r => ({ campaignId: r.campaign_id, milestone: r.milestone, voter: r.voter, approve: Boolean(r.approve), createdAt: r.created_at }))
   }
 
+  // ── payment plan spending ──
+  async insertSpend (r: SpendRow): Promise<void> {
+    await this.knex('spends').insert({
+      campaign_id: r.campaignId, milestone: r.milestone, line_id: r.lineId, outpoint: r.outpoint, invoice_sha256: r.invoiceSha256,
+      attestation: r.attestation, note: r.note, verified_sats: r.verifiedSats, reason: r.reason, created_at: r.createdAt
+    })
+  }
+
+  async spends (campaignId: string): Promise<SpendRow[]> {
+    return (await this.knex('spends').where({ campaign_id: campaignId }).orderBy('id', 'asc')).map(spendFromRow)
+  }
+
+  async spendAt (outpoint: string): Promise<SpendRow | undefined> {
+    const r = await this.knex('spends').where({ outpoint }).first()
+    return r === undefined ? undefined : spendFromRow(r)
+  }
+
   async transaction<T> (fn: (db: CryptoPledgePotDb) => Promise<T>): Promise<T> {
     return await this.knex.transaction(async trx => await fn(new CryptoPledgePotDb(trx)))
   }
 }
 
 const campaignFromRow = (r: any): CampaignRow => ({ id: r.id, meta: JSON.parse(r.meta), creatorIdentity: r.creator_identity, anchorTxid: r.anchor_txid, createdAt: r.created_at, protocolTag: r.protocol_tag ?? 'cryptopledgepot' })
+
+const spendFromRow = (r: any): SpendRow => ({
+  id: r.id,
+  campaignId: r.campaign_id,
+  milestone: r.milestone,
+  lineId: r.line_id,
+  outpoint: r.outpoint,
+  invoiceSha256: r.invoice_sha256,
+  attestation: r.attestation,
+  note: r.note,
+  verifiedSats: Number(r.verified_sats),
+  reason: r.reason,
+  createdAt: r.created_at
+})
 
 const pledgeToRow = (p: PledgeRow): Record<string, unknown> => ({
   id: p.id,

@@ -5,7 +5,8 @@
  */
 import { AuthFetch, type WalletInterface } from '@bsv/sdk'
 import type { CampaignMeta } from '../core/campaign'
-import type { CampaignDetail, CampaignView, PledgeView, ReleasablePledges, SpendablePledge } from '../core/api'
+import type { SpendClaim, SpendingResult } from '../core/paymentPlan'
+import type { CampaignDetail, CampaignView, PledgeView, ReleasablePledges, SpendablePledge, SpendView } from '../core/api'
 
 export class CryptoPledgePotApi {
   private auth?: AuthFetch
@@ -44,6 +45,7 @@ export class CryptoPledgePotApi {
   campaign = async (id: string): Promise<CampaignDetail> => await this.get(`/api/campaigns/${id}`)
   pledge = async (id: string): Promise<SpendablePledge> => await this.get(`/api/pledges/${encodeURIComponent(id)}`)
   donorPledges = async (identityKey: string): Promise<Array<PledgeView & { campaignTitle: string }>> => await this.get(`/api/donors/${identityKey}/pledges`)
+  spends = async (campaignId: string): Promise<SpendView[]> => await this.get(`/api/campaigns/${campaignId}/spends`)
   releasable = async (campaignId: string): Promise<ReleasablePledges> => await this.get(`/api/campaigns/${campaignId}/releasable`)
 
   /** Report a release or refund transaction (AtomicBEEF hex) so the index follows the escrow. */
@@ -58,6 +60,9 @@ export class CryptoPledgePotApi {
   postUpdate = async (campaignId: string, milestone: number, note: string): Promise<void> => {
     await this.post(`/api/campaigns/${campaignId}/milestones/${milestone}/update`, { note })
   }
+
+  reportSpending = async (campaignId: string, milestone: number, claims: Array<SpendClaim & { beef?: string }>): Promise<SpendingResult> =>
+    await this.post(`/api/campaigns/${campaignId}/milestones/${milestone}/spending`, { claims })
 
   vote = async (campaignId: string, milestone: number, approve: boolean): Promise<void> => {
     await this.post(`/api/campaigns/${campaignId}/milestones/${milestone}/vote`, { approve })

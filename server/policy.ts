@@ -13,8 +13,9 @@
  */
 import { campaignStatus, type CampaignMeta } from '../core/campaign'
 import { escrowedAfter, cumulativeSchedule } from '../core/pledge'
+import { evaluateSpending } from '../core/paymentPlan'
 import type { CampaignView, MilestoneView, PledgeView } from '../core/api'
-import type { CampaignRow, PledgeRow, ReleaseRow, UpdateRow, VoteRow } from './db'
+import type { CampaignRow, PledgeRow, ReleaseRow, SpendRow, UpdateRow, VoteRow } from './db'
 
 export function pledgeView (meta: CampaignMeta, p: PledgeRow): PledgeView {
   const schedule = { pledged: p.amount, cumulativeBps: cumulativeSchedule(meta.milestones.map(m => m.percent)) }
@@ -27,7 +28,8 @@ export function campaignView (
   releases: ReleaseRow[],
   updates: UpdateRow[],
   votes: VoteRow[],
-  now: number
+  now: number,
+  spends: SpendRow[] = []
 ): CampaignView {
   const meta = c.meta
   const counted = pledges.filter(p => p.status !== 'refunded')
@@ -63,7 +65,10 @@ export function campaignView (
       update: update !== undefined ? { note: update.note, createdAt: update.createdAt } : undefined,
       votes: { yes, no, voters: ballots.length },
       approved: pending === undefined && raised > 0,
-      pending
+      pending,
+      spending: meta.paymentPlan !== undefined && releasedMilestones.has(index)
+        ? evaluateSpending(meta.paymentPlan, index, releasedFor(releases, index), spends.filter(s => s.milestone === index).map(s => ({ lineId: s.lineId, verifiedSats: s.verifiedSats, ok: true, reason: s.reason })))
+        : undefined
     }
   })
 
@@ -82,6 +87,10 @@ export function campaignView (
     milestones
   }
 }
+
+/** Satoshis released to the creator for milestone k (over all release transactions). */
+export const releasedFor = (releases: ReleaseRow[], k: number): number =>
+  releases.filter(r => r.milestone === k).reduce((s, r) => s + r.amount, 0)
 
 /** May the arbiter co-sign moving `pledge` from its stage to the next? */
 export function mayRelease (view: CampaignView, pledge: PledgeRow): boolean {
