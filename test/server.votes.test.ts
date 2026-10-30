@@ -51,12 +51,12 @@ describe('the vote rule: YES must hold MORE than 50 % of pledged sats', () => {
 })
 
 describe('registering pledges', () => {
-  let chain: MockChain, server: Server, url: string, creator: Wallet, donor: Wallet
+  let chain: MockChain, server: Server, url: string, creator: Wallet, donor: Wallet, db: CryptoPledgePotDb, arbiter: Wallet
   let clock = Math.floor(Date.now() / 1000) - 30 * 86_400
   beforeAll(async () => {
     chain = await createMockChain()
-    const db = new CryptoPledgePotDb(memoryKnex()); await db.migrate()
-    const arbiter = await chain.makeWallet()
+    db = new CryptoPledgePotDb(memoryKnex()); await db.migrate()
+    arbiter = await chain.makeWallet()
     await new Promise<void>(resolve => { server = createCryptoPledgePotApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => clock }).listen(0, () => resolve()) })
     url = `http://127.0.0.1:${(server.address() as any).port}`
     creator = await chain.makeWallet(); await chain.fund(creator, 50_000)
@@ -81,5 +81,19 @@ describe('registering pledges', () => {
     })
     clock += 601
     await expect(new CryptoPledgePot(donor, new CryptoPledgePotApi(url, donor)).donate(m, 1_000)).rejects.toThrow(/closed/)
+  }, 120_000)
+
+  it('a pledge whose proof the headers do not confirm is refused, and nothing is recorded', async () => {
+    const { meta: m, campaignId } = await new CryptoPledgePot(creator, new CryptoPledgePotApi(url, creator)).launch({
+      title: 'SPV', description: 'x', goal: 10_000, deadline: clock + 3_600, refundAfter: clock + 20 * 86_400, milestones: [{ title: 'All', percent: 100 }]
+    })
+    // The same index, served by a process whose block headers confirm nothing.
+    const lying = { isValidRootForHeight: async () => false, currentHeight: async () => 1_000_000 }
+    const strict: Server = await new Promise(resolve => { const s = createCryptoPledgePotApp({ wallet: arbiter, db, chainTracker: lying, now: () => clock }).listen(0, () => resolve(s)) })
+    try {
+      const strictUrl = `http://127.0.0.1:${(strict.address() as any).port}`
+      await expect(new CryptoPledgePot(donor, new CryptoPledgePotApi(strictUrl, donor)).donate(m, 1_000)).rejects.toThrow(/SPV|verif/i)
+      expect((await new CryptoPledgePotApi(url).campaign(campaignId)).raised).toBe(0)
+    } finally { await new Promise(r => strict.close(r)) }
   }, 120_000)
 })

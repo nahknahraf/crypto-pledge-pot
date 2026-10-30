@@ -1905,3 +1905,5 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 - **An anchor with no txid** would have been posted with an empty link. Now the agent refuses to post.
 
 Test (`agent.e2e`): the anchor fails once. Nothing is posted, the milestone isn't marked done, and 2 payments are in the ledger. The retry anchors and posts one report that contains both earlier txids and a real anchor link, and buys nothing new. It fails on the old code (checked with a stash).
+
+**8.15 A pledge whose SPV proof fails is refused** (§4). The other tests use the mock chain's tracker, which accepts its own proofs. This test serves the same index from a second process whose block headers confirm nothing. The donation is refused with an SPV error, and `raised` stays 0. The code was already right; this is the proof.
