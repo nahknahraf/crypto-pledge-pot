@@ -89,6 +89,10 @@ export class LiquidityAgent {
     if (s === undefined || s.state !== 'quoted') throw new Error('no open quote')
     const reject = (why: string): never => { s.state = 'rejected'; s.note = why; this.say(`rejected ${quoteId}: ${why}`); throw new Error(why) }
     if ((await this.source.now()) > s.quote.expiresAt) reject('the quote expired')
+    // One source lock pays for one BSV lock. Without this, a donor could present the same USDC lock
+    // against two quotes, claim both BSV locks with the one secret, and leave us one USDC claim.
+    if ([...this.swaps.values()].some(o => o !== s && o.state !== 'rejected' && o.sourceHtlcId === sourceHtlcId)) reject('that USDC lock is already used for another swap')
+    s.sourceHtlcId = sourceHtlcId // reserve it now: a concurrent call for the same lock sees it from here on
     const h = await this.source.htlc(sourceHtlcId)
     if (h === undefined || h.state !== 'locked') reject('no locked USDC found on the other chain')
     if (h!.receiver !== this.usdc.address) reject('the USDC lock does not pay this agent')

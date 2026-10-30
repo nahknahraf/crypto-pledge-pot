@@ -1817,3 +1817,21 @@ The code already behaved this way. One of my test fixtures was wrong: after remo
 The new test fails on the old code (checked with a stash).
 
 The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 3-escrow release in `cryptoPledgePot.e2e`.
+
+**8.5 Liquidity agent edge cases. A real hole, fixed** (AGENT_TEST_PLAN S2, S5, S6, S8, S9; `test/swap.edges.test.ts`).
+- **The hole (S5):** `acceptSourceLock` never checked whether a USDC lock had already been used.
+  1. A donor asks for two quotes of the same size and locks USDC once.
+  2. They present that one lock against both quotes, and the agent locks sats twice.
+  3. Both BSV locks use the same hashlock, so the donor's one secret claims both.
+  4. The agent can claim the USDC only once, so it loses a full swap's worth of sats.
+- **The fix:** one source lock pays for one BSV lock. The lock is **reserved before the first await**, so two requests in flight at once can't both pass the check.
+- **Tests:**
+  - sequential reuse is refused;
+  - concurrent reuse is refused, using a gate that holds the first request inside its chain lookup while the second one runs to completion.
+- **What broke while testing:** my first concurrency test also passed *without* the reservation. The wallet's own contention happened to fail one of the two calls. A mutation check caught this, and the gated version fails without the fix.
+- **Also tested:**
+  - quotes of 0, negative, fractional, or the maximum plus one are refused;
+  - non-compressed, truncated or uppercase donor keys are refused;
+  - open quotes count against inventory;
+  - a source timeout exactly at the minimum is accepted, and one second less is refused.
+- S1 ("wrong hashlock") doesn't apply to the LP: it locks with the hashlock it reads from the donor's lock. The donor side already checks that the BSV lock uses *its* hashlock.
