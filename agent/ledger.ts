@@ -17,6 +17,8 @@ export interface SpendEntry {
   sats: number
   txid?: string
   at: number
+  /** Paid, but the provider delivered nothing. The sats still count against the limits. */
+  failed?: boolean
 }
 
 export interface AgentState {

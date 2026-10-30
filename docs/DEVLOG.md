@@ -1842,3 +1842,12 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 - Once the budget is spent, it pledges 0.
 - From a model: NaN, ±Infinity, nulls and missing fields become 0 or empty, and non-string risk flags are dropped. A **string "80" scores 0, not 80**: we give no credit for a malformed answer. That was my test's wrong expectation, not a bug.
 - **Noted, not fixed:** in co-pilot without `donorIdentityKey` in the mandate, `approve` can't check *who* paid. This only affects the agent's bookkeeping, never funds, and is in TODO.
+
+**8.7 Fundraising agent: paid but not served, and a cap that held only within one run** (F1, F2, F5). **Two real gaps, fixed.**
+- **Paid but not served.** If the data API took the payment and then answered HTTP 500, or with a body that isn't JSON, the payer threw a plain error. The payment was never recorded: no ledger entry and no txid in the report. Backers couldn't see it, and the per-milestone cap didn't count it. Now the payer throws `PaidButNotServed` carrying the price and the txid. The agent records a ledger entry marked `failed: true`, includes it in the report's payment list, and moves on without retrying.
+- **The cap restarted on every run.** `work()` computed its budget as `min(cap, balance − reserve)` and counted only what *this run* spent. After a failed step or a restart mid-milestone, a second run could spend the whole cap again, breaking the limit the agent published on chain. Now the budget is the cap minus what the ledger already shows for that milestone.
+- **Tests:**
+  - the payer test sends real payments to the real provider, then spoils the answer both ways; the error carries 50 sats and a txid, and the provider really was paid;
+  - the agent test has a 500 on the first call: the ledger reads `[failed, ok, ok]` = 150 = the cap, and a second `work()` for the same milestone spends nothing.
+
+  With the old budget line, the agent test fails (mutation-checked).

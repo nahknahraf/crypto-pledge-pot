@@ -41,6 +41,14 @@ function paymentTxid (beefBase64: string): string | undefined {
   } catch { return undefined }
 }
 
+/**
+ * The payment went out but the provider did not deliver (an HTTP error or a body that is
+ * not JSON). The sats are spent: callers must record them, not retry blindly.
+ */
+export class PaidButNotServed extends Error {
+  constructor (message: string, readonly paid: number, readonly txid?: string) { super(message); this.name = 'PaidButNotServed' }
+}
+
 export function createCappedPayer (opts: Pay402Options) {
   const doFetch = opts.fetchImpl ?? fetch
   const wallet = withHostOriginator(opts.wallet)
@@ -61,7 +69,10 @@ export function createCappedPayer (opts: Pay402Options) {
 
     const headers = await constructPaymentHeaders(wallet, url, price, server)
     const paid = await doFetch(url, { headers: headers as unknown as Record<string, string> })
-    if (!paid.ok) throw new Error(`${url}: payment not accepted (HTTP ${paid.status}, payment header ${headers['x-bsv-beef'].length} bytes)`)
-    return { body: await paid.json() as T, paid: price, txid: paymentTxid(headers['x-bsv-beef']) }
+    const txid = paymentTxid(headers['x-bsv-beef'])
+    if (!paid.ok) throw new PaidButNotServed(`${url}: paid ${price} sats but got HTTP ${paid.status}`, price, txid)
+    let body: T
+    try { body = await paid.json() as T } catch { throw new PaidButNotServed(`${url}: paid ${price} sats but the answer is not JSON`, price, txid) }
+    return { body, paid: price, txid }
   }
 }

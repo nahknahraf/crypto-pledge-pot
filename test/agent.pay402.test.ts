@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Server } from 'node:http'
 import type { Wallet } from '@bsv/wallet-toolbox'
 import { createDataProviderApp, syntheticReading } from '../agent/dataProvider'
-import { createCappedPayer, PaymentRefused } from '../agent/pay402'
+import { createCappedPayer, PaidButNotServed, PaymentRefused } from '../agent/pay402'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
 let chain: MockChain
@@ -58,4 +58,22 @@ describe('capped 402 payer', () => {
     const pay = createCappedPayer({ wallet: agent, allowedHosts: [cheapUrl], maxPricePerCall: 10_000 })
     await expect(pay(`http://${priceyUrl}/data/munich`)).rejects.toThrow(/allow-list/)
   })
+
+  it('a provider that takes the payment and then fails: the error carries the price and the txid', async () => {
+    // Forward everything to the real provider (so the payment really happens), then spoil the paid answer.
+    for (const spoil of [async () => new Response('oops', { status: 500 }), async () => new Response('<html>not json</html>', { status: 200 })]) {
+      const fetchImpl: typeof fetch = async (input, init) => {
+        const r = await fetch(input, init)
+        return init?.headers !== undefined ? await spoil() : r
+      }
+      const pay = createCappedPayer({ wallet: agent, allowedHosts: [cheapUrl], maxPricePerCall: 100, fetchImpl })
+      const before = await spendable(provider)
+      const err = await pay(`http://${cheapUrl}/data/berlin`).catch(e => e)
+      expect(err).toBeInstanceOf(PaidButNotServed)
+      expect(err).toMatchObject({ paid: 50 })
+      expect(err.txid).toMatch(/^[0-9a-f]{64}$/)
+      expect(await spendable(provider)).toBe(before + 50) // the money really went
+    }
+  })
 })
+

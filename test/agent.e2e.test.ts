@@ -18,7 +18,7 @@ import { CryptoPledgePotAgent, type AgentConfig } from '../agent/agent'
 import { MockBrain, sanitizePlan, type Brain } from '../agent/brain'
 import { createDataProviderApp, serveDataProvider } from '../agent/dataProvider'
 import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../agent/ledger'
-import { createCappedPayer } from '../agent/pay402'
+import { createCappedPayer, PaidButNotServed } from '../agent/pay402'
 import { createMockChain, memoryKnex, type MockChain } from './helpers/mockchain'
 
 const T0 = Math.floor(Date.now() / 1000) - 30 * 86_400
@@ -173,6 +173,25 @@ describe('the agent cannot be talked into overspending', () => {
     const out = await (agent as any).work(view, 1)
     expect(out).toMatchObject({ action: 'worked', calls: 2, sats: 100 })
     expect(ledger.all()).toHaveLength(2)
+  })
+
+  it('a paid call that delivers nothing is recorded, counts against the cap, and is not paid twice', async () => {
+    const wallet = await chain.makeWallet()
+    await chain.fund(wallet, 20_000)
+    const { agent, ledger, state } = makeAgent(wallet) // cap 150 = 3 calls
+    let n = 0
+    ;(agent as any).deps.pay = async (url: string) => {
+      if (n++ === 0) throw new PaidButNotServed(`${url}: paid 50 sats but got HTTP 500`, 50, 'ab'.repeat(32))
+      return { body: { city: 'x', aqi: 1 }, paid: 50, txid: 'cd'.repeat(32) }
+    }
+    state.save({ campaignId: 'x', worked: [] })
+    const view: any = { id: 'x', meta: { milestones: [{ title: 'only', percent: 100 }] }, milestones: [{ index: 1, title: 'only', released: true }] }
+    await (agent as any).work(view, 1)
+    expect(ledger.all().map(e => e.failed === true)).toEqual([true, false, false])
+    expect(ledger.totals().sats).toBe(150)
+    // A second run for the same milestone (a restart, a failed step) finds the cap already used.
+    await (agent as any).work(view, 1)
+    expect(ledger.forMilestone(1).reduce((t, e) => t + e.sats, 0)).toBe(150)
   })
 
   it('an overpriced or unlisted API is refused, and nothing is paid', async () => {

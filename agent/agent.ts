@@ -22,7 +22,7 @@ import { reportRecordScript } from '../core/campaign'
 import type { Brain } from './brain'
 import type { AirQualityReport, City } from './dataProvider'
 import { Ledger, type AgentState, type Store } from './ledger'
-import { PaymentRefused, type PaidResponse } from './pay402'
+import { PaidButNotServed, PaymentRefused, type PaidResponse } from './pay402'
 
 export interface AgentConfig {
   /** What the service is for (shown to backers and given to the brain). */
@@ -119,7 +119,9 @@ export class CryptoPledgePotAgent {
   private async work (view: CampaignView, milestone: number): Promise<StepOutcome> {
     const m = view.milestones[milestone - 1]
     const balance = await this.spendable()
-    const budget = Math.max(0, Math.min(this.config.maxSpendPerMilestone, balance - this.config.feeReserve))
+    // The published cap is per milestone, across restarts and failed steps: subtract what the ledger already shows.
+    const already = this.deps.ledger.forMilestone(milestone).reduce((t, e) => t + e.sats, 0)
+    const budget = Math.max(0, Math.min(this.config.maxSpendPerMilestone - already, balance - this.config.feeReserve))
     const maxCalls = Math.floor(budget / this.config.pricePerCall)
     const bought = this.deps.ledger.all().map(e => e.topic)
     this.log(`milestone ${milestone} "${m.title}": balance ${balance} sats, budget ${budget} sats → up to ${maxCalls} calls`)
@@ -142,6 +144,14 @@ export class CryptoPledgePotAgent {
         this.log(`paid ${r.paid} sats for ${call.topic} (AQI ${r.body.aqi}) tx ${r.txid ?? '-'}`)
       } catch (e) {
         if (e instanceof PaymentRefused) { this.log(`refused to pay: ${e.message}`); continue }
+        if (e instanceof PaidButNotServed) {
+          // The money is gone: record it (it counts against the cap) and move on; never pay twice for it.
+          spent += e.paid
+          if (e.txid !== undefined) txids.push(e.txid)
+          this.deps.ledger.add({ milestone, topic: call.topic as City, why: call.why, url, sats: e.paid, txid: e.txid, at: Math.floor(Date.now() / 1000), failed: true })
+          this.log(`paid ${e.paid} sats for ${call.topic} but got nothing: ${e.message}`)
+          continue
+        }
         throw e
       }
     }
