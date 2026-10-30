@@ -1,0 +1,84 @@
+/**
+ * The bridge with the liquidity agent as its own service: a donor talks to it
+ * over HTTP only, the USDC side is the Solidity HTLC on Anvil, the BSV side
+ * the mock chain. Then the agent "crashes" after locking sats and a fresh
+ * process, reading the same state file, still collects the USDC (S4).
+ */
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import type { Server } from 'node:http'
+import os from 'node:os'
+import path from 'node:path'
+import { Transaction } from '@bsv/sdk'
+import type { Wallet } from '@bsv/wallet-toolbox'
+import { anvil as anvilChain } from 'viem/chains'
+import { fileStore } from '../agent/ledger'
+import { anvilAccount, anvilBinary, startAnvil, type Anvil } from '../swap/anvil'
+import type { SpendFinder } from '../swap/bsv'
+import { DonorSwap } from '../swap/donorSwap'
+import { deployBridgeContracts, EvmUsdcChain, mintTestUsdc } from '../swap/evmChain'
+import { DEFAULT_LIQUIDITY, LiquidityAgent, type LpSwap } from '../swap/liquidityAgent'
+import { LiquidityClient } from '../swap/lpClient'
+import { createLiquidityApp } from '../swap/lpHttp'
+import { USDC } from '../swap/usdcChain'
+import { createMockChain, type MockChain } from './helpers/mockchain'
+
+const deployer = anvilAccount(0); const donorEvm = anvilAccount(1); const lpEvm = anvilAccount(2)
+let node: Anvil, evm: EvmUsdcChain, chain: MockChain, lpWallet: Wallet, stateFile: string
+let server: Server, client: LiquidityClient
+
+const spendable = async (w: Wallet): Promise<number> => (await w.listOutputs({ basket: 'default', limit: 1000 })).outputs.filter(o => o.spendable).reduce((s, o) => s + o.satoshis, 0)
+const findSpend: SpendFinder = async (txid, vout) => {
+  const storage = (chain.services as any).storage
+  const row = await storage.knex('mockchain_utxos').where({ txid, vout }).first()
+  return row?.spentByTxid == null ? undefined : Transaction.fromBinary(Array.from((await storage.getTransaction(row.spentByTxid)).rawTx as number[]))
+}
+/** A liquidity agent process: same wallet, same EVM account, state in one file. */
+const startLp = (): LiquidityAgent => new LiquidityAgent(lpWallet, evm, lpEvm.address, findSpend, async () => await spendable(lpWallet), DEFAULT_LIQUIDITY, fileStore<LpSwap[]>(stateFile, []))
+
+describe.skipIf(anvilBinary() === undefined)('the liquidity agent as an independent service', () => {
+  beforeAll(async () => {
+    node = await startAnvil()
+    const { htlc, token } = await deployBridgeContracts(node.rpcUrl, anvilChain, deployer, { withTestToken: true })
+    evm = new EvmUsdcChain({ name: 'USDC (local EVM chain)', rpcUrl: node.rpcUrl, chain: anvilChain, htlc, token: token!, signers: [donorEvm, lpEvm] })
+    await mintTestUsdc(node.rpcUrl, anvilChain, deployer, token!, donorEvm.address, 100 * USDC)
+    chain = await createMockChain()
+    lpWallet = await chain.makeWallet(); await chain.fund(lpWallet, 5_000_000)
+    stateFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lp-')), 'lp-swaps.json')
+    await new Promise<void>(resolve => { server = createLiquidityApp(startLp()).listen(0, '127.0.0.1', () => resolve()) })
+    client = new LiquidityClient(`http://127.0.0.1:${(server.address() as any).port}`)
+  }, 120_000)
+  afterAll(async () => { await new Promise(r => server?.close(r)); await chain?.close(); await node?.stop() })
+
+  it('publishes who it is, its chain, price and limits', async () => {
+    expect(await client.info()).toMatchObject({ lpAddress: lpEvm.address, satsPerUsdc: 21_500, maxUsdc: 500, swaps: [] })
+  })
+
+  it('answers bad requests with a reason, not a crash', async () => {
+    await expect(client.quote(0, '02' + 'ab'.repeat(32))).rejects.toThrow(/liquidity agent: amount must be positive/)
+    await expect(client.acceptSourceLock('nope', 'ff'.repeat(32))).rejects.toThrow(/no open quote/)
+  })
+
+  it('happy path over HTTP, then a crash before collecting: a restarted agent still gets its USDC', async () => {
+    const donorWallet = await chain.makeWallet()
+    const swap = new DonorSwap(donorWallet, evm, donorEvm.address, chain.chainTracker)
+    let r = await swap.requestQuote(client, 100 * USDC)
+    r = await swap.lockAndRequest(client, r)
+    expect(r.lock?.satoshis).toBe(2_150_000)
+    expect(await swap.verifyLock(r)).toEqual([])
+    r = await swap.claim(r)
+    expect(r.state).toBe('claimed')
+    expect(await spendable(donorWallet)).toBeGreaterThan(2_148_000)
+
+    // The service dies before its next step. Its state file says it holds a locked swap.
+    await new Promise(resolve => server.close(resolve))
+    expect(JSON.parse(fs.readFileSync(stateFile, 'utf8')).map((s: LpSwap) => s.state)).toEqual(['locked'])
+
+    const restarted = startLp()
+    expect(restarted.state(r.quote.id)).toBe('locked')
+    await restarted.step() // reads the secret from the donor's BSV claim, claims on the EVM contract
+    expect(restarted.state(r.quote.id)).toBe('settled')
+    expect(await evm.account(lpEvm.address).balance()).toBe(100 * USDC)
+    expect(startLp().state(r.quote.id)).toBe('settled') // and that is persisted too
+  }, 120_000)
+})

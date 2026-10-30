@@ -3,10 +3,10 @@
 Run every automated happy path in one go:
 
 ```bash
-npm run test:happy     # 9 files, 55 tests, about 75 s, offline
+npm run test:happy     # 10 files, 58 tests, about 80 s, offline
 ```
 
-The files are listed in the `test:happy` script in `package.json`. Some of them also contain edge cases. `npm test` runs everything (156 tests).
+The files are listed in the `test:happy` script in `package.json`. Some of them also contain edge cases. `npm test` runs everything (198 tests).
 
 ## The happy paths
 
@@ -20,6 +20,7 @@ The files are listed in the `test:happy` script in `package.json`. Some of them 
 | 6 | **Donor agent, autopilot:** pledges by itself within budget and per-creator caps → verifies the payment link in a milestone report on chain → votes yes → reclaims from failed campaigns | `happyPaths.e2e`, `donor.e2e` | `npm run demo:donor` | mock chain |
 | 7 | **Swap (simulated USDC):** quote → donor locks USDC → LP checks and locks sats → donor verifies and claims into their own wallet → LP collects with the revealed secret → pledge | `swapDemo`, `swap.e2e` | `npm run demo:swap` | mock chain + simulated ledger |
 | 8 | **Bridge (real EVM contract):** the same as 7, with a Solidity HTLC on a local EVM chain through viem | `happyPaths.e2e` (demo:bridge), `bridge.evm` | `npm run demo:bridge` | mock chain + Anvil |
+| 8b | **Liquidity agent as its own service:** a donor uses it over HTTP only (`LiquidityClient`); the agent crashes after locking sats, and a restarted process reads its state file and still collects the USDC | `bridge.service` | `npm run lp` (env in `swap/lpMain.ts`) | mock chain + Anvil |
 | 9 | **Payments:** BRC-29 payment with SPV, spent before any block; NFT mint and transfer | `payments-nft.e2e` | — | mock chain |
 | 10 | **Paid API (HTTP 402):** BRC-105 and BRC-121 pay-per-request, with replay refused | `pay-per-request.e2e` | — | mock chain |
 | 11 | **BSV-21 tokens** (the starter kit we built on): deploy, send, merge, split, recover from the overlay | `e2e.mockchain` | — | mock chain |
@@ -36,7 +37,7 @@ The files are listed in the `test:happy` script in `package.json`. Some of them 
 
 **Works only with a limit:**
 
-- **The liquidity agent forgets open swaps when it restarts** (in-memory state). After a crash it cannot collect the USDC it is owed.
+- `npm run lp` has been started against a local EVM chain, but never against a public one. A crash *between* broadcasting the BSV lock and saving the state file would leave the lock out of the state file (the sats sit in the wallet's swap basket).
 - The LP does not wait for confirmations on the donor's source-chain lock before locking sats.
 - In `demo:bridge`, both EVM accounts are keys inside one process. A real donor would sign in their own EVM wallet in the browser, which is not built.
 - The donor agent's manipulation check is a phrase list plus the model's judgement. It catches the common wordings (tested), but a determined writer can rephrase. Treat it as a filter, not a guarantee.

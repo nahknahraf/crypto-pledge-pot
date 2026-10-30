@@ -17,3 +17,6 @@ data/donor.key
 data/donor-wallet.sqlite*
 data/donor-memos.json*
 data/donor-mandate.json
+data/lp.key
+data/lp-wallet.sqlite*
+data/lp-swaps.json*

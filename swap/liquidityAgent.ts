@@ -15,6 +15,7 @@
  * looking at the chain.
  */
 import type { WalletInterface } from '@bsv/sdk'
+import { memoryStore, type Store } from '../agent/ledger'
 import { secretFromClaim } from '../core/swap'
 import { lockSats, newSwapKey, refundSats, type BsvLock, type SpendFinder } from './bsv'
 import { formatUsdc, USDC, type SourceAccount, type SourceChain } from './usdcChain'
@@ -49,25 +50,46 @@ export interface Quote {
   minSourceRefundAfter: number
 }
 
-interface Swap { quote: Quote, sourceHtlcId?: string, lock?: BsvLock, senderKeyID?: string, state: 'quoted' | 'locked' | 'settled' | 'refunded' | 'rejected', note?: string }
+/** One swap as the liquidity agent records it. Plain JSON, so it can be persisted. */
+export interface LpSwap { quote: Quote, sourceHtlcId?: string, lock?: BsvLock, senderKeyID?: string, state: 'quoted' | 'locked' | 'settled' | 'refunded' | 'rejected', note?: string }
 
-export class LiquidityAgent {
-  private readonly swaps = new Map<string, Swap>()
+/**
+ * What a donor needs from a liquidity provider. LiquidityAgent implements it
+ * in-process; LiquidityClient (lpClient.ts) implements it over HTTP. The donor
+ * never trusts the answers: DonorSwap re-checks every lock on chain.
+ */
+export interface LiquidityProvider {
+  quote: (usdc: number, donorBsvKey: string) => Promise<Quote>
+  acceptSourceLock: (quoteId: string, sourceHtlcId: string) => Promise<BsvLock>
+}
+
+export class LiquidityAgent implements LiquidityProvider {
+  private readonly swaps = new Map<string, LpSwap>()
   private readonly usdc: SourceAccount
   readonly log: string[] = []
 
+  /**
+   * `store` keeps the swaps across restarts (use fileStore in a real process): after a crash the
+   * agent must still collect the USDC for sats it already locked, or refund them.
+   */
   constructor (
     readonly wallet: WalletInterface,
     readonly source: SourceChain,
     lpAddress: string,
     readonly findSpend: SpendFinder,
     readonly spendable: () => Promise<number>,
-    readonly config: LiquidityConfig = DEFAULT_LIQUIDITY
+    readonly config: LiquidityConfig = DEFAULT_LIQUIDITY,
+    private readonly store: Store<LpSwap[]> = memoryStore<LpSwap[]>([])
   ) {
     this.usdc = source.account(lpAddress)
+    for (const s of store.load()) this.swaps.set(s.quote.id, s)
   }
 
   private say (line: string): void { this.log.push(line) }
+  private persist (): void { this.store.save([...this.swaps.values()]) }
+  get address (): string { return this.usdc.address }
+  /** Every swap, newest last (for the status page). */
+  all (): LpSwap[] { return [...this.swaps.values()].map(s => structuredClone(s)) }
 
   async quote (usdc: number, donorBsvKey: string): Promise<Quote> {
     if (!Number.isSafeInteger(usdc) || usdc <= 0) throw new Error('amount must be positive')
@@ -79,6 +101,7 @@ export class LiquidityAgent {
     const now = await this.source.now()
     const q: Quote = { id: `q${this.swaps.size + 1}`, usdc, sats, lpAddress: this.usdc.address, donorBsvKey, expiresAt: now + this.config.quoteValidity, minSourceRefundAfter: now + this.config.minSourceWindow }
     this.swaps.set(q.id, { quote: q, state: 'quoted' })
+    this.persist()
     this.say(`quoted ${formatUsdc(usdc)} → ${sats.toLocaleString('en-US')} sats (${q.id})`)
     return q
   }
@@ -87,12 +110,13 @@ export class LiquidityAgent {
   async acceptSourceLock (quoteId: string, sourceHtlcId: string): Promise<BsvLock> {
     const s = this.swaps.get(quoteId)
     if (s === undefined || s.state !== 'quoted') throw new Error('no open quote')
-    const reject = (why: string): never => { s.state = 'rejected'; s.note = why; this.say(`rejected ${quoteId}: ${why}`); throw new Error(why) }
+    const reject = (why: string): never => { s.state = 'rejected'; s.note = why; this.persist(); this.say(`rejected ${quoteId}: ${why}`); throw new Error(why) }
     if ((await this.source.now()) > s.quote.expiresAt) reject('the quote expired')
     // One source lock pays for one BSV lock. Without this, a donor could present the same USDC lock
     // against two quotes, claim both BSV locks with the one secret, and leave us one USDC claim.
     if ([...this.swaps.values()].some(o => o !== s && o.state !== 'rejected' && o.sourceHtlcId === sourceHtlcId)) reject('that USDC lock is already used for another swap')
     s.sourceHtlcId = sourceHtlcId // reserve it now: a concurrent call for the same lock sees it from here on
+    this.persist()
     const h = await this.source.htlc(sourceHtlcId)
     if (h === undefined || h.state !== 'locked') reject('no locked USDC found on the other chain')
     if (h!.receiver !== this.usdc.address) reject('the USDC lock does not pay this agent')
@@ -102,6 +126,7 @@ export class LiquidityAgent {
     const key = await newSwapKey(this.wallet)
     const lock = await lockSats(this.wallet, { hashlock: h!.hashlock, receiver: s.quote.donorBsvKey, sender: key.publicKey, refundAfter }, this.lockedAmount(s.quote), key.keyID)
     Object.assign(s, { sourceHtlcId, lock, senderKeyID: key.keyID, state: 'locked' })
+    this.persist() // from here on a restart must not lose this swap: it holds our sats
     this.say(`saw ${formatUsdc(h!.amount)} locked for us; locked ${lock.satoshis.toLocaleString('en-US')} sats for the donor (tx ${lock.txid.slice(0, 12)}…)`)
     return lock
   }
@@ -119,14 +144,16 @@ export class LiquidityAgent {
       if (secret !== undefined) {
         await this.usdc.claim(s.sourceHtlcId!, secret)
         s.state = 'settled'
+        this.persist()
         this.say(`donor claimed the sats; read the secret from BSV and collected ${formatUsdc(s.quote.usdc)}`)
       } else if (spend === undefined && (await this.source.now()) >= s.lock.terms.refundAfter) {
         await refundSats(this.wallet, s.lock, s.senderKeyID!)
         s.state = 'refunded'
+        this.persist()
         this.say(`donor never claimed; refunded our ${s.quote.sats.toLocaleString('en-US')} sats`)
       }
     }
   }
 
-  state (quoteId: string): Swap['state'] | undefined { return this.swaps.get(quoteId)?.state }
+  state (quoteId: string): LpSwap['state'] | undefined { return this.swaps.get(quoteId)?.state }
 }

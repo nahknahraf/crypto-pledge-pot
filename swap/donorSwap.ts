@@ -15,7 +15,7 @@
 import { Transaction, Utils, type ChainTracker, type WalletInterface } from '@bsv/sdk'
 import { newSecret, parseSwapScript } from '../core/swap'
 import { claimSats, newSwapKey, type BsvLock } from './bsv'
-import type { LiquidityAgent, Quote } from './liquidityAgent'
+import type { LiquidityProvider, Quote } from './liquidityAgent'
 import { formatUsdc, type SourceAccount, type SourceChain } from './usdcChain'
 
 export interface DonorSwapOptions {
@@ -53,7 +53,7 @@ export class DonorSwap {
   }
 
   /** Get a quote for `usdc` micro-USDC, paying a fresh key in the donor's wallet. */
-  async requestQuote (lp: LiquidityAgent, usdc: number): Promise<SwapRecord> {
+  async requestQuote (lp: LiquidityProvider, usdc: number): Promise<SwapRecord> {
     const key = await newSwapKey(this.wallet)
     const quote = await lp.quote(usdc, key.publicKey)
     const { secret, hashlock } = newSecret()
@@ -61,7 +61,7 @@ export class DonorSwap {
   }
 
   /** Lock the USDC (refundable to the donor after T1) and tell the agent; returns the agent's BSV lock. */
-  async lockAndRequest (lp: LiquidityAgent, r: SwapRecord): Promise<SwapRecord> {
+  async lockAndRequest (lp: LiquidityProvider, r: SwapRecord): Promise<SwapRecord> {
     const refundAfter = Math.max((await this.source.now()) + this.options.sourceWindow, r.quote.minSourceRefundAfter)
     r.sourceHtlcId = await this.usdc.lock({ receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter })
     r.state = 'source-locked'

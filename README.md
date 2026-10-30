@@ -45,7 +45,7 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | Real bridges | 🟡 EVM: the happy path works on a local chain (Anvil); a public testnet is untested · ❌ BTC, Lightning, DeFi, CeFi are planned | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **156 tests**, all passing (`npm test`), and both typechecks are clean.
+In total there are **198 tests**, all passing (`npm test`), and both typechecks are clean.
 
 ## Try it
 
@@ -83,6 +83,7 @@ The table of which standard is used where is in the technical README.
 | [`docs/TECHNICAL_README.md`](docs/TECHNICAL_README.md) | architecture, the contract, wallet flows, agents, costs |
 | [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md) | problem, users, value for BSV, mainnet transactions |
 | [`docs/USE_CASES.md`](docs/USE_CASES.md) | 20 scenarios for agents raising and giving |
+| [`docs/AGENTS_OVERVIEW.md`](docs/AGENTS_OVERVIEW.md) | the three agents, each on its own: job, money, state, invariants, how to test alone |
 | [`docs/HAPPY_PATHS.md`](docs/HAPPY_PATHS.md) | every happy path, how to check it, what doesn't work yet |
 | [`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md) | the 2.5-minute demo video, one page |
 | [`docs/VERIFICATION_PLAN.md`](docs/VERIFICATION_PLAN.md) | how each piece is verified, normal and edge cases |

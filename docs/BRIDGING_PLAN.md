@@ -177,7 +177,9 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 
 - [ ] **The real BSV leg.** The demo's BSV side is the mock chain. Run the BSV half on mainnet with tiny amounts (needs team sats) and record the txids.
 - [ ] **Base Sepolia run.** Deploy with `npm run evm:deploy`, then run `npm run demo:bridge` with `BRIDGE_RPC_URL` and the other env vars. The public-chain code path exists but is **untested**: it needs funded testnet accounts. Check Circle's docs for the current test-USDC address.
-- [ ] **Persisted LP state.** `LiquidityAgent` keeps open swaps in memory. After a crash it cannot claim the USDC it is owed (AGENT_TEST_PLAN S4). This is needed before any public-chain run with someone else's money.
+- [x] **Persisted LP state** (S4). The swaps are saved in a file store; `bridge.service` crashes and restarts the agent mid-swap, and it still collects. Remaining gap: a crash between broadcasting the BSV lock and saving it.
+- [x] **The LP as its own service.** `npm run lp` (HTTP: status, quote, lock), with `LiquidityClient` for donors. Both implement `LiquidityProvider`.
+- [x] **One source lock, one swap** (S5). This was a real hole, now fixed (`swap.edges`).
 - [ ] **Confirmations before locking sats** (S10). `EvmUsdcChain` waits N confirmations for its *own* transactions. The LP should also check the *donor's* lock depth before locking sats.
 - [ ] **Edge cases on Anvil.** Run S1–S9 against `EvmUsdcChain` (today only the happy path, the expired-quote refund and 3 contract checks run on the EVM). The simplest way is to run `swap.e2e` parameterised over both chains.
 - [ ] **Contract hardening.** A Foundry/slither pass and a second reviewer. Test a fee-on-transfer token (the contract refuses it by checking the balance delta, but no test covers it), a 0 amount, and `refundAfter` in the past.

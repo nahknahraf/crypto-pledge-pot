@@ -11,15 +11,15 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 
 ## Edge cases: server and contracts
 
-- [ ] Vote tie at exactly 50 % must fail (§4).
-- [ ] The same pledge submitted twice is idempotent (§4).
+- [x] Vote tie at exactly 50 % fails (§4).
+- [x] The same pledge submitted twice gets 409 and is counted once (§4).
 - [ ] A pledge whose BEEF fails SPV is refused, tested with a strict chain tracker (§4).
-- [ ] A pledge after the deadline; a vote from a refunded donor counts 0; a vote changed twice (§4).
+- [x] A pledge after the deadline is refused; a refunded donor's vote counts 0; a changed vote replaces the earlier one (§4).
 - [ ] Server restart between handing out release signatures and the broadcast (§4).
-- [ ] `MIN_PLEDGE` 100 vs 99; rounding that makes two stages equal; 1 and 10 milestones; the largest amount (§1).
+- [x] `MIN_PLEDGE` 100 vs 99; rounding; 1 and the maximum of 4 milestones; the largest amount. The last one was a real float bug, fixed (§1).
 - [ ] Two pledges released in one transaction; `unlockLength` equals the real size (§1).
-- [ ] `validateCampaign` table: bad percentages and dates, `javascript:` agentUrl, a 10 kB description (§3).
-- [ ] Swap secrets of 0, 31 and 33 bytes (§2).
+- [x] `validateCampaign` table: 21 cases (§3).
+- [x] Swap secrets of 0, 31 and 33 bytes (§2).
 - [ ] WhatsOnChain 429/500/timeout in the watcher; reorgs (§5).
 
 ## Edge cases: client, web app and ops
@@ -31,9 +31,9 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 
 ## Edge cases: agents
 
-- [ ] Fundraising agent F1–F14. First F1 (paid but no data), F5 (no double pay on retry), F14 (no report before its anchor). F12 (single instance) needs a lock file.
-- [ ] Donor agent D1–D13. First D3, D4, D5 (the chain beats a lying server; needs code). D10 is partly done: the agent-addressing rule now runs in code for every brain, over the title, the description and the milestone titles, plus reports.
-- [ ] Liquidity agent S1–S11. S4 (LP restart) needs **persisted swap state**: today it lives in memory only. S10 needs confirmations on the source chain.
+- [ ] Fundraising agent: F3, F4, F6–F14 are open. Done: F1, F2 and F5 (paid-but-not-served is recorded; the cap holds across runs; both were real gaps, fixed). F12 (single instance) needs a lock file.
+- [ ] Donor agent: D1 and D9 done. In co-pilot without `donorIdentityKey`, `approve` cannot check who paid (bookkeeping only). Open: D1–D13 otherwise. First D3, D4, D5 (the chain beats a lying server; needs code). D10 is partly done: the agent-addressing rule now runs in code for every brain, over the title, the description and the milestone titles, plus reports.
+- [ ] Liquidity agent: S3, S7, S10 and S11 are open. Done: S2, S4 (persisted state, restart test), S5 (a real hole, fixed), S6, S8, S9. S1 does not apply to the LP (see DEVLOG 8.5).
 - [ ] A live-model eval: 20 scenarios × 3 runs, saved to `AGENT_EVAL_RESULTS.md`.
 
 ## Bridging (real money in)

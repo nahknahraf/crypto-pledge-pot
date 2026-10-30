@@ -1851,3 +1851,18 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
   - the agent test has a 500 on the first call: the ledger reads `[failed, ok, ok]` = 150 = the cap, and a second `work()` for the same milestone spends nothing.
 
   With the old budget line, the agent test fails (mutation-checked).
+
+**8.8 The liquidity (bridging) agent as an independent, restartable service.** This is the verifiable happy path of the bridge with the agent on its own.
+- `LiquidityAgent` takes a `Store`, and saves its swaps on every change. The most important save is right after it locks sats, because from then on a lost record means lost USDC. `npm run lp` uses a file store (`data/lp-swaps.json`).
+- `swap/lpHttp.ts`: `GET /api/lp` (chain, address, price, limits, swaps), `POST /api/lp/quote`, `POST /api/lp/lock`. Errors come back as `400 {error}`. It asks for no keys and holds no donor funds.
+- `swap/lpClient.ts`: `LiquidityClient`, the donor's side over HTTP. A `LiquidityProvider` interface is implemented by both the in-process agent and the client, so `DonorSwap` doesn't care which one it gets. Its on-chain checks are what make the answers safe to use.
+- `swap/lpMain.ts` (`npm run lp`): a mainnet BSV wallet (`data/lp.key`), an EVM chain from env, WhatsOnChain spend lookups and a step loop. I started it against a local Anvil, and it served `/api/lp`. It has never run against a public network.
+- `test/bridge.service.test.ts` (3 tests):
+  - the status endpoint;
+  - bad requests get reasons;
+  - the **happy path over HTTP on the real Solidity HTLC**, then the service dies before collecting. The state file reads `["locked"]`, and a fresh process from the same file collects the 100 USDC. The settled state is persisted too.
+- `docs/AGENTS_OVERVIEW.md`: one card per agent (job, how it runs, which money it holds, where its state lives, its loop, its invariants in code, how to test it alone), plus a table of what happens when each part fails.
+
+**What broke:** starting `npm run lp` generated `data/lp.key`, and **`.gitignore` didn't cover it**. Caught before any commit: `data/lp.key`, `data/lp-wallet.sqlite*` and `data/lp-swaps.json*` are now ignored. The generated key holds no funds.
+
+**Verified:** 198 tests passing (31 files); `test:happy` 58/58 in 10 files; both typechecks clean.
