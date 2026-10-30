@@ -4,7 +4,7 @@
 # Used by docker-compose.yml.
 
 # ── build: install dependencies and build the web app ────────────────────────
-FROM node:22-bookworm-slim AS build
+FROM docker.io/library/node:22-bookworm-slim AS build
 # Compilers only in the build stage: a fallback if better-sqlite3 has no prebuilt binary.
 RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -14,7 +14,7 @@ COPY . .
 RUN npx vite build app
 
 # ── app: Node services ─────────────────────────────────────────────────────────
-FROM node:22-bookworm-slim AS app
+FROM docker.io/library/node:22-bookworm-slim AS app
 ENV NODE_ENV=production
 WORKDIR /app
 # Keep dev dependencies: entry points run with vite-node, which loads ONE build of
@@ -22,12 +22,14 @@ WORKDIR /app
 COPY --from=build /app /app
 # data/ holds keys, wallet databases and the index: a volume per service, owned by
 # the unprivileged node user (a new named volume inherits this ownership).
-RUN mkdir -p /app/data /app/node_modules/.vite && chown -R node:node /app/data /app/node_modules/.vite
+# vite-node writes a temporary bundle of its config to node_modules/.vite-temp (and a cache to .vite).
+RUN mkdir -p /app/data /app/node_modules/.vite /app/node_modules/.vite-temp \
+ && chown -R node:node /app/data /app/node_modules/.vite /app/node_modules/.vite-temp
 USER node
 EXPOSE 8787 8790 8791
 CMD ["npm", "run", "server"]
 
 # ── web: Caddy + static app ───────────────────────────────────────────────────
-FROM caddy:2 AS web
+FROM docker.io/library/caddy:2 AS web
 COPY --from=build /app/dist/app /srv
 COPY deploy/Caddyfile /etc/caddy/Caddyfile

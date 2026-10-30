@@ -63,17 +63,29 @@ docker compose --env-file .env.docker exec server npm run import -- <anchor txid
   (Compose prefixes volume names with the project name: check `docker volume ls`.)
 - **Update:** `git pull && docker compose --env-file .env.docker up -d --build`.
 
-## Not yet verified
+## Verified (30 Oct 2026, Podman 4.9.3 rootless with the Docker CLI)
 
-Written and checked statically (YAML parsed; every command maps to an npm
-script; every Caddy route reaches a service), but **never built or run**:
-Docker isn't installed on the development machine. On first run, check:
-1. `docker compose build`. Does `npm ci` install `better-sqlite3`?
-   (Compilers are in the build stage as a fallback.)
-2. All services reach `healthy`; `curl -k https://localhost/api/health` returns
-   `{"network":"main",…}`.
-3. The agent can write in its volume (key, wallet DB, ledger) as user `node`.
-4. Through Caddy: the live feed streams (`curl -N …/events`), and
-   `/agent/api/agent` answers.
-5. Rate limits apply per visitor (Caddy keeps `X-Forwarded-For` from private
-   networks only).
+Docker was installed but its socket still pointed at Podman, so the setup was
+built and run through Podman's Docker-compatible API:
+- **Images:** app 486 MB, web 67.6 MB. `npm ci` installed `better-sqlite3`
+  without the compiler fallback. `caddy validate` (inside the web image):
+  valid.
+- **Demo profile:** healthy; through Caddy (https://localhost:8443) `/api/health`
+  reports `mock`, all 5 campaigns load, `/agent/api/agent` answers, and the
+  SSE live feed streams.
+- **Main stack:** server and data-provider *healthy*; each service writes
+  its own volume as user `node` (`arbiter.key` and `agent.key` mode 600); the
+  agent stops cleanly at "insufficient funds" (a fresh, unfunded wallet).
+- **Through Caddy:** unauthenticated write → 401; oversized body → JSON 413;
+  spoofed `X-Forwarded-For` ignored; per-visitor limit enforced (30 accepted,
+  then 429).
+
+**Fixed during the first run** (DEVLOG): vite-node needs a writable
+`node_modules/.vite-temp`; Podman needs fully qualified image names; ports are
+configurable (rootless can't bind below 1024); and **an empty
+`CRYPTOPLEDGEPOT_ARBITER_KEY` became a zero private key**. Keys are now
+validated.
+
+**Not verified yet:** the `tunnel` profile (needs your ngrok token), a real
+domain with Let's Encrypt, and a run on Docker Engine itself (only through
+Podman so far).

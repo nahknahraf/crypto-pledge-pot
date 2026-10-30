@@ -10,15 +10,26 @@ import { Setup } from '@bsv/wallet-toolbox'
 
 export type Chain = 'main' | 'test'
 
-export function loadOrCreateKey (envVar: string, file: string): PrivateKey {
+/**
+ * A service's root key: from `envVar` if set to something non-empty, else from
+ * `file` (generated once, mode 600). Anything that is not a valid 32-byte hex
+ * key is refused: an empty or malformed value must never become a usable key.
+ * (In Docker Compose an unset variable arrives as an EMPTY string.)
+ */
+export function loadOrCreateKey (envVar: string, file: string, log: (m: string) => void = console.log): PrivateKey {
+  const parse = (hex: string, from: string): PrivateKey => {
+    const h = hex.trim().toLowerCase()
+    if (!/^[0-9a-f]{64}$/.test(h) || /^0+$/.test(h)) throw new Error(`${from} is not a valid private key (expected 64 hex characters)`)
+    return PrivateKey.fromHex(h)
+  }
   const fromEnv = process.env[envVar]
-  if (fromEnv !== undefined && fromEnv !== '') return PrivateKey.fromHex(fromEnv)
+  if (fromEnv !== undefined && fromEnv.trim() !== '') return parse(fromEnv, envVar)
   fs.mkdirSync(path.dirname(file), { recursive: true })
   if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, PrivateKey.fromRandom().toHex(), { mode: 0o600 })
-    console.log(`Generated a new key in ${file} (set ${envVar} to override). Back it up.`)
+    fs.writeFileSync(file, PrivateKey.fromRandom().toHex().padStart(64, '0'), { mode: 0o600 })
+    log(`Generated a new key in ${file} (set ${envVar} to override). Back it up.`)
   }
-  return PrivateKey.fromHex(fs.readFileSync(file, 'utf8').trim())
+  return parse(fs.readFileSync(file, 'utf8'), file)
 }
 
 export async function createToolboxWallet (opts: { chain: Chain, rootKey: PrivateKey, dbFile: string, dbName: string }) {

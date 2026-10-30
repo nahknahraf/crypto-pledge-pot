@@ -186,6 +186,8 @@ npm run build && npm run crosscheck   # regenerate the byte-for-byte fixtures
 cd .. && npm test
 ```
 
+**Run everything with Docker:** see [`DOCKER_README.md`](DOCKER_README.md) (one `docker compose up`).
+
 **Let others test it over the internet** from your laptop with a fixed free
 ngrok domain: `npm run share:internet` (setup and tester guide:
 [`docs/SHARING.md`](docs/SHARING.md)). Never tunnel `npm run app` (the dev

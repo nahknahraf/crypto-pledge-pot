@@ -20,6 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
 import { Setup } from '@bsv/wallet-toolbox'
+import { loadOrCreateKey } from '../agent/wallet'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
 import { createCryptoPledgePotService } from './app'
 import { startWatcher, wocSpendSource } from './watcher'
@@ -30,15 +31,7 @@ const port = Number(process.env.PORT ?? 8787)
 const dataDir = path.resolve('data')
 fs.mkdirSync(dataDir, { recursive: true })
 
-function arbiterKey (): PrivateKey {
-  if (process.env.CRYPTOPLEDGEPOT_ARBITER_KEY !== undefined) return PrivateKey.fromHex(process.env.CRYPTOPLEDGEPOT_ARBITER_KEY)
-  const file = path.join(dataDir, 'arbiter.key')
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, PrivateKey.fromRandom().toHex(), { mode: 0o600 })
-    console.log(`Generated a new arbiter key in ${file}. Back it up.`)
-  }
-  return PrivateKey.fromHex(fs.readFileSync(file, 'utf8').trim())
-}
+const arbiterKey = (): PrivateKey => loadOrCreateKey('CRYPTOPLEDGEPOT_ARBITER_KEY', path.join(dataDir, 'arbiter.key'))
 
 async function main (): Promise<void> {
   const rootKey = arbiterKey()

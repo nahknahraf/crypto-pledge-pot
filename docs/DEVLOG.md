@@ -1014,3 +1014,53 @@ real, then moves on to:
 
 It ends with six decisions for the team. One of them is whether the rate
 limits we added for sharing should stay as they are.
+
+## First real container run, and a bug that would have made a zero key
+
+Docker got installed, but `/run/docker.sock` turned out to be a symlink to
+**Podman's** socket, and the user wasn't in the `docker` group (fixing both
+needs sudo). Podman runs rootless and speaks the Docker API, so we built and
+ran the same files through it. Everything below carries over to Docker.
+
+**What broke, in order:**
+1. **Compose's parallel build under Podman:** two BuildKit helper containers
+   collided ("name … already in use"). Workaround: build the two targets
+   directly with `podman build`, then `compose up --no-build`.
+2. **`short-name "caddy:2" did not resolve`:** Podman doesn't assume Docker
+   Hub. The Dockerfile and Compose now use fully qualified names
+   (`docker.io/library/…`), which Docker accepts too.
+3. **Ports 80/443:** rootless containers can't bind below 1024. The ports are
+   now `HTTP_PORT` / `HTTPS_PORT` (default 80/443; 8080/8443 locally).
+4. **The demo container crash-looped:** `EACCES … node_modules/.vite-temp`.
+   vite-node writes a temporary bundle of its config there, and the
+   unprivileged `node` user couldn't. This was item 3 of our first-run
+   checklist. We create that one folder owned by `node` rather than making all
+   of `node_modules` writable.
+5. **The serious one: an arbiter key of zero.** The server came up with
+   identity `00`, and the agent failed with "Public key not valid for ECDH".
+   Compose passes an unset `CRYPTOPLEDGEPOT_ARBITER_KEY` as an **empty
+   string**, and the server's own key loader only checked for "undefined", so
+   it parsed `""` as hex and got 0. (The agent's and data API's loader already
+   treated empty as unset, which is why they were fine.) All three now share
+   one `loadOrCreateKey`. Empty means use or generate the key file; anything
+   that isn't 64 hex characters, or is all zeros, stops the service with an
+   error. We checked the existing key files first (all 64 characters; the SDK
+   always writes 64), so nobody gets locked out. Lesson from earlier applied:
+   the zero-key volume was inspected first (0 campaigns, only this run's
+   files), and deleted only afterwards, in a separate step.
+
+**Verified through Caddy on https://localhost:8443:**
+- **Images:** app 486 MB, web 67.6 MB; `better-sqlite3` installed without
+  compilers; `caddy validate` passes.
+- **Demo:** `mock` health, 5 campaigns, agent page, SSE live feed.
+- **Main stack:** server and data API healthy; every service writes its own
+  volume as `node`, key files mode 600; a real arbiter identity (`0350f018…`);
+  the agent stops at "insufficient funds".
+- **Hardening:** 401 for unauthenticated writes, JSON 413, spoofed
+  `X-Forwarded-For` ignored, per-visitor limit (30 per minute, then 429).
+
+**Tests:** 3 for the key loader. Full suite **104 passing**. New short guide:
+`DOCKER_README.md`.
+
+**Not verified yet:** the ngrok `tunnel` profile, Let's Encrypt on a real
+domain, and Docker Engine itself.
