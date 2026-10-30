@@ -21,6 +21,8 @@ export interface SourceHtlc {
   state: 'locked' | 'claimed' | 'refunded'
   /** Public once claimed: this is how the secret becomes visible on this chain. */
   secret?: string
+  /** Blocks since the lock was mined (1 = in the latest block). Undefined on a ledger with no blocks (treated as final). */
+  confirmations?: number
 }
 
 export interface SourceAccount {

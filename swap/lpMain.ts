@@ -11,7 +11,7 @@
  *   LP_EVM_KEY                 0x… the agent's EVM key (receives the USDC; needs gas)
  *   LP_ROOT_KEY                else data/lp.key
  *   LP_HOST=127.0.0.1 LP_PORT=8793 LP_INTERVAL_S=30
- *   LP_SATS_PER_USDC=21500 LP_MAX_USDC=20
+ *   LP_SATS_PER_USDC=21500 LP_MAX_USDC=20 LP_MIN_CONFIRMATIONS=3 (1 on anvil)
  *
  * Status: the same code runs offline in test/bridge.service.test.ts (Anvil +
  * mock chain). This entry point has NOT been run against a public network yet.
@@ -52,7 +52,8 @@ const spendable = async (): Promise<number> => (await setup.wallet.listOutputs({
 const lp = new LiquidityAgent(setup.wallet, evm, lpEvm.address, findSpend, spendable, {
   ...DEFAULT_LIQUIDITY,
   satsPerUsdc: Number(env.LP_SATS_PER_USDC ?? DEFAULT_LIQUIDITY.satsPerUsdc),
-  maxUsdc: Math.round(Number(env.LP_MAX_USDC ?? 20) * USDC)
+  maxUsdc: Math.round(Number(env.LP_MAX_USDC ?? 20) * USDC),
+  minSourceConfirmations: Number(env.LP_MIN_CONFIRMATIONS ?? (evmChain.id === anvil.id ? 1 : 3))
 }, fileStore<LpSwap[]>(path.resolve('data', 'lp-swaps.json'), []))
 
 const host = env.LP_HOST ?? '127.0.0.1'

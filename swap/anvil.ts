@@ -55,6 +55,11 @@ export async function startAnvil (port?: number): Promise<Anvil> {
   throw new Error('anvil did not start')
 }
 
+/** Mine `blocks` empty blocks (Anvil only). */
+export async function anvilMine (rpcUrl: string, blocks: number): Promise<void> {
+  await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'anvil_mine', params: [`0x${blocks.toString(16)}`] }) })
+}
+
 /** Move the local chain's clock forward (Anvil only). */
 export async function anvilIncreaseTime (rpcUrl: string, seconds: number): Promise<void> {
   for (const [method, params] of [['evm_increaseTime', [seconds]], ['evm_mine', []]] as const) {

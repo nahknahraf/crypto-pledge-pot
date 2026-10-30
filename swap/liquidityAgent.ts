@@ -33,9 +33,11 @@ export interface LiquidityConfig {
   minSourceWindow: number
   /** Our BSV timeout ends this long before the donor's (seconds): the donor's time to claim safely. */
   safetyMargin: number
+  /** Confirmations the donor's source lock needs before we lock sats (a reorg could undo a fresher one). */
+  minSourceConfirmations: number
 }
 
-export const DEFAULT_LIQUIDITY: LiquidityConfig = { satsPerUsdc: 21_500, maxUsdc: 500 * USDC, feeReserve: 5_000, quoteValidity: 120, minSourceWindow: 4 * 3600, safetyMargin: 2 * 3600 }
+export const DEFAULT_LIQUIDITY: LiquidityConfig = { satsPerUsdc: 21_500, maxUsdc: 500 * USDC, feeReserve: 5_000, quoteValidity: 120, minSourceWindow: 4 * 3600, safetyMargin: 2 * 3600, minSourceConfirmations: 1 }
 
 export interface Quote {
   id: string
@@ -119,6 +121,12 @@ export class LiquidityAgent implements LiquidityProvider {
     this.persist()
     const h = await this.source.htlc(sourceHtlcId)
     if (h === undefined || h.state !== 'locked') reject('no locked USDC found on the other chain')
+    if (h!.confirmations !== undefined && h!.confirmations < this.config.minSourceConfirmations) {
+      // Not a refusal: the quote stays open, the donor asks again once the lock is deeper.
+      s.sourceHtlcId = undefined
+      this.persist()
+      throw new Error(`wait: the USDC lock has ${h!.confirmations} of ${this.config.minSourceConfirmations} confirmations; ask again shortly`)
+    }
     if (h!.receiver !== this.usdc.address) reject('the USDC lock does not pay this agent')
     if (h!.amount !== s.quote.usdc) reject(`the USDC lock is ${formatUsdc(h!.amount)}, the quote was ${formatUsdc(s.quote.usdc)}`)
     if (h!.refundAfter < s.quote.minSourceRefundAfter) reject('the USDC lock\'s timeout is too short to be safe')

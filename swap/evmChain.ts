@@ -59,6 +59,9 @@ export class EvmUsdcChain implements SourceChain {
     const [sender, receiver, , amount, hashlock, refundAfter, state] = await this.client.readContract({ address: this.opts.htlc, abi: HTLC_ABI, functionName: 'locks', args: [hex32(id)] }) as [Address, Address, Address, bigint, Hex, bigint, number]
     if (state === 0) return undefined
     const h: SourceHtlc = { id, sender: getAddress(sender), receiver: getAddress(receiver), amount: Number(amount), hashlock: plain(hashlock), refundAfter: Number(refundAfter), state: STATES[state] as SourceHtlc['state'] }
+    const [locked] = await this.client.getContractEvents({ address: this.opts.htlc, abi: HTLC_ABI, eventName: 'Locked', args: { id: hex32(id) }, fromBlock: 0n })
+    const minedIn = (locked as { blockNumber?: bigint | null } | undefined)?.blockNumber
+    if (minedIn != null) h.confirmations = Number((await this.client.getBlockNumber({ cacheTime: 0 })) - minedIn) + 1 // no cache: viem keeps the block number for seconds
     if (h.state === 'claimed') {
       const logs = await this.client.getContractEvents({ address: this.opts.htlc, abi: HTLC_ABI, eventName: 'Claimed', args: { id: hex32(id) }, fromBlock: 0n })
       const secret = (logs[0] as unknown as { args: { secret: Hex } } | undefined)?.args.secret

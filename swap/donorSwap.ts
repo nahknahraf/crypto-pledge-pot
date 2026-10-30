@@ -66,8 +66,13 @@ export class DonorSwap {
     r.sourceHtlcId = await this.usdc.lock({ receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter })
     r.state = 'source-locked'
     r.steps.push(`locked ${formatUsdc(r.quote.usdc)} on ${this.source.name}, refundable to you after the timeout`)
+    return await this.requestLock(lp, r)
+  }
+
+  /** Ask the agent to lock sats for our (already locked) USDC. Safe to repeat, e.g. after "wait: … confirmations". */
+  async requestLock (lp: LiquidityProvider, r: SwapRecord): Promise<SwapRecord> {
     try {
-      r.lock = await lp.acceptSourceLock(r.quote.id, r.sourceHtlcId)
+      r.lock = await lp.acceptSourceLock(r.quote.id, r.sourceHtlcId!)
     } catch (e) {
       r.steps.push(`the liquidity agent did not lock sats: ${(e as Error).message}`)
     }

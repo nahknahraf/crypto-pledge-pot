@@ -1883,3 +1883,11 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 - Now one failing lookup is noted in `pending` and the round continues. A **rate limit (429) ends the round** instead of hammering the free API, and the next round starts again from the top.
 - Tests: a 500 on the first of 3 escrows still checks all 3; a 429 on the second stops after 2; nothing is recorded in either case. The tests fail on the old code (checked with a stash).
 - Reorgs (§5) stay open: the watcher records a spend once it has BEEF with a proof, and doesn't re-check it later.
+
+**8.11 Confirmations before the agent locks sats** (S10):
+- `SourceHtlc` now has `confirmations`. On EVM, it's the latest block minus the block of the `Locked` event, plus 1.
+- The liquidity agent has `minSourceConfirmations`. The default is 1, so behaviour is unchanged. `npm run lp` uses 3 on public chains and 1 on Anvil (`LP_MIN_CONFIRMATIONS`).
+- Too few confirmations is **not a refusal**. The quote stays open, the reservation is released, and the donor asks again with `DonorSwap.requestLock` (split out of `lockAndRequest`, so asking again doesn't lock USDC twice).
+- Test on Anvil: an agent wanting 3 confirmations says "wait: 1 of 3", the quote stays open, 2 blocks are mined, and the retry locks the sats.
+
+**What broke:** the first run reported **−7 confirmations**. viem caches `getBlockNumber` for a few seconds, so "latest" was stale while the event was fresh. The read now uses `cacheTime: 0`. Without the test, a cautious agent on a real chain would have waited wrongly, or worse, counted a fresh lock as deep.

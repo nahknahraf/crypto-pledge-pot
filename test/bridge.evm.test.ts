@@ -16,7 +16,7 @@ import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { newSecret } from '../core/swap'
 import { createCryptoPledgePotApp } from '../server/app'
 import { CryptoPledgePotDb } from '../server/db'
-import { anvilAccount, anvilBinary, anvilIncreaseTime, startAnvil, type Anvil } from '../swap/anvil'
+import { anvilAccount, anvilBinary, anvilIncreaseTime, anvilMine, startAnvil, type Anvil } from '../swap/anvil'
 import type { SpendFinder } from '../swap/bsv'
 import { DonorSwap } from '../swap/donorSwap'
 import { deployBridgeContracts, EvmUsdcChain, mintTestUsdc } from '../swap/evmChain'
@@ -103,6 +103,21 @@ describe.skipIf(anvilBinary() === undefined)('bridge on a real EVM chain (Anvil)
     await anvilIncreaseTime(node.rpcUrl, 5 * 3600)
     await swap.refundSource(r)
     expect(await evm.account(fay.address).balance()).toBe(50 * USDC)
+  }, 120_000)
+
+  it('a cautious agent waits for confirmations of the USDC lock before locking sats (S10)', async () => {
+    const cautious = new LiquidityAgent(lpWallet, evm, lpAccount.address, findSpend, async () => await spendable(lpWallet), { ...DEFAULT_LIQUIDITY, minSourceConfirmations: 3 })
+    const swap = new DonorSwap(await chain.makeWallet(), evm, fay.address, chain.chainTracker)
+    let r = await swap.requestQuote(cautious, 20 * USDC)
+    r = await swap.lockAndRequest(cautious, r) // mined in the latest block: 1 confirmation
+    expect(r.lock).toBeUndefined()
+    expect(r.steps.at(-1)).toMatch(/wait: the USDC lock has 1 of 3 confirmations/)
+    expect(cautious.state(r.quote.id)).toBe('quoted') // not refused: the quote stays open
+    expect((await evm.htlc(r.sourceHtlcId!))?.confirmations).toBe(1)
+    await anvilMine(node.rpcUrl, 2)
+    r = await swap.requestLock(cautious, r)
+    expect(r.lock?.satoshis).toBe(r.quote.sats)
+    expect(cautious.state(r.quote.id)).toBe('locked')
   }, 120_000)
 
   it('the contract itself refuses a wrong secret, a stranger, and a second claim', async () => {
