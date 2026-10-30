@@ -1757,3 +1757,24 @@ Full suite: **149 passing** (23 files); both type-checks clean.
 **Honest limit:** a phrase list catches the common wordings, and a determined writer can rephrase. It is a filter on top of the model's judgement, not a guarantee. This is written in HAPPY_PATHS.
 
 **Verified:** full suite **156 passing** (24 files); `test:happy` 55/55; both typechecks clean. `demo:donor` now shows "Water tanks for a village: score 0 … (manipulation: text addressed to AI agents)".
+
+## Step 7: the video script, rewritten for mainnet; branches merged
+
+**What:** `docs/VIDEO_SCRIPT.md` is now a mainnet recording plan. It has:
+- a pre-flight: team wallets only, about 12,000 sats, the Claude brain checked at start-up, the agent topped up, the donor agent in co-pilot, and a tiny campaign set up to fail;
+- 8 timed rows, each ending on a WhatsOnChain link: the agent launches, backers pledge from BSV Desktop, the agent is paid and pays per call, the report anchor and the vote, the co-pilot approve-and-pay, a refund, and why BSV;
+- the txids to capture;
+- what the video must not claim. The swap and bridge are offline, so they are mentioned only as "next".
+
+`DEMO_SCRIPT.md` is marked as superseded.
+
+**Why:** the track requires the demo on mainnet. The previous one-page script used the offline demo world.
+
+**How:** every button and command in the script was checked against the code:
+- **Top up agent fees**, **Approve**, **Approve & pay**, **Reclaim (campaign failed)**, **My donor agent**;
+- `AGENT_GOAL`, `AGENT_DEADLINE_MIN`, `AGENT_MAX_SPEND`;
+- the mainnet agent's 2 milestones at 40/60.
+
+**What broke:** nothing. While checking, I found that the old script's "milestone one: 40 %" was right for the mainnet agent (2 milestones). Only the offline AirWatch story uses 30/40/30. I corrected my superseded note accordingly.
+
+**Merge:** with 156 tests passing, both typechecks clean and the app build OK, `master` was fast-forwarded to `docs-plans`. `cross-chain-swap`, `donor-agent` and `judging-prep` were already contained in `master`. Nothing was pushed.

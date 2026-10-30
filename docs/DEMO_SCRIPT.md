@@ -1,5 +1,7 @@
 # CryptoPledgePot: demo video script (2–3 minutes)
 
+> **Superseded by [`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md)** (one page, mainnet, all three agents). This longer script is kept for reference; its test count (88) is out of date.
+
 Record either **mainnet** (preferred; the track wants real transactions) or
 **"AirWatch live"** (`npm run demo:agent` + `npm run app`, or the Docker
 `agent-demo` profile) if sats aren't available yet. AirWatch plays the whole

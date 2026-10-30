@@ -1,37 +1,49 @@
-# 2.5-minute demo video: one page
+# 2.5-minute demo video on mainnet: one page
 
-**Setup** (offline, no wallet can be charged):
+Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain links. Record the run live and cut the waiting in editing; deadlines take minutes. Every cut should land on a WhatsOnChain page, so viewers can see that the step really happened.
 
-- **Window A:** `npm run demo:agent` + `npm run app` → http://localhost:5174. Pace 6 s per beat; the whole story takes about 1.5 min.
-- **Window B:** a terminal for `npm run demo:swap` and `npm run demo:donor`.
+**Before recording** (budget about 12,000 sats from **team** wallets; never a personal wallet):
 
-Say once, at the start: *"This is the offline demo world; the mainnet links are in the README."*
+1. Run `npm run server`, `npm run data-provider` (real Open-Meteo data) and `npm run app`. Check that `/api/health` says `main` and that the app shows mainnet.
+2. Start the agent with short, cheap terms and the Claude brain:
 
-| Time | Show | Say |
+   ```
+   ANTHROPIC_API_KEY=… AGENT_GOAL=5000 AGENT_DEADLINE_MIN=15 AGENT_MAX_SPEND=250 npm run agent
+   ```
+
+   The start-up line must say `brain claude:…`. Top it up with about 3,000 sats from BSV Desktop, using **Top up agent fees** on its campaign page.
+3. Donor agent: copy `donor-mandate.example.json` to `data/donor-mandate.json`, put in backer 1's identity key, and keep it in `copilot` mode. Then run `npm run donor`.
+4. Launch a second, tiny campaign from the app (goal 1,000 sats, deadline 10 minutes) and pledge 600 sats to it, so it fails during the recording.
+5. Have two BSV Desktop wallets ready (backer 1 and backer 2), with about 4,000 sats each. Keep a WhatsOnChain tab and the agent's terminal visible.
+
+| Time | Show (mainnet) | Say |
 |---|---|---|
-| **0:00–0:15** · Problem | Home page | "Crowdfunding hands creators a lump sum and donors lose all leverage. And the new kind of creator, an AI agent that needs a budget, can't be trusted with a blank cheque at all. CryptoPledgePot fixes that on BSV." |
-| **0:15–0:35** · Fundraising agent launches | Window A: banner beat 1, the AirWatch campaign: *AI agent* badge, 3 milestones (30/40/30 %), published limits "50 sats per call, 250 per milestone" | "This campaign was launched by an AI agent. It publishes its own spending limits up front, and they are written on chain." |
-| **0:35–0:50** · Backers pledge into escrow | Beats 2–6: the live feed fills (Ana 12k, Ben 6k, Chloe 1k, Dev 8k, Eli 3k); goal 25,000 passed | "Each donation is its own sCrypt escrow contract, not a payment to the agent. Fees are a fraction of a cent, so a 1,000-sat tip works." |
-| **0:50–1:15** · The agent is paid, and pays | Beats 7–9 and 12: the agent panel's payment list; the line *refused Zurich at 500 sats* | "After the deadline the agent can withdraw milestone 1 only; the contract re-locks the rest. Then it buys air-quality data, one 50-sat BSV micropayment per call over HTTP 402, and it refuses a 500-sat 'premium' price because that's above its cap." |
-| **1:15–1:35** · Backers stay in control | Beats 10–11: the report on milestone 2, its on-chain anchor, the vote bar (Ben votes no) | "Its report is hashed on chain before it's posted, so it can't be edited later. Backers vote, weighted by their pledge, and only a majority releases milestone 2. If the work stops, donors take back what's still in escrow, even without our server." |
-| **1:35–1:55** · Donor agent (co-pilot) | Window B: `npm run demo:donor`. Act 1: 5 campaigns checked → 2 proposed with memos; *"Note to AI agents…" scored 0*; the donor approves from their own wallet. Act 2 (if time allows): autopilot pledges and votes yes on a verified report | "The donor agent gives for you. You set a budget and rules. It checks every campaign: on-chain proofs, the agent's spending against its published limits, and text that tries to talk to AI agents. In co-pilot it writes a memo and waits for your yes; in autopilot it pledges by itself." |
-| **1:55–2:15** · Liquidity agent (swap) | Window B: `npm run demo:swap`, act 1 lines 1–8, then act 2 line 2 | "Fay has only USDC. A liquidity agent swaps it into sats in her own wallet with an atomic swap: one secret unlocks both chains, or both sides get a refund. Then she pledges. If the provider cheats, her agent refuses and she gets her USDC back." *(Say: "the USDC side runs on a simulated ledger in this demo"; or "on a local Ethereum chain" if you're showing `demo:bridge`.)* |
-| **2:15–2:30** · Why BSV, what works | README "What works in each piece" table (optionally the green `npm run test:happy` summary), then the mainnet txid table | "Every donation, release, refund and API call is a real BSV transaction costing a fraction of a cent. It's built on BRC-100 wallets, sCrypt, SPV, BRC-121 pay-per-call and wallet-toolbox, with over 150 automated tests. That's CryptoPledgePot." |
+| **0:00–0:12** · Problem | Home page, connected to BSV Desktop on mainnet | "Crowdfunding hands creators a lump sum, and donors lose all leverage. An AI agent that needs a budget can't be trusted with a blank cheque at all. CryptoPledgePot fixes that, live on BSV mainnet." |
+| **0:12–0:30** · The agent launches | Agent terminal: `brain claude:…`, the campaign launch. Campaign page: *AI agent* badge, 2 milestones (40 / 60 %), its published limits. Click the anchor → WhatsOnChain | "This campaign was launched by an AI agent. Its terms and its spending limits are written on chain: here's the transaction." |
+| **0:30–0:50** · Backers pledge | Backer 1: Donate 3,000 → the app's confirm dialog (amount, mainnet) → BSV Desktop approval → the live feed → the escrow output on WhatsOnChain. *(Cut: backer 2 pledges.)* | "I back it from my own wallet. The sats don't go to the agent: they go into an sCrypt escrow contract, one per donation, for a fraction of a cent in fees." |
+| **0:50–1:15** · The agent is paid, and pays | *(Cut past the deadline.)* Terminal: milestone 1 released, Claude's plan, the `paid 50 sats …` lines. The agent panel's payment list → a txid → WhatsOnChain | "After the deadline the agent can withdraw milestone 1 only; the contract keeps the rest locked. Claude picks which data to buy; code decides how much. It pays 50 sats per API call over HTTP 402 and refuses anything above its cap. Every payment is on chain." |
+| **1:15–1:35** · Backers stay in control | The milestone 2 report and its on-chain anchor (WhatsOnChain); backer 1 clicks **Approve** and confirms in BSV Desktop; *(cut)* terminal: milestone 2 released | "Its report is hashed on chain before it's posted, so it can't be edited later. Backers vote, weighted by what they pledged. Only a majority releases the next milestone." |
+| **1:35–1:55** · Donor agent (co-pilot) | **My donor agent** page: memos with their checks (SPV anchor, arbiter, the agent's spending against its published limits); a proposal → **Approve & pay** → BSV Desktop → the pledge on WhatsOnChain | "My donor agent screens campaigns for me: on-chain proofs, whether an AI agent kept to its own limits, and text that tries to manipulate AI agents. It writes a memo and waits. I approve and pay from my own wallet; the agent never holds my money." |
+| **1:55–2:12** · Refund | The tiny campaign that missed its goal → **Reclaim (campaign failed)** → BSV Desktop → the refund on WhatsOnChain | "If a campaign fails, donors take back what's in escrow right away, and after the refund date they can even do it without our server." |
+| **2:12–2:30** · Why BSV, what's next | The README's "What works" table, then the mainnet txid table in `USAGE_AND_VALUE.md` | "Every donation, release, API call, vote and refund you saw is a mainnet transaction costing a fraction of a cent. It's built on BRC-100 wallets, sCrypt, SPV, BRC-121 pay-per-call and wallet-toolbox. Next: atomic swaps that bring USDC from other chains; they already work offline." |
 
-**What the video shows working** (all ✅ in the README table):
+**Capture while recording** (into `docs/USAGE_AND_VALUE.md`):
 
-- escrow per pledge;
-- milestone release with a vote;
-- refunds;
-- an on-chain report anchor;
-- the agent's capped 402 payments;
-- the donor agent's checks and memo;
-- an atomic swap into a pledge.
+- the campaign anchor;
+- 2 donations;
+- the release of milestone 1;
+- at least 2 agent API payments;
+- the report anchor;
+- a vote;
+- the release of milestone 2;
+- the co-pilot pledge;
+- the refund.
 
-**What it must not claim:**
+**Must not claim:**
 
-- that the USDC side is real;
-- that the agent run happened on mainnet (not yet: R1);
-- that Claude was live (unless `ANTHROPIC_API_KEY` was set; otherwise say "a scripted brain").
+- that the swap or bridge ran on mainnet (it is offline: a simulated ledger or a local EVM chain);
+- that the brain was Claude, if the start-up line said `brain mock`.
+
+**Before you start:** check that no browser automation is running while BSV Desktop is open. Every payment in the video is clicked and approved by a person.
 
 Open work is in [`TODO.md`](TODO.md).
