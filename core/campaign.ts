@@ -8,6 +8,7 @@
  * On-chain records (OP_FALSE OP_RETURN, provably unspendable, 0 sats):
  *   campaign anchor:  'cryptopledgepot' 'campaign' <campaignId> <canonical JSON>
  *   donation memo:    'cryptopledgepot' 'pledge'   <campaignId> <JSON {name, message}>
+ *   breach record:    'cryptopledgepot' 'breach'   <campaignId> <JSON BreachRecord> (written by the compliance agent)
  * Anyone can rebuild the index from the chain with these.
  */
 import { Hash, OP, Script, Utils, type LockingScript, type WalletProtocol } from '@bsv/sdk'
@@ -165,9 +166,16 @@ export function pledgeMemoScript (campaignId: string, memo: PledgeMemo, tag: Pro
   return opReturn([utf8(tag), utf8('pledge'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(clean))])
 }
 
+/** Public, permanent record that a campaign breached its payment plan. */
+export interface BreachRecord { milestone: number, unaccountedSats: number, repaidSats: number, graceEndedAt: number, lines: Array<{ lineId: string, plannedSats: number, spentSats: number }> }
+
+export const breachRecordScript = (campaignId: string, record: BreachRecord, tag: ProtocolTag = CRYPTOPLEDGEPOT): Script =>
+  opReturn([utf8(tag), utf8('breach'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(record))])
+
 export type CryptoPledgePotRecord =
   | { kind: 'campaign', tag: ProtocolTag, campaignId: string, meta: CampaignMeta }
   | { kind: 'pledge', tag: ProtocolTag, campaignId: string, memo: PledgeMemo }
+  | { kind: 'breach', tag: ProtocolTag, campaignId: string, record: BreachRecord }
 
 /** Decode a CryptoPledgePot OP_RETURN output, or undefined if it is not one. */
 export function parseCryptoPledgePotRecord (script: Script | string): CryptoPledgePotRecord | undefined {
@@ -190,13 +198,15 @@ export function parseCryptoPledgePotRecord (script: Script | string): CryptoPled
     if (text(1) === 'pledge') {
       return { kind: 'pledge', tag, campaignId, memo: { name: typeof payload.name === 'string' ? payload.name : undefined, message: typeof payload.message === 'string' ? payload.message : undefined } }
     }
+    if (text(1) === 'breach') return { kind: 'breach', tag, campaignId, record: payload }
   } catch { /* not ours */ }
   return undefined
 }
 
 // ── Status ─────────────────────────────────────────────────────────────────
 
-export type CampaignStatus = 'active' | 'funded' | 'failed' | 'completed'
+/** 'breached': the creator broke its payment plan (core/compliance.ts); set by the indexer's view, never by campaignStatus(). */
+export type CampaignStatus = 'active' | 'funded' | 'failed' | 'completed' | 'breached'
 
 export function campaignStatus (meta: CampaignMeta, raised: number, milestonesReleased: number, now = Math.floor(Date.now() / 1000)): CampaignStatus {
   if (milestonesReleased >= meta.milestones.length) return 'completed'

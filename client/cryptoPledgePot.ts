@@ -13,8 +13,12 @@
  *   payPlanLine() / reportSpending()
  *              creator  pay a payment-plan budget line and prove it (SPV), or
  *                       report an auditor-signed off-chain invoice
+ *   repay()    creator  pay a non-compliant milestone's unaccounted sats back
+ *                       to the donors, pro rata (P2PKH of each donor key)
+ *   claimRepayments()
+ *              donor    collect those repayments into this wallet
  */
-import { Hash, Random, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
+import { Beef, Hash, PublicKey, Random, Script, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
 import {
   campaignAnchorScript,
   campaignIdOf,
@@ -239,6 +243,20 @@ export class CryptoPledgePot {
     return await this.api.reportSpending(campaignId, milestone, claims)
   }
 
+  /** Pay back what the payment plan says is owed for milestone k, to every donor's key in one transaction. */
+  async repay (campaignId: string, milestone: number): Promise<{ txid: string, sats: number }> {
+    const plan = await this.api.repaymentPlan(campaignId, milestone)
+    if (plan.outstanding.length === 0) throw new Error(`nothing is owed for milestone ${milestone} (${plan.state})`)
+    const res = await this.wallet.createAction({
+      description: `Repay donors, milestone ${milestone}`,
+      labels: ['cryptopledgepot', 'payment plan'],
+      outputs: plan.outstanding.map(o => ({ lockingScript: o.lockingScript, satoshis: o.sats, outputDescription: 'Repayment to a donor' })),
+      options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
+    }, this.originator)
+    if (res.tx === undefined) throw new Error('wallet did not return the repayment transaction')
+    return await this.api.reportRepayment(campaignId, milestone, hex(res.tx))
+  }
+
   // ── donor ────────────────────────────────────────────────────────────────
 
   /** Pledge `satoshis` into a fresh escrow, with an on-chain memo. */
@@ -271,6 +289,46 @@ export class CryptoPledgePot {
 
   async vote (campaignId: string, milestone: number, approve: boolean): Promise<void> {
     await this.api.vote(campaignId, milestone, approve)
+  }
+
+  /**
+   * Collect every repayment owed to this wallet's pledges (an NGO paying back
+   * a non-compliant milestone) in one transaction, into this wallet.
+   */
+  async claimRepayments (): Promise<{ txid: string, satoshis: number, outpoints: string[] } | undefined> {
+    const owed = await this.api.donorRepayments(await this.identityKey())
+    if (owed.length === 0) return undefined
+    const beef = new Beef()
+    const keys: Array<{ keyID: string, protocol: WalletProtocol, pub: number[] }> = []
+    for (const r of owed) {
+      beef.mergeBeef(Utils.toArray(r.beef, 'hex'))
+      const tag = (await this.api.campaign(r.campaignId)).protocolTag ?? 'cryptopledgepot'
+      const keyID = r.donorKeyId !== '' ? r.donorKeyId : (await this.findDonorKey(r.donorKey))?.keyID
+      if (keyID === undefined || await this.derivedKey(protocolsFor(tag).donor, keyID) !== r.donorKey) throw new Error(`pledge ${r.pledgeId} was not made from this wallet`)
+      keys.push({ keyID, protocol: protocolsFor(tag).donor, pub: PublicKey.fromString(r.donorKey).encode(true) as number[] })
+    }
+    const created = await this.wallet.createAction({
+      description: 'Collect CryptoPledgePot repayments',
+      labels: ['cryptopledgepot'],
+      inputBEEF: beef.toBinary(),
+      inputs: owed.map(r => ({ outpoint: r.outpoint, unlockingScriptLength: 108, inputDescription: 'Repayment from a campaign' })),
+      outputs: [],
+      options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
+    }, this.originator)
+    const signable = created.signableTransaction
+    if (signable === undefined) throw new Error('wallet did not return a signable transaction')
+    const tx = Transaction.fromAtomicBEEF(signable.tx)
+    const spends: Record<number, { unlockingScript: string }> = {}
+    for (let j = 0; j < owed.length; j++) {
+      const i = tx.inputs.findIndex((_, k) => outpointOf(tx, k) === owed[j].outpoint)
+      if (i < 0) { await this.wallet.abortAction({ reference: signable.reference }, this.originator); throw new Error('repayment input missing') }
+      const sig = await this.signInput(tx, i, keys[j].protocol, keys[j].keyID)
+      spends[i] = { unlockingScript: new Script().writeBin(sig).writeBin(keys[j].pub).toHex() }
+    }
+    const signed = await this.wallet.signAction({ reference: signable.reference, spends, options: { acceptDelayedBroadcast: false } }, this.originator)
+    if (signed.tx === undefined || signed.txid === undefined) throw new Error('wallet did not complete the collection')
+    await this.api.reportRepaymentsClaimed(hex(signed.tx))
+    return { txid: signed.txid, satoshis: owed.reduce((s, r) => s + r.sats, 0), outpoints: owed.map(r => r.outpoint) }
   }
 
   // ── recovery: claiming, finding keys, reclaiming without the server ─────

@@ -68,7 +68,7 @@ label { display: block; font-size: 0.9rem; margin: 0.6rem 0; }
 .progress { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 0.4rem 0; }
 .progress .bar { height: 100%; background: var(--brand); transition: width 0.6s ease; }
 .badge { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--brand-soft); color: var(--brand); }
-.badge.failed { background: #f9e5e3; color: var(--err); }
+.badge.failed, .badge.breached { background: #f9e5e3; color: var(--err); }
 .badge.completed { background: var(--line); color: var(--ink); }
 .badge.funded { background: #fff1d6; color: var(--warn); }
 

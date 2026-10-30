@@ -325,6 +325,31 @@ Design: [`docs/DONOR_AGENT_PLAN.md`](docs/DONOR_AGENT_PLAN.md).
 
 ---
 
+## 6b. NGO payment plans and the compliance agent
+
+NGOs sign a **payment plan** before launch: for each milestone, the budget
+lines, who gets paid and what share. They also accept a 10% tolerance, 30 days
+to report and a 7-day grace period. The plan is fixed into the campaign id and
+every escrow.
+
+- After a release, the NGO pays vendors from its wallet (`payPlanLine`,
+  checked by SPV) or reports auditor-signed invoices.
+- **The next milestone is co-signed only once the last one's spending matches
+  the plan.**
+- Off-plan spending starts a 7-day grace period: fix it, or pay the
+  unaccounted sats back to the donors pro rata, in one transaction.
+- After the grace period the campaign is **in breach**: no more releases, and
+  early refunds of all remaining escrow. The compliance agent writes a
+  breach record on chain.
+
+```bash
+npm run compliance       # watches every plan campaign: notices at http://127.0.0.1:8793/api/compliance
+```
+
+Design and limits: [`docs/NGO_PAYMENT_PLAN.md`](docs/NGO_PAYMENT_PLAN.md).
+
+---
+
 ## 7. Bring USDC in: cross-chain swaps with no custodian
 
 A donor who holds **only USDC on another chain** can end up with sats in

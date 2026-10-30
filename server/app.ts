@@ -30,10 +30,11 @@ import {
 } from '../core/campaign'
 import { ALL_SCOPE, cumulativeSchedule, escrowedAfter, METHOD, MIN_PLEDGE, scheduleIsStrict, parsePledgeScript, pledgeLockingScript, preimage } from '../core/pledge'
 import { PLAN_LIMITS, verifySpendClaim, type SpendClaim } from '../core/paymentPlan'
-import type { CampaignDetail, CampaignEvent, ReleasablePledges, SpendablePledge, SpendView } from '../core/api'
+import type { CampaignDetail, CampaignEvent, ReleasablePledges, RepaymentView, SpendablePledge, SpendView } from '../core/api'
+import { repaymentScript, repaymentShares } from '../core/compliance'
 import { CryptoPledgePotDb, type PledgeRow, type SpendRow } from './db'
 import { connectionCap, rateLimit } from './rateLimit'
-import { campaignView, mayRefundEarly, mayRelease, pledgeView } from './policy'
+import { campaignView, contributions, mayRefundEarly, mayRelease, pledgeView } from './policy'
 
 export interface CryptoPledgePotServerOptions {
   /** Arbiter / server wallet: signs as the vote oracle and authenticates the API. */
@@ -179,8 +180,8 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
   async function loadView (id: string) {
     const c = await db.campaign(id)
     if (c === undefined) throw new HttpError(404, 'campaign not found')
-    const [pledges, releases, updates, votes, spends] = await Promise.all([db.pledges(id), db.releases(id), db.updates(id), db.votes(id), db.spends(id)])
-    return { c, pledges, view: campaignView(c, pledges, releases, updates, votes, now(), spends) }
+    const [pledges, releases, updates, votes, spends, repayments] = await Promise.all([db.pledges(id), db.releases(id), db.updates(id), db.votes(id), db.spends(id), db.repayments({ campaignId: id })])
+    return { c, pledges, view: campaignView(c, pledges, releases, updates, votes, now(), { spends, repayments }) }
   }
 
   async function spv (tx: Transaction): Promise<void> {
@@ -246,6 +247,71 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
     const c = await db.campaign(String(req.params.id))
     if (c === undefined) throw new HttpError(404, 'campaign not found')
     return (await db.spends(c.id)).map(({ milestone, lineId, outpoint, invoiceSha256, note, verifiedSats, reason, createdAt }) => ({ milestone, lineId, outpoint, invoiceSha256, note, verifiedSats, reason, createdAt }))
+  }))
+
+  /**
+   * What the creator still owes the donors for milestone k, per pledge: pay
+   * each `sats` to its `lockingScript` (P2PKH of the pledge's donor key).
+   */
+  app.get('/api/campaigns/:id/milestones/:k/repayment', wrap(async (req) => {
+    const { c, pledges, view } = await loadView(String(req.params.id))
+    const k = Number(req.params.k)
+    const compliance = view.milestones[k - 1]?.compliance
+    if (compliance === undefined) throw new HttpError(400, 'that milestone has no payment-plan compliance (no plan, or not released)')
+    const shares = repaymentShares(compliance.dueBackSats, contributions(c.meta, pledges, k))
+    const paid = new Map<string, number>()
+    for (const r of await db.repayments({ campaignId: c.id })) if (r.milestone === k) paid.set(r.pledgeId, (paid.get(r.pledgeId) ?? 0) + r.sats)
+    const byId = new Map(pledges.map(p => [p.id, p]))
+    const outstanding = [...shares].map(([pledgeId, share]) => ({ pledgeId, lockingScript: repaymentScript(byId.get(pledgeId)!.donorKey), sats: share - (paid.get(pledgeId) ?? 0) })).filter(o => o.sats > 0)
+    return { milestone: k, state: compliance.state, dueBackSats: compliance.dueBackSats, repaidSats: compliance.repaidSats, graceEndsAt: compliance.graceEndsAt, outstanding }
+  }))
+
+  /**
+   * Record a repayment for milestone k: a transaction paying pledges' donor
+   * keys (P2PKH). The transaction is the proof (SPV), so anyone may report it.
+   */
+  app.post('/api/campaigns/:id/milestones/:k/repayment', limitSpv, wrap(async (req) => {
+    const { c, pledges } = await loadView(String(req.params.id))
+    const k = Number(req.params.k)
+    if (c.meta.paymentPlan === undefined || !Number.isInteger(k) || k < 1 || k > c.meta.milestones.length) throw new HttpError(400, 'no such payment-plan milestone')
+    const { tx, bytes } = parseAtomic(req.body?.beef)
+    await spv(tx)
+    const txid = tx.id('hex')
+    const byScript = new Map(contributions(c.meta, pledges, k).map(x => [repaymentScript(x.donorKey), x.pledgeId]))
+    let sats = 0
+    for (let vout = 0; vout < tx.outputs.length; vout++) {
+      const pledgeId = byScript.get(tx.outputs[vout].lockingScript.toHex())
+      if (pledgeId === undefined || (await db.repayments({ outpoints: [`${txid}.${vout}`] })).length > 0) continue
+      await db.insertRepayment({ campaignId: c.id, milestone: k, outpoint: `${txid}.${vout}`, pledgeId, sats: tx.outputs[vout].satoshis ?? 0, createdAt: now(), claimedBy: null })
+      sats += tx.outputs[vout].satoshis ?? 0
+    }
+    if (sats === 0) throw new HttpError(400, `transaction pays no donor of milestone ${k} (or was reported already)`)
+    await db.putTx(txid, Utils.toHex(bytes))
+    emit(c.id, { type: 'repayment', milestone: k, txid, sats })
+    return { txid, sats }
+  }))
+
+  /** Repayments a donor can still collect, each with the BEEF needed to spend it. */
+  app.get('/api/donors/:identityKey/repayments', wrap(async (req): Promise<RepaymentView[]> => {
+    const mine = await db.pledgesByDonor(String(req.params.identityKey))
+    const byId = new Map(mine.map(p => [p.id, p]))
+    const rows = (await db.repayments({ pledgeIds: mine.map(p => p.id) })).filter(r => r.claimedBy === null)
+    const out: RepaymentView[] = []
+    for (const r of rows) {
+      const p = byId.get(r.pledgeId)!
+      out.push({ campaignId: r.campaignId, campaignTitle: (await db.campaign(r.campaignId))!.meta.title, milestone: r.milestone, outpoint: r.outpoint, pledgeId: r.pledgeId, sats: r.sats, donorKey: p.donorKey, donorKeyId: p.donorKeyId, beef: (await db.tx(r.outpoint.split('.')[0])) ?? '' })
+    }
+    return out
+  }))
+
+  /** A donor collected repayments: mark the outputs this transaction spends (SPV-checked). */
+  app.post('/api/repayments/claimed', limitSpv, wrap(async (req) => {
+    const { tx } = parseAtomic(req.body?.beef)
+    await spv(tx)
+    const spent = tx.inputs.map((_, i) => outpointOf(tx, i))
+    const rows = await db.repayments({ outpoints: spent })
+    for (const r of rows) await db.markRepaymentClaimed(r.outpoint, tx.id('hex'))
+    return { claimed: rows.map(r => r.outpoint) }
   }))
 
   app.get('/api/donors/:identityKey/pledges', wrap(async (req) => {

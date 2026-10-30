@@ -26,7 +26,7 @@ export function creatorRecord (all: CampaignView[], creatorIdentityKey: string, 
   for (const c of all) {
     if (c.meta.creatorIdentityKey !== creatorIdentityKey || c.id === exceptId) continue
     if (c.status === 'completed') r.completed++
-    else if (c.status === 'failed') r.failed++
+    else if (c.status === 'failed' || c.status === 'breached') r.failed++
     else r.active++
   }
   return r

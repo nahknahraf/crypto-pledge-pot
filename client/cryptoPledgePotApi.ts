@@ -6,7 +6,18 @@
 import { AuthFetch, type WalletInterface } from '@bsv/sdk'
 import type { CampaignMeta } from '../core/campaign'
 import type { SpendClaim, SpendingResult } from '../core/paymentPlan'
-import type { CampaignDetail, CampaignView, PledgeView, ReleasablePledges, SpendablePledge, SpendView } from '../core/api'
+import type { CampaignDetail, CampaignView, PledgeView, ReleasablePledges, RepaymentView, SpendablePledge, SpendView } from '../core/api'
+import type { ComplianceState } from '../core/compliance'
+
+export interface RepaymentPlan {
+  milestone: number
+  state: ComplianceState
+  dueBackSats: number
+  repaidSats: number
+  graceEndsAt: number
+  /** Pay each `sats` to its `lockingScript`. */
+  outstanding: Array<{ pledgeId: string, lockingScript: string, sats: number }>
+}
 
 export class CryptoPledgePotApi {
   private auth?: AuthFetch
@@ -63,6 +74,13 @@ export class CryptoPledgePotApi {
 
   reportSpending = async (campaignId: string, milestone: number, claims: Array<SpendClaim & { beef?: string }>): Promise<SpendingResult> =>
     await this.post(`/api/campaigns/${campaignId}/milestones/${milestone}/spending`, { claims })
+
+  repaymentPlan = async (campaignId: string, milestone: number): Promise<RepaymentPlan> => await this.get(`/api/campaigns/${campaignId}/milestones/${milestone}/repayment`)
+  reportRepayment = async (campaignId: string, milestone: number, beef: string): Promise<{ txid: string, sats: number }> =>
+    await this.post(`/api/campaigns/${campaignId}/milestones/${milestone}/repayment`, { beef }, false)
+
+  donorRepayments = async (identityKey: string): Promise<RepaymentView[]> => await this.get(`/api/donors/${identityKey}/repayments`)
+  reportRepaymentsClaimed = async (beef: string): Promise<{ claimed: string[] }> => await this.post('/api/repayments/claimed', { beef }, false)
 
   vote = async (campaignId: string, milestone: number, approve: boolean): Promise<void> => {
     await this.post(`/api/campaigns/${campaignId}/milestones/${milestone}/vote`, { approve })

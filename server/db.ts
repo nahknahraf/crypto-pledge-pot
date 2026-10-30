@@ -49,6 +49,8 @@ export interface SpendRow {
   reason: string
   createdAt: number
 }
+/** A payment back to a donor (P2PKH of the pledge's donor key) for a non-compliant milestone. */
+export interface RepaymentRow { campaignId: string, milestone: number, outpoint: string, pledgeId: string, sats: number, createdAt: number, claimedBy: string | null }
 
 // knex is CommonJS: take the factory from the default export so plain Node ESM (tsx) works too.
 const makeKnex = ((knexPkg as any).knex ?? knexPkg) as typeof knexPkg
@@ -140,6 +142,17 @@ export class CryptoPledgePotDb {
         t.string('reason', 300).notNullable()
         t.integer('created_at').notNullable()
         t.unique(['campaign_id', 'invoice_sha256'])
+      })
+    }
+    if (!(await k.schema.hasTable('repayments'))) {
+      await k.schema.createTable('repayments', t => {
+        t.string('outpoint', 80).primary()
+        t.string('campaign_id', 64).notNullable().index()
+        t.integer('milestone').notNullable()
+        t.string('pledge_id', 80).notNullable().index()
+        t.bigInteger('sats').notNullable()
+        t.integer('created_at').notNullable()
+        t.string('claimed_by', 64)
       })
     }
   }
@@ -253,6 +266,23 @@ export class CryptoPledgePotDb {
   async spendAt (outpoint: string): Promise<SpendRow | undefined> {
     const r = await this.knex('spends').where({ outpoint }).first()
     return r === undefined ? undefined : spendFromRow(r)
+  }
+
+  // ── repayments ──
+  async insertRepayment (r: RepaymentRow): Promise<void> {
+    await this.knex('repayments').insert({ outpoint: r.outpoint, campaign_id: r.campaignId, milestone: r.milestone, pledge_id: r.pledgeId, sats: r.sats, created_at: r.createdAt, claimed_by: r.claimedBy })
+  }
+
+  async repayments (filter: { campaignId?: string, pledgeIds?: string[], outpoints?: string[] }): Promise<RepaymentRow[]> {
+    const q = this.knex('repayments')
+    if (filter.campaignId !== undefined) q.where({ campaign_id: filter.campaignId })
+    if (filter.pledgeIds !== undefined) q.whereIn('pledge_id', filter.pledgeIds)
+    if (filter.outpoints !== undefined) q.whereIn('outpoint', filter.outpoints)
+    return (await q.orderBy('created_at', 'asc')).map(r => ({ campaignId: r.campaign_id, milestone: r.milestone, outpoint: r.outpoint, pledgeId: r.pledge_id, sats: Number(r.sats), createdAt: r.created_at, claimedBy: r.claimed_by }))
+  }
+
+  async markRepaymentClaimed (outpoint: string, txid: string): Promise<void> {
+    await this.knex('repayments').where({ outpoint }).update({ claimed_by: txid })
   }
 
   async transaction<T> (fn: (db: CryptoPledgePotDb) => Promise<T>): Promise<T> {

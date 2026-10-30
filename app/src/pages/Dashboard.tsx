@@ -154,7 +154,7 @@ function PledgeRow ({ p, view, onChange }: { p: PledgeView & { campaignTitle: st
   const [msg, setMsg] = useState<Msg>()
   const now = Date.now() / 1000
   const canSelfRefund = view !== undefined && now >= view.meta.refundAfter
-  const canRefund = p.status === 'active' && view !== undefined && (view.status === 'failed' || canSelfRefund)
+  const canRefund = p.status === 'active' && view !== undefined && (view.status === 'failed' || view.status === 'breached' || canSelfRefund)
 
   async function refund () {
     if (!confirmSpend(`Reclaim ${formatSats(p.escrowed)} from your pledge to "${p.campaignTitle}"?`)) return
