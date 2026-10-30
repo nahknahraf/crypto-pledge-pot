@@ -36,11 +36,12 @@ export async function freePort (): Promise<number> {
   })
 }
 
-export async function startAnvil (port?: number): Promise<Anvil> {
+/** `timestamp`: the chain's start time (unix seconds), e.g. in the past so BSV timelocks line up with the mock chain. */
+export async function startAnvil (port?: number, opts: { timestamp?: number } = {}): Promise<Anvil> {
   port ??= await freePort()
   const bin = anvilBinary()
   if (bin === undefined) throw new Error('anvil not found: npm install (dev dependency @foundry-rs/anvil) or set ANVIL_BIN')
-  const proc: ChildProcess = spawn(bin, ['--port', String(port), '--silent', '--chain-id', '31337'], { stdio: 'ignore' })
+  const proc: ChildProcess = spawn(bin, ['--port', String(port), '--silent', '--chain-id', '31337', ...(opts.timestamp !== undefined ? ['--timestamp', String(opts.timestamp)] : [])], { stdio: 'ignore' })
   const rpcUrl = `http://127.0.0.1:${port}`
   const exited = new Promise<void>(resolve => proc.once('exit', () => resolve()))
   for (let i = 0; i < 100; i++) {

@@ -181,7 +181,7 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 - [x] **The LP as its own service.** `npm run lp` (HTTP: status, quote, lock), with `LiquidityClient` for donors. Both implement `LiquidityProvider`.
 - [x] **One source lock, one swap** (S5). This was a real hole, now fixed (`swap.edges`).
 - [ ] **Confirmations before locking sats** (S10). `EvmUsdcChain` waits N confirmations for its *own* transactions. The LP should also check the *donor's* lock depth before locking sats.
-- [ ] **Edge cases on Anvil.** Run S1–S9 against `EvmUsdcChain` (today only the happy path, the expired-quote refund and 3 contract checks run on the EVM). The simplest way is to run `swap.e2e` parameterised over both chains.
+- [x] **Edge cases on Anvil.** Covered on the real EVM contract: the happy path, an expired quote, the donor never claiming (both sides refund), a short-changing agent (refused, refunded), confirmations, the contract's own refusals, a crash and restart, and a lost reply.
 - [ ] **Contract hardening.** A Foundry/slither pass and a second reviewer. Test a fee-on-transfer token (the contract refuses it by checking the balance delta, but no test covers it), a 0 amount, and `refundAfter` in the past.
 - [ ] **Donor signs in the browser.** Today both EVM accounts are local keys in one process (Anvil's public dev keys, or testnet keys from env). A real donor signs `approve` + `lock` with their own EVM wallet (EIP-1193 through viem's `custom()` transport) in the web app.
 - [ ] **One transaction instead of two.** `approve` + `lock` are two transactions. EIP-2612 `permit` (USDC supports it) would make them one.
