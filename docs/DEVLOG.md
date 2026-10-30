@@ -1636,3 +1636,27 @@ Full suite: **149 passing** (23 files); both type-checks clean.
   the agent-run rows are marked ⏳ R1.
 - The judging report's open list is updated: what's left is the mainnet run,
   the video and the ngrok port.
+
+## Step 3: plans for verification, agent edge cases and real bridges; a short README
+
+**What:** four documents.
+- `docs/VERIFICATION_PLAN.md`: for every piece (escrow contract, swap contract, records, server, watcher/import, client, web app, Docker, demos), what is already proven by the 149 tests (✅), which normal and edge cases are still missing (➕), and what needs the real network (🌐). It ends with a by-hand mainnet smoke checklist and an order of work.
+- `docs/AGENT_TEST_PLAN.md`: invariants and new edge cases for the fundraising agent (F1–F14), the donor agent (D1–D13) and the liquidity agent (S1–S11), tested in this order: scripted brain, then hostile brain, then a small live-model eval.
+- `docs/BRIDGING_PLAN.md`: how to replace the simulated USDC chain with real rails.
+  - Our hashlock is plain SHA-256, which EVM (precompile), Bitcoin (`OP_SHA256`) and Lightning (the payment hash) all share. So each rail is one adapter behind the `SourceChain` interface we already have.
+  - Phase 1: an EVM HTLC with viem, Anvil → Base Sepolia → Base, capped.
+  - Phase 2: DEX sourcing in the donor's own tx, and a CeFi "withdraw to your own address" helper with no exchange credentials.
+  - Phase 3: a BTC P2WSH HTLC and Lightning hold invoices.
+  - Phases 4–5: on-ramps and wrapped stablecoins, as research.
+  - It also covers risks, liquidity and compliance.
+- `README.md` is now short: the pitch, four steps, the three agents, a "what works in each piece" table (✅ / 🟡 / ❌) and links. The long README moved to `docs/TECHNICAL_README.md`, with relative links fixed and its stale "88 tests" changed to 149.
+
+**Why:** the user asked for a verification plan, an agent edge-case plan, a *real* (not simulated) bridging plan, and a simplified README that says honestly what works. The judging report showed that the gaps a judge can probe are the edge cases (vote ties, bad SPV, lying servers), and the simulated USDC side.
+
+**How:**
+- Every "already covered" claim was checked against the test titles in `test/*.test.ts`. The per-agent counts were taken per file (31 fundraising, 22 donor, 12 swap).
+- Provider facts (exchanges, on-ramps, testnet USDC addresses) are deliberately not asserted. The bridging plan says to verify each one and record the date.
+
+**What broke:** nothing in code. The old README had a stale test count (88) and links that broke when it moved into `docs/`. Both were fixed.
+
+**Token use:** I also looked for GitHub tools that cut an AI coding agent's token use (e.g. `agusrdz/chop`, RTK, Context Gateway). They are not part of this repo. The pointers are in the chat answer.
