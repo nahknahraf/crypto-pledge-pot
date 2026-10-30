@@ -1945,3 +1945,5 @@ So the margin really does protect both sides.
 - Test (`server.votes`): a donation through an unreachable server fails after the broadcast, `raised` is 0, recovery registers 2,500 sats, `raised` becomes 2,500, and a second run does nothing.
 
 The other §6 cases (the user cancels in the wallet, too few sats) fail inside the wallet before anything is broadcast or registered, so there is nothing to undo. They remain as UI checks.
+
+**8.21 A large index costs a bounded amount per round** (D13). `DonorDeps.maxEvaluationsPerStep` (default 25) caps how many *new* campaigns one step evaluates: each one costs lookups and, with Claude, a model call. The rest are evaluated on later steps, because unevaluated campaigns aren't marked seen. Test: with 60 campaigns, the steps evaluate 25, then 25, then 10, then 0.

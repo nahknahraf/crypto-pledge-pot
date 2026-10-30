@@ -31,6 +31,8 @@ export interface DonorDeps extends DiligenceDeps {
   client?: CryptoPledgePot
   now?: () => number
   log?: (line: string) => void
+  /** New campaigns evaluated per step (each costs lookups and a model call); the rest wait for the next step. Default 25. */
+  maxEvaluationsPerStep?: number
 }
 
 export interface StepSummary { evaluated: number, proposed: number, pledged: number, skipped: number, votes: number, refunds: number }
@@ -72,6 +74,7 @@ export class DonorAgent {
     const seen = new Set(this.deps.memos.all().filter(m => m.kind === 'pledge' || m.kind === 'skip').map(m => m.campaignId))
     for (const c of campaigns) {
       if (seen.has(c.id) || c.status !== 'active') continue
+      if (s.evaluated >= (this.deps.maxEvaluationsPerStep ?? 25)) break // bounded cost per round
       s.evaluated++
       const memo = await this.evaluate(c, campaigns)
       if (memo.kind === 'skip') s.skipped++

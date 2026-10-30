@@ -5,6 +5,10 @@ import { parseMandate, type Mandate } from '../donor/mandate'
 import { amountFor, creatorRecord, screen, type Portfolio } from '../donor/screen'
 import { addressesAgents, MockDonorBrain, sanitizeAssessment } from '../donor/brain'
 import { scoreCampaign } from '../donor/score'
+import { memoryStore } from '../agent/ledger'
+import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
+import { DonorAgent } from '../donor/donorAgent'
+import { MemoBook, type Memo } from '../donor/memo'
 
 const NOW = 1_800_000_000
 const DAY = 86_400
@@ -154,5 +158,17 @@ describe('budget edges and malformed model output (AGENT_TEST_PLAN D1, D9)', () 
     const b = sanitizeAssessment({ fit: Infinity, milestoneQuality: -Infinity, riskFlags: [42 as unknown as string, 'ok'], summary: 'x'.repeat(1000) })
     expect(b).toMatchObject({ fit: 0, milestoneQuality: 0, riskFlags: ['ok'] })
     expect(b.summary).toHaveLength(400)
+  })
+})
+
+describe('a large index (D13)', () => {
+  it('evaluates at most maxEvaluationsPerStep new campaigns per step, and the rest on later steps', async () => {
+    const many = Array.from({ length: 60 }, (_, i) => campaign({ title: `Robot league ${i}`, description: 'Robots.' }, { id: i.toString(16).padStart(64, '0') }))
+    const api = { campaigns: async () => many } as unknown as CryptoPledgePotApi
+    const agent = new DonorAgent(mandate({ mode: 'copilot' }), { api, brain: new MockDonorBrain(), memos: new MemoBook(memoryStore<Memo[]>([])), chainTracker: {} as any, txExists: async () => false, now: () => NOW, log: () => {}, maxEvaluationsPerStep: 25 })
+    expect((await agent.step()).evaluated).toBe(25)
+    expect((await agent.step()).evaluated).toBe(25)
+    expect((await agent.step()).evaluated).toBe(10)
+    expect((await agent.step()).evaluated).toBe(0)
   })
 })
