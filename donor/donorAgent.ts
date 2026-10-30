@@ -63,6 +63,12 @@ export class DonorAgent {
   async step (): Promise<StepSummary> {
     const s: StepSummary = { evaluated: 0, proposed: 0, pledged: 0, skipped: 0, votes: 0, refunds: 0 }
     const campaigns = await this.deps.api.campaigns()
+    // A proposal the donor never answered expires when its campaign closes: it stops reserving budget.
+    const open = new Set(campaigns.filter(c => c.status === 'active').map(c => c.id))
+    for (const m of this.deps.memos.all().filter(x => x.kind === 'pledge' && x.status === 'proposed' && !open.has(x.campaignId))) {
+      this.deps.memos.update(m.id, { status: 'declined', reasons: [...m.reasons, 'expired: the campaign closed before you approved'] })
+      this.log(`proposal for "${m.campaignTitle}" expired`)
+    }
     const seen = new Set(this.deps.memos.all().filter(m => m.kind === 'pledge' || m.kind === 'skip').map(m => m.campaignId))
     for (const c of campaigns) {
       if (seen.has(c.id) || c.status !== 'active') continue

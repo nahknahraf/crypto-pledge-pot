@@ -190,6 +190,25 @@ describe('co-pilot: the agent proposes, the donor approves and pays', () => {
     expect(memo.reasons[0]).toMatch(/score 0/)
   })
 
+  it('a proposal the donor never answers expires when its campaign closes, and frees its budget', async () => {
+    clock = T0 + 14 * DAY
+    const fresh = await chain.makeWallet(); await chain.fund(fresh, 50_000)
+    const id = (await as(fresh).launch(campaign({ title: 'Water point for a clinic', description: 'One water point; we publish the flow test.' }))).campaignId
+    const book = new MemoBook(memoryStore<Memo[]>([]))
+    const a = new DonorAgent(parseMandate({ name: 'x', mode: 'copilot', keywords: ['water'], donorIdentityKey: donor.identityKey, budget: { totalSats: 12_000, perPledgeMaxSats: 6_000, perCreatorMaxPct: 100 } }),
+      { api: new CryptoPledgePotApi(url), brain: new MockDonorBrain(), memos: book, chainTracker: chain.chainTracker, txExists, now: () => clock, log: () => {} })
+    await a.step()
+    const proposal = book.all().find(m => m.campaignId === id)!
+    expect(proposal.status).toBe('proposed')
+    expect(a.portfolio().total).toBeGreaterThan(0)
+    clock += 3_601 // the deadline passes unanswered
+    await a.step()
+    expect(book.get(proposal.id)).toMatchObject({ status: 'declined' })
+    expect(book.get(proposal.id)!.reasons.at(-1)).toMatch(/expired/)
+    expect(a.portfolio().total).toBe(0)
+    await expect(a.approve(proposal.id, 'x.0')).rejects.toThrow(/not an open proposal/)
+  })
+
   it('refuses autopilot without a budget wallet', () => {
     expect(() => new DonorAgent(parseMandate({ name: 'x', mode: 'autopilot', keywords: ['water'] }), { api: new CryptoPledgePotApi(url), brain: new MockDonorBrain(), memos, chainTracker: chain.chainTracker, txExists })).toThrow(/needs a wallet client/)
   })

@@ -1891,3 +1891,5 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 - Test on Anvil: an agent wanting 3 confirmations says "wait: 1 of 3", the quote stays open, 2 blocks are mined, and the retry locks the sats.
 
 **What broke:** the first run reported **−7 confirmations**. viem caches `getBlockNumber` for a few seconds, so "latest" was stale while the event was fresh. The read now uses `cacheTime: 0`. Without the test, a cautious agent on a real chain would have waited wrongly, or worse, counted a fresh lock as deep.
+
+**8.12 Stale co-pilot proposals expire** (D6). A proposal the donor never answered kept reserving budget after its campaign closed, which shrank what the agent could propose next, for good. Now each step marks proposals for closed campaigns as `declined`, with the reason "expired: the campaign closed before you approved". The budget comes back, and a late approval is refused. Test in `donor.e2e`: proposed, deadline passes, expired, portfolio 0, approve refused.
