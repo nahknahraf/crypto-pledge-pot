@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BSV-21 Token Kit</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>BSV-21 Token Kit</h1>
+      <p class="sub">Local overlay as the source of truth + BRC-100 wallet (BSV Desktop)</p>
+    </div>
+    <div class="status">
+      <span id="wallet-status" class="chip">Wallet: not connected</span>
+      <span id="overlay-status" class="chip">Overlay: …</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card" id="connect-card">
+      <h2>1 · Connect</h2>
+      <p>Open BSV Desktop (mainnet) and connect. The wallet asks you to approve each action.</p>
+      <div class="row">
+        <button id="connect">Connect wallet</button>
+        <button id="sync" class="secondary" disabled>Sync overlay → basket</button>
+        <button id="refresh" class="secondary" disabled>Refresh</button>
+      </div>
+      <p class="mono small" id="identity"></p>
+    </section>
+
+    <section class="card">
+      <h2>2 · Create a token</h2>
+      <form id="deploy-form" class="grid">
+        <label>Symbol <input name="sym" value="KITTEST" maxlength="32" required /></label>
+        <label>Supply (display units) <input name="amt" value="10000" required /></label>
+        <label>Decimals <input name="dec" type="number" min="0" max="18" value="2" required /></label>
+        <button type="submit" disabled>Create token (deploy)</button>
+      </form>
+      <p class="small muted">Supply in display units: 10000 with 2 decimals = 1,000,000 base units.</p>
+    </section>
+
+    <section class="card">
+      <h2>3 · My tokens</h2>
+      <table>
+        <thead><tr><th>Token</th><th>Overlay balance</th><th>Basket balance</th><th>UTXOs</th><th></th></tr></thead>
+        <tbody id="balances"><tr><td colspan="5" class="muted">Connect the wallet.</td></tr></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>4 · UTXOs <span id="utxo-token" class="muted small"></span></h2>
+      <table>
+        <thead><tr><th>Outpoint</th><th>Amount</th><th>Address index</th><th>Overlay</th><th>Basket</th></tr></thead>
+        <tbody id="utxos"><tr><td colspan="5" class="muted">Pick a token under “My tokens”.</td></tr></tbody>
+      </table>
+      <p class="small muted">Overlay ✓ = validated back to the original deploy. Basket ✓ = stored in your wallet. Only Overlay ✓ UTXOs are ever spent.</p>
+    </section>
+
+    <section class="card">
+      <h2>5 · Send</h2>
+      <form id="send-form" class="grid">
+        <label>Token <select name="token"></select></label>
+        <label>Amount <input name="amount" value="1" required /></label>
+        <label class="wide">Recipient (identity key, or empty = myself on a fresh address)
+          <input name="to" placeholder="03… (66 hex characters)" class="mono" />
+        </label>
+        <button type="submit" disabled>Send</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>6 · Look up any identity key</h2>
+      <form id="lookup-form" class="row">
+        <input name="key" placeholder="03… identity key" class="mono grow" required />
+        <button type="submit">Ask the overlay</button>
+      </form>
+      <div id="lookup-result" class="small"></div>
+    </section>
+
+    <section class="card">
+      <h2>Log</h2>
+      <ol id="log" class="log"></ol>
+    </section>
+  </main>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "name": "y",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plug-and-play BSV-21 token overlay + BRC-100 client + minimal web UI (prototype)",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "overlay": "tsx overlay/server.ts",
+    "web": "vite web",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bsv/402-pay": "^0.3.3",
+    "@bsv/auth-express-middleware": "^2.2.9",
+    "@bsv/overlay": "^2.6.4",
+    "@bsv/overlay-express": "^2.7.4",
+    "@bsv/payment-express-middleware": "^2.1.9",
+    "@bsv/sdk": "^3.2.1",
+    "@bsv/wallet-toolbox": "^2.14.9",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.3.0",
+    "knex": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12"
+  },
+  "main": "index.js",
+  "directories": {
+    "example": "examples",
+    "test": "test"
+  },
+  "author": "",
+  "license": "ISC"
+}
