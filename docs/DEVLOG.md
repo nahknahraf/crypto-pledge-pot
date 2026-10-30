@@ -989,3 +989,28 @@ So the setup is **checked statically only**: YAML parsed, every command maps
 to an npm script, every Caddy route reaches a service, volumes are per
 service, full suite at **101 passing**. `docs/DOCKER.md` lists five things to
 check on the first real run.
+
+## Planning the full dockerisation
+
+The first Compose setup covers the running app. Everything else in the repo
+still needs Node on the host: the tests, the type-check, the sCrypt toolchain,
+the recovery CLI, the starter-kit overlay, and a development setup. Two things
+we measured shaped `docs/DOCKERISATION_PLAN.md`:
+- **node_modules is 278 MB**, and production carries the dev tools only
+  because the services run through vite-node. The plan bundles the entry
+  points instead (`vite build --ssr` with the same single-SDK alias) and proves
+  it by running the e2e tests against the bundles.
+- **The sCrypt toolchain is a separate 139 MB** and downloads its compiler.
+  It gets its own on-demand image with a pinned compiler and checksum, and has
+  to reproduce the committed artifact byte for byte.
+
+The plan has seven phases. It starts by making the unverified Compose setup
+real, then moves on to:
+- a slimmer, hardened image, with keys as Docker secrets instead of env vars;
+- tools containers and the development setup;
+- migrating the existing keys, so "Fund a well" keeps its arbiter;
+- backups with a tested restore;
+- CI with a read-only demo smoke test.
+
+It ends with six decisions for the team. One of them is whether the rate
+limits we added for sharing should stay as they are.
