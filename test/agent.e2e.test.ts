@@ -194,6 +194,22 @@ describe('the agent cannot be talked into overspending', () => {
     expect(ledger.forMilestone(1).reduce((t, e) => t + e.sats, 0)).toBe(150)
   })
 
+  it('a plan with nothing to buy, and a wallet below its fee reserve: no payment, and the report says so', async () => {
+    const view: any = { id: 'x', meta: { milestones: [{ title: 'only', percent: 100 }] }, milestones: [{ index: 1, title: 'only', released: true }] }
+    const lazy: Brain = { name: 'lazy', planCalls: async () => [], writeReport: async ({ results }) => `bought ${results.length}` }
+    const w1 = await chain.makeWallet(); await chain.fund(w1, 20_000)
+    const a = makeAgent(w1, {}, lazy)
+    a.state.save({ campaignId: 'x', worked: [] })
+    expect(await (a.agent as any).work(view, 1)).toMatchObject({ action: 'worked', calls: 0, sats: 0 })
+
+    const w2 = await chain.makeWallet(); await chain.fund(w2, 1_020) // fee reserve 1,000: not even one 50-sat call
+    const b = makeAgent(w2)
+    b.state.save({ campaignId: 'x', worked: [] })
+    expect(await (b.agent as any).work(view, 1)).toMatchObject({ action: 'worked', calls: 0, sats: 0 })
+    expect(b.logs.join("\n")).toMatch(/budget 20 sats → up to 0 calls/)
+    expect(b.ledger.all()).toHaveLength(0)
+  })
+
   it('an overpriced or unlisted API is refused, and nothing is paid', async () => {
     const wallet = await chain.makeWallet()
     await chain.fund(wallet, 20_000)

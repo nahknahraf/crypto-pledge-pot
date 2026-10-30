@@ -75,5 +75,16 @@ describe('capped 402 payer', () => {
       expect(await spendable(provider)).toBe(before + 50) // the money really went
     }
   })
+
+  it('pays a price exactly at its cap, and refuses one sat more (a price raised mid-milestone)', async () => {
+    const [at51, url51] = await listen(createDataProviderApp(provider, 51))
+    try {
+      const pay = createCappedPayer({ wallet: agent, allowedHosts: [cheapUrl, url51], maxPricePerCall: 50 })
+      expect((await pay<any>(`http://${cheapUrl}/data/rome`)).paid).toBe(50)
+      const before = await spendable(agent)
+      await expect(pay(`http://${url51}/data/rome`)).rejects.toThrow(/asks 51 sats; the agent's cap is 50/)
+      expect(await spendable(agent)).toBe(before)
+    } finally { await new Promise(r => at51.close(r)) }
+  })
 })
 

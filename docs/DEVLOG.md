@@ -1866,3 +1866,14 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 **What broke:** starting `npm run lp` generated `data/lp.key`, and **`.gitignore` didn't cover it**. Caught before any commit: `data/lp.key`, `data/lp-wallet.sqlite*` and `data/lp-swaps.json*` are now ignored. The generated key holds no funds.
 
 **Verified:** 198 tests passing (31 files); `test:happy` 58/58 in 10 files; both typechecks clean.
+
+**8.9 Fundraising agent at its edges, and a smoke test for the demo world** (F3, F4, F6, F8; §9):
+- A price exactly at the cap (50) is paid. A price raised to 51 is refused, and nothing is paid.
+- A brain that plans nothing gives 0 calls and 0 sats.
+- A wallet with 1,020 sats against a 1,000-sat fee reserve has a 20-sat budget: 0 calls, an empty ledger, and the log says so. My first expectation said "budget 0"; the code was right.
+- `test/demoWorld.smoke.test.ts` starts `npm run demo` as a child process on free ports. It waits until the server lists campaigns, then checks:
+  - `network: mock`;
+  - "active" and "failed" campaigns are present;
+  - there is an AI-agent campaign.
+
+  It then kills the whole process group, and no processes are left behind (checked).
