@@ -156,11 +156,16 @@ export class CryptoPledgePotAgent {
       }
     }
 
+    // Report every payment for this milestone from the ledger, not just this run's: after a failed
+    // step or a restart, the earlier payments must still be in front of the backers.
+    const paid = this.deps.ledger.forMilestone(milestone)
+    spent = paid.reduce((t, e) => t + e.sats, 0)
+    txids.splice(0, txids.length, ...paid.flatMap(e => e.txid !== undefined ? [e.txid] : []))
     const report = await this.deps.brain.writeReport({
       mission: this.config.mission,
       milestone: { index: milestone, title: m.title },
       results,
-      spend: { calls: results.length, sats: spent, txids }
+      spend: { calls: paid.length, sats: spent, txids }
     })
     // Report on the next milestone: that is what opens the backers' vote on it.
     const nextIndex = milestone + 1
@@ -175,9 +180,10 @@ export class CryptoPledgePotAgent {
         outputs: [{ lockingScript: reportRecordScript(view.id, nextIndex, text, view.protocolTag).toHex(), satoshis: 0, outputDescription: 'report hash' }],
         options: { acceptDelayedBroadcast: false }
       }, this.deps.originator)
-      await this.deps.cryptopledgepot.postUpdate(view.id, nextIndex, `${text}\n\nReport anchored on chain: https://whatsonchain.com/tx/${anchor.txid ?? ''}`)
+      if (anchor.txid === undefined) throw new Error('the report anchor was not broadcast; not posting the report')
+      await this.deps.cryptopledgepot.postUpdate(view.id, nextIndex, `${text}\n\nReport anchored on chain: https://whatsonchain.com/tx/${anchor.txid}`)
       updatePosted = true
-      this.log(`posted progress report (hash anchored in ${anchor.txid?.slice(0, 12) ?? '?'}…); backers can now vote on milestone ${nextIndex}`)
+      this.log(`posted progress report (hash anchored in ${anchor.txid.slice(0, 12)}…); backers can now vote on milestone ${nextIndex}`)
     }
     if (this.config.dryRun !== true) {
       const s = this.deps.state.load()

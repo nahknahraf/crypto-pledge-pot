@@ -210,6 +210,34 @@ describe('the agent cannot be talked into overspending', () => {
     expect(b.ledger.all()).toHaveLength(0)
   })
 
+  it('no report is posted without its anchor; the retry posts it with the first run\'s payments, buying nothing new (F14)', async () => {
+    const wallet = await chain.makeWallet(); await chain.fund(wallet, 20_000)
+    const { agent, ledger, state } = makeAgent(wallet, { maxSpendPerMilestone: 100 })
+    let anchorFailures = 1
+    const flaky = Object.create(wallet)
+    flaky.createAction = async (args: any, o?: string) => {
+      if (args.description === 'Anchor agent milestone report' && anchorFailures-- > 0) throw new Error('broadcast failed')
+      return await wallet.createAction(args, o)
+    }
+    const posted: string[] = []
+    Object.assign((agent as any).deps, { wallet: flaky, cryptopledgepot: { postUpdate: async (_id: string, _k: number, text: string) => { posted.push(text) } } })
+    state.save({ campaignId: 'x', worked: [] })
+    const view: any = { id: 'ab'.repeat(32), protocolTag: 'cryptopledgepot', meta: { milestones: [{ title: 'one', percent: 50 }, { title: 'two', percent: 50 }] }, milestones: [{ index: 1, title: 'one', released: true }, { index: 2, title: 'two', released: false }] }
+
+    await expect((agent as any).work(view, 1)).rejects.toThrow(/broadcast failed/)
+    expect(posted).toHaveLength(0)
+    expect(state.load().worked).toEqual([]) // not marked done
+    const firstRun = ledger.all().map(e => e.txid!)
+    expect(firstRun).toHaveLength(2)
+
+    const out = await (agent as any).work(view, 1)
+    expect(out).toMatchObject({ action: 'worked', sats: 100, updatePosted: true })
+    expect(ledger.all()).toHaveLength(2) // nothing bought twice
+    expect(posted).toHaveLength(1)
+    for (const t of firstRun) expect(posted[0]).toContain(t)
+    expect(posted[0]).toMatch(/Report anchored on chain: https:\/\/whatsonchain.com\/tx\/[0-9a-f]{64}/)
+  })
+
   it('an overpriced or unlisted API is refused, and nothing is paid', async () => {
     const wallet = await chain.makeWallet()
     await chain.fund(wallet, 20_000)

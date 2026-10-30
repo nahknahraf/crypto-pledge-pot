@@ -1899,3 +1899,9 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 - So a dishonest index could serve a campaign with better-looking milestones next to a genuine anchor. The donor agent would score the doctored version, and in autopilot pledge against it.
 - The campaign id is the sha256 of the complete terms, so one comparison closes the hole: `campaignIdOf(shown terms) === id`.
 - Tests (`donor.e2e`): the real campaign passes; doctored milestones fail ("terms shown do not match"); an anchor the server can't produce fails; headers that don't confirm the proof fail SPV. The doctored case fails on the old code (checked with a stash).
+
+**8.14 The report after a failed anchor** (F14). The anchor already came before the post, so a failed anchor transaction meant no report was posted and the milestone wasn't marked done. That part was right. **Two gaps, fixed:**
+- **The retry's report lost the first run's payments.** The report listed only the payments made in the current run. After a failed step, the retry (which correctly buys nothing new) would have reported "0 sats" with no links, hiding the real payments from backers. The report now takes the milestone's payments and total from the ledger.
+- **An anchor with no txid** would have been posted with an empty link. Now the agent refuses to post.
+
+Test (`agent.e2e`): the anchor fails once. Nothing is posted, the milestone isn't marked done, and 2 payments are in the ledger. The retry anchors and posts one report that contains both earlier txids and a real anchor link, and buys nothing new. It fails on the old code (checked with a stash).
