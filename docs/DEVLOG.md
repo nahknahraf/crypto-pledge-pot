@@ -1893,3 +1893,9 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
 **What broke:** the first run reported **−7 confirmations**. viem caches `getBlockNumber` for a few seconds, so "latest" was stale while the event was fresh. The read now uses `cacheTime: 0`. Without the test, a cautious agent on a real chain would have waited wrongly, or worse, counted a fresh lock as deep.
 
 **8.12 Stale co-pilot proposals expire** (D6). A proposal the donor never answered kept reserving budget after its campaign closed, which shrank what the agent could propose next, for good. Now each step marks proposals for closed campaigns as `declined`, with the reason "expired: the campaign closed before you approved". The budget comes back, and a late approval is refused. Test in `donor.e2e`: proposed, deadline passes, expired, portfolio 0, approve refused.
+
+**8.13 Due diligence trusted the server's copy of the terms** (D4). **A real hole, fixed.**
+- `checkAnchor` proved that the anchor transaction is real (SPV) and that the terms *inside it* hash to the campaign id. It never checked that the terms the server *shows* are those terms.
+- So a dishonest index could serve a campaign with better-looking milestones next to a genuine anchor. The donor agent would score the doctored version, and in autopilot pledge against it.
+- The campaign id is the sha256 of the complete terms, so one comparison closes the hole: `campaignIdOf(shown terms) === id`.
+- Tests (`donor.e2e`): the real campaign passes; doctored milestones fail ("terms shown do not match"); an anchor the server can't produce fails; headers that don't confirm the proof fail SPV. The doctored case fails on the old code (checked with a stash).

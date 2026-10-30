@@ -12,6 +12,7 @@ import { createCryptoPledgePotApp } from '../server/app'
 import { CryptoPledgePotDb } from '../server/db'
 import { memoryStore } from '../agent/ledger'
 import { MockDonorBrain, type DonorBrain } from '../donor/brain'
+import { checkAnchor } from '../donor/diligence'
 import { DonorAgent } from '../donor/donorAgent'
 import { parseMandate } from '../donor/mandate'
 import { MemoBook, type Memo } from '../donor/memo'
@@ -207,6 +208,21 @@ describe('co-pilot: the agent proposes, the donor approves and pays', () => {
     expect(book.get(proposal.id)!.reasons.at(-1)).toMatch(/expired/)
     expect(a.portfolio().total).toBe(0)
     await expect(a.approve(proposal.id, 'x.0')).rejects.toThrow(/not an open proposal/)
+  })
+
+  it('due diligence fails a doctored view, an unprovable anchor, and an anchor that fails SPV (D4)', async () => {
+    const api = new CryptoPledgePotApi(url)
+    const real = await api.campaign(wellId)
+    const deps = { api, chainTracker: chain.chainTracker, txExists }
+    expect((await checkAnchor(real, deps)).ok).toBe(true)
+    // A server that shows better terms than the ones anchored on chain.
+    const doctored = { ...real, meta: { ...real.meta, milestones: real.meta.milestones.map((m, i) => ({ ...m, percent: i === 0 ? m.percent - 10 : i === 1 ? m.percent + 10 : m.percent })) } }
+    expect(await checkAnchor(doctored, deps)).toMatchObject({ ok: false, detail: /terms shown do not match/ })
+    // A server that cannot produce the anchor.
+    expect(await checkAnchor(real, { ...deps, api: { ...api, txBeef: async () => { throw new Error('HTTP 404') } } as any })).toMatchObject({ ok: false, detail: /could not be verified: HTTP 404/ })
+    // Headers that do not confirm the anchor's proof.
+    const lyingHeaders = { isValidRootForHeight: async () => false, currentHeight: async () => 1_000_000 }
+    expect(await checkAnchor(real, { ...deps, chainTracker: lyingHeaders })).toMatchObject({ ok: false })
   })
 
   it('refuses autopilot without a budget wallet', () => {

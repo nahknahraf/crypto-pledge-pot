@@ -24,6 +24,9 @@ export interface DiligenceDeps {
 export async function checkAnchor (c: CampaignView, d: DiligenceDeps): Promise<Check> {
   const name = 'anchored on chain'
   try {
+    // The id is the hash of the full terms: the terms the server shows (and that we score and pledge
+    // against) must be exactly the anchored ones, not merely sit next to a valid anchor.
+    if (campaignIdOf(c.meta) !== c.id) return { name, ok: false, detail: 'the terms shown do not match this campaign\'s id (changed after anchoring?)' }
     const tx = Transaction.fromAtomicBEEF(Utils.toArray(await d.api.txBeef(c.anchorTxid), 'hex'))
     if (tx.id('hex') !== c.anchorTxid) return { name, ok: false, detail: 'the anchor transaction id does not match' }
     const record = tx.outputs.map(o => parseCryptoPledgePotRecord(o.lockingScript)).find(r => r?.kind === 'campaign')
