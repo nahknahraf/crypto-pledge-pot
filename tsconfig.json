@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["core", "overlay", "client", "examples", "web/src"]
+  "include": ["core", "overlay", "client", "examples", "server", "web/src"]
 }
