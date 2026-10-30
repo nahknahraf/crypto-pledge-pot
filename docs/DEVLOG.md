@@ -185,3 +185,68 @@ chain validates every script):
   timelocked refund with no arbiter → nothing left escrowed.
 - Forged escrow (right campaign id, wrong arbiter key) is rejected by the
   indexer.
+
+---
+
+## 5. Production server entry, offline demo, React frontend
+
+### `server/main.ts` (`npm run server`)
+- The arbiter is a full **wallet-toolbox** wallet (`Setup.createWalletSQLite`).
+  It never holds funds; it derives the per-campaign arbiter keys, signs
+  sighashes, and authenticates the API (BRC-103). SPV headers come from
+  **Arcade chaintracks** (`ArcadeChainTracker`).
+- The root key comes from `BITFUND_ARBITER_KEY`, or is generated once into
+  `data/arbiter.key` (mode 600). That file is **git-ignored**, together with
+  the arbiter wallet DB, because it is the oracle's signing key.
+
+### `server/demo.ts` (`npm run demo`)
+The real server on the mock chain, seeded by real wallets running the same
+client code as the browser. It produces one campaign in each state: active,
+funded with milestone 1 released and a vote open, completed, and failed with an
+early refund. **Why:** judges and teammates can browse the UI without a wallet
+or funds. Browser wallet actions need `npm run server` (mainnet), because a
+real wallet's transactions don't exist on the mock chain.
+
+### Frontend (`app/`, `npm run app` → :5174)
+React 19 + Vite. The brief asked for Next.js/React; Vite keeps the repo light,
+and the components are plain React that drop into Next.js unchanged.
+- `wallet.tsx`: `WalletClient('auto')` → `waitForAuthentication` → BitFund
+  client + AuthFetch.
+- `components/DonateButton.tsx`: the donation component (presets, USD
+  estimate, on-chain memo, explanation of escrow and refund).
+- Pages: Home (tabs Active/Funded/Completed/Missed goal), Campaign (progress,
+  milestones with vote bars, **live donor feed over SSE**), Create (goal in
+  BSV or USD at the live WhatsOnChain rate, milestone editor), Dashboard
+  (creator: post updates, withdraw milestones; donor: reclaim pledges).
+- Vite proxies `/api` and `/.well-known` (the BRC-103 handshake) to :8787, so
+  the browser stays same-origin.
+
+### What broke
+- **`SyntaxError: The requested module 'knex' does not provide an export named
+  'knex'`** under plain Node (tsx). Vitest's interop hid it. Fixed by taking the
+  factory from the default export (`knexPkg.knex ?? knexPkg`) in `server/db.ts`
+  and `test/helpers/mockchain.ts`.
+- **`script[serializedBytes] is not a function`** in the demo. This is the
+  duplicate-SDK problem from guide §2: wallet-toolbox (CJS) loads the CJS SDK
+  while our ESM code loads the ESM SDK.
+  - Attempt 1: tsconfig `paths` → CJS build under tsx. Failed: Node's ESM loader
+    can't see that bundle's named exports (`no export named 'LockingScript'`).
+  - Fix: run Node entry points with **vite-node** using `vitest.config.ts`,
+    which already aliases `@bsv/sdk` to the CJS build. `npm run server` uses the
+    same runner, for the same reason.
+- **`tsc` errors** when the demo imported the mock-chain helper (CJS vs ESM SDK
+  types). Tests were never type-checked by the main tsconfig for this reason,
+  so `server/demo.ts` is excluded the same way.
+- **Headless Brave hung** even on a `data:` URL (sandbox in this environment),
+  so screenshots were taken with Playwright's headless Chromium installed in a
+  scratch directory, outside the repo.
+
+### Verified
+- `npm test`: **68/68** (38 kit + 16 contract + 14 BitFund e2e); `tsc` clean;
+  `vite build app` OK.
+- `npm run server` starts on mainnet config and answers `/api/health`.
+- `npm run demo` + `npm run app`: all five pages render with **zero console
+  errors** (Playwright); screenshots in `docs/screenshots/`.
+- **Not verified here:** clicking through with a real BSV Desktop wallet on
+  mainnet. No wallet is available in this environment. The same client code
+  runs end to end against wallet-toolbox wallets in the e2e tests.

@@ -8,7 +8,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": ["node"],
+    "jsx": "react-jsx"
   },
-  "include": ["core", "overlay", "client", "examples", "server", "web/src"]
+  "include": ["core", "overlay", "client", "examples", "server", "web/src", "app/src"],
+  // Like test/, the demo runs on the mock chain helper (CJS SDK build): run under vite-node, not type-checked here.
+  "exclude": ["server/demo.ts"]
 }

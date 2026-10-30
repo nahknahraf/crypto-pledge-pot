@@ -13,7 +13,7 @@
  *     without its own sources and script verification fails. Fixed by sharing
  *     one Transaction instance per txid.
  */
-import { knex as makeKnex, type Knex } from 'knex'
+import knexPkg, { type Knex } from 'knex'
 import { Beef, CachedKeyDeriver, MerklePath, PrivateKey, Script, Transaction, type ChainTracker } from '@bsv/sdk'
 import {
   MockServices,
@@ -24,6 +24,9 @@ import {
   randomBytesBase64,
   randomBytesHex
 } from '@bsv/wallet-toolbox'
+
+// knex is CommonJS: take the factory from the default export so this also runs under plain Node ESM (tsx).
+const makeKnex = ((knexPkg as any).knex ?? knexPkg) as typeof knexPkg
 
 export const memoryKnex = (): Knex => makeKnex({ client: 'better-sqlite3', connection: { filename: ':memory:' }, useNullAsDefault: true, pool: { min: 1, max: 1 } })
 

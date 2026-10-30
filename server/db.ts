@@ -4,7 +4,7 @@
  * The chain is the source of truth for money; this index makes it fast to
  * browse campaigns and keeps the BEEF needed to spend each escrow.
  */
-import { knex as makeKnex, type Knex } from 'knex'
+import knexPkg, { type Knex } from 'knex'
 import type { CampaignMeta } from '../core/campaign'
 
 export interface CampaignRow { id: string, meta: CampaignMeta, creatorIdentity: string, anchorTxid: string, createdAt: number }
@@ -34,6 +34,9 @@ export interface PledgeRow {
 export interface ReleaseRow { campaignId: string, milestone: number, txid: string, amount: number, createdAt: number }
 export interface UpdateRow { campaignId: string, milestone: number, note: string, createdAt: number }
 export interface VoteRow { campaignId: string, milestone: number, voter: string, approve: boolean, createdAt: number }
+
+// knex is CommonJS: take the factory from the default export so plain Node ESM (tsx) works too.
+const makeKnex = ((knexPkg as any).knex ?? knexPkg) as typeof knexPkg
 
 export const sqliteKnex = (filename: string): Knex =>
   makeKnex({ client: 'better-sqlite3', connection: { filename }, useNullAsDefault: true, pool: { min: 1, max: 1 } })
