@@ -1938,3 +1938,10 @@ Test (`agent.e2e`): the anchor fails once. Nothing is posted, the milestone isn'
 - At T1 the donor's refund is refused, because the HTLC is already claimed.
 
 So the margin really does protect both sides.
+
+**8.20 A donation whose registration was lost** (§6). If the wallet broadcast the pledge but the reply from the CryptoPledgePot server never came (network, server down), the sats were safely in escrow on chain. But they didn't count toward the goal and couldn't vote, and nothing in the client could fix that.
+- New: `CryptoPledgePot.registerWalletPledges()` reads the wallet's pledge basket (with the BEEF and the keyID from `customInstructions`) and registers every escrow the index doesn't know. It is idempotent.
+- The Dashboard's **Find my pledges** button runs it before claiming restored pledges.
+- Test (`server.votes`): a donation through an unreachable server fails after the broadcast, `raised` is 0, recovery registers 2,500 sats, `raised` becomes 2,500, and a second run does nothing.
+
+The other §6 cases (the user cancels in the wallet, too few sats) fail inside the wallet before anything is broadcast or registered, so there is nothing to undo. They remain as UI checks.

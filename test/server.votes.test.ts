@@ -96,4 +96,19 @@ describe('registering pledges', () => {
       expect((await new CryptoPledgePotApi(url).campaign(campaignId)).raised).toBe(0)
     } finally { await new Promise(r => strict.close(r)) }
   }, 120_000)
+
+  it('a donation broadcast while the server was unreachable is registered later from the wallet (§6)', async () => {
+    const { meta: m, campaignId } = await new CryptoPledgePot(creator, new CryptoPledgePotApi(url, creator)).launch({
+      title: 'Offline', description: 'x', goal: 10_000, deadline: clock + 3_600, refundAfter: clock + 20 * 86_400, milestones: [{ title: 'All', percent: 100 }]
+    })
+    const w = await chain.makeWallet(); await chain.fund(w, 20_000)
+    const unreachable = new CryptoPledgePotApi('http://127.0.0.1:9', w) // the reply never comes
+    await expect(new CryptoPledgePot(w, unreachable).donate(m, 2_500)).rejects.toThrow()
+    expect((await new CryptoPledgePotApi(url).campaign(campaignId)).raised).toBe(0) // escrowed on chain, unknown here
+    const back = await new CryptoPledgePot(w, new CryptoPledgePotApi(url, w)).registerWalletPledges()
+    expect(back.map(p => p.amount)).toEqual([2_500])
+    expect((await new CryptoPledgePotApi(url).campaign(campaignId)).raised).toBe(2_500)
+    expect(await new CryptoPledgePot(w, new CryptoPledgePotApi(url, w)).registerWalletPledges()).toEqual([]) // idempotent
+  }, 120_000)
 })
+

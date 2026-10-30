@@ -11,7 +11,7 @@
  *   refund()   donor    reclaim: alone after refundAfter (nLockTime), or with
  *                       the arbiter's co-signature if the campaign failed
  */
-import { Hash, Random, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
+import { Beef, Hash, Random, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
 import {
   campaignAnchorScript,
   campaignIdOf,
@@ -264,6 +264,28 @@ export class CryptoPledgePot {
       counterparty: 'self'
     }, this.originator)
     await this.api.claimPledge(pledge.id, found.keyID, hex(signature))
+  }
+
+  /**
+   * Register every pledge in this wallet's basket that the index does not know: a donation whose
+   * broadcast succeeded but whose registration failed (network, server down). The sats were always
+   * safe in escrow; this makes them count, and lets them vote.
+   */
+  async registerWalletPledges (): Promise<PledgeView[]> {
+    const registered: PledgeView[] = []
+    const { outputs, BEEF } = await this.wallet.listOutputs({ basket: PLEDGE_BASKET, include: 'entire transactions', includeCustomInstructions: true, limit: 1000 }, this.originator)
+    if (BEEF === undefined) return registered
+    const beef = Beef.fromBinary(Array.from(BEEF))
+    for (const o of outputs) {
+      const known = await this.api.pledge(o.outpoint).then(() => true, () => false)
+      if (known) continue
+      let keyID: unknown
+      try { keyID = JSON.parse(o.customInstructions ?? '{}').keyID } catch {}
+      if (typeof keyID !== 'string') continue
+      const [txid, vout] = o.outpoint.split('.')
+      try { registered.push(await this.api.registerPledge(hex(beef.toBinaryAtomic(txid)), Number(vout), keyID)) } catch { /* e.g. campaign unknown here or closed */ }
+    }
+    return registered
   }
 
   /** Claim every unclaimed indexed pledge whose escrow this wallet made (e.g. after an import from chain). */

@@ -79,8 +79,11 @@ function RecoverPanel ({ onChange }: { onChange: () => void }) {
       <p className="small muted">Pledges restored from the blockchain show up here once you claim them. Claiming proves, with your wallet, that you made them.</p>
       <button disabled={busy || cryptopledgepot === undefined} onClick={() => {
         void run(async () => {
+          // Pledges broadcast while the server was unreachable first, then pledges restored from chain.
+          const registered = await cryptopledgepot!.registerWalletPledges()
           const claimed = await cryptopledgepot!.claimWalletPledges()
-          return { ok: true, text: claimed.length === 0 ? 'Nothing to claim: all your pledges are already linked.' : `Claimed ${claimed.length} pledge(s).` }
+          const found = registered.length + claimed.length
+          return { ok: true, text: found === 0 ? 'Nothing to claim: all your pledges are already linked.' : `Linked ${found} pledge(s)${registered.length > 0 ? ` (${registered.length} registered from your wallet)` : ''}.` }
         })
       }}>Find my pledges</button>
       <p className="small muted" style={{ marginTop: '1rem' }}>Reclaim an escrow without CryptoPledgePot, e.g. one whose campaign no longer exists. Paste its outpoint (<code>txid.vout</code>). It works once the escrow's refund date has passed.</p>
