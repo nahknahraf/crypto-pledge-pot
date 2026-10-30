@@ -323,6 +323,37 @@ npm run app                                              # → My donor agent
 
 Design: [`docs/DONOR_AGENT_PLAN.md`](docs/DONOR_AGENT_PLAN.md).
 
+---
+
+## 7. Bring USDC in: cross-chain swaps with no custodian
+
+A donor who holds **only USDC on another chain** can end up with sats in
+**their own** BSV wallet, and back a campaign, without anyone ever holding
+their funds. It works as an **atomic swap**: the same secret unlocks a
+USDC lock on the other chain and an sCrypt `AtomicSwap` lock on BSV. Either
+both sides complete, or each refunds its own money after its timeout.
+
+- **The donor's agent** checks the liquidity agent's BSV lock itself (SPV,
+  same hash, pays the donor's key, full amount, safe timeout) before
+  claiming. It refuses, and refunds, otherwise.
+- **The liquidity agent** checks the donor's USDC lock on the other chain
+  before locking any sats, then collects the USDC by reading the secret from
+  the donor's BSV claim.
+- The BSV timeout is always shorter, so the donor can always claim first.
+  The claim needs the donor's signature, so a copied secret can't redirect
+  it.
+- A newcomer needs **no BSV to start**: the claim's fee comes out of the
+  swapped sats.
+
+```bash
+npm run demo:swap      # "Fay has only USDC": narrated, offline, ~30 s (DEMO_PACE_S=2)
+```
+
+**Honest scope:** the BSV side is real (sCrypt, real wallets, the mock
+chain validates every script). **The USDC side is a simulated HTLC ledger**,
+behind a `SourceChain` interface a real viem/Base adapter can replace (plan:
+[`docs/CROSS_CHAIN_PLAN.md`](docs/CROSS_CHAIN_PLAN.md)).
+
 ### Known limitations
 - Not yet exercised with a real BSV Desktop wallet on mainnet; the identical
   code runs end to end against wallet-toolbox wallets in the tests. The agent's

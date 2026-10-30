@@ -96,11 +96,14 @@ export class LiquidityAgent {
     if (h!.refundAfter < s.quote.minSourceRefundAfter) reject('the USDC lock\'s timeout is too short to be safe')
     const refundAfter = h!.refundAfter - this.config.safetyMargin // T2 < T1: the donor can always claim first
     const key = await newSwapKey(this.wallet)
-    const lock = await lockSats(this.wallet, { hashlock: h!.hashlock, receiver: s.quote.donorBsvKey, sender: key.publicKey, refundAfter }, s.quote.sats, key.keyID)
+    const lock = await lockSats(this.wallet, { hashlock: h!.hashlock, receiver: s.quote.donorBsvKey, sender: key.publicKey, refundAfter }, this.lockedAmount(s.quote), key.keyID)
     Object.assign(s, { sourceHtlcId, lock, senderKeyID: key.keyID, state: 'locked' })
-    this.say(`saw ${formatUsdc(h!.amount)} locked for us; locked ${s.quote.sats.toLocaleString('en-US')} sats for the donor (tx ${lock.txid.slice(0, 12)}…)`)
+    this.say(`saw ${formatUsdc(h!.amount)} locked for us; locked ${lock.satoshis.toLocaleString('en-US')} sats for the donor (tx ${lock.txid.slice(0, 12)}…)`)
     return lock
   }
+
+  /** How many sats to lock for a quote. An honest agent locks exactly what it quoted (tests and demos override this to play a cheater). */
+  protected lockedAmount (quote: Quote): number { return quote.sats }
 
   /** Watch open swaps: collect USDC once the donor's claim reveals the secret; refund sats after T2. */
   async step (): Promise<void> {

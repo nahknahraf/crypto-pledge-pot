@@ -74,6 +74,16 @@ wallet. The agent terminal shows the milestone 2 release on its next step.*
 
 ---
 
+**Optional 30-second segment: "from another chain".** Run
+`npm run demo:swap` in a terminal:
+> "Most donors don't hold BSV. Fay has only USDC. Her agent swaps it into
+> sats in her own wallet, with no exchange and no custodian: the same secret
+> unlocks both chains, or both sides get refunded. Then she backs the
+> campaign. In act two a liquidity provider tries to short her, and her
+> agent refuses and gets her USDC back."
+
+(Say that the USDC side is simulated in this version.)
+
 **Transactions to capture for the submission** (add them to
 `docs/USAGE_AND_VALUE.md`):
 - the campaign anchor;

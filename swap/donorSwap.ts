@@ -86,7 +86,7 @@ export class DonorSwap {
     const { publicKey: ourKey } = await this.wallet.getPublicKey({ protocolID: [1, 'cryptopledgepot swap'], keyID: r.receiverKeyID, counterparty: 'self' })
     if (terms.hashlock !== r.hashlock) problems.push('the lock uses a different hashlock')
     if (terms.receiver !== ourKey) problems.push('the lock does not pay your key')
-    if ((out.satoshis ?? 0) < r.quote.sats) problems.push(`the lock holds ${out.satoshis} sats, less than the quoted ${r.quote.sats}`)
+    if ((out.satoshis ?? 0) < r.quote.sats) problems.push(`the lock holds ${(out.satoshis ?? 0).toLocaleString('en-US')} sats, less than the quoted ${r.quote.sats.toLocaleString('en-US')}`)
     const h = await this.source.htlc(r.sourceHtlcId!)
     if (h !== undefined && terms.refundAfter > h.refundAfter - this.options.safetyMargin) problems.push('the lock\'s timeout is too close to yours to claim safely')
     if (!(await tx.verify(this.chainTracker).catch(() => false))) problems.push('the lock failed SPV verification')

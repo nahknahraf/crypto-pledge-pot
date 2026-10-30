@@ -1,6 +1,6 @@
 # Plan: agents that bring assets into BSV wallets, non-custodially
 
-*30 October 2026 · status: plan only · builds on the donor agent (branch
+*30 October 2026 · status: **simplest demoable version built on branch `cross-chain-swap`**: A1 (BSV AtomicSwap), A2 against a *simulated* USDC chain, the donor and liquidity sides of A3, `npm run demo:swap` · still to do: a real EVM adapter (Anvil/Base), the NGO side, the quote board, the UI · builds on the donor agent (branch
 `donor-agent`), the NGO/service agent (`agent/`) and the sCrypt escrow.*
 
 **Why this matters for the track.** The adoption criterion (35%) asks for

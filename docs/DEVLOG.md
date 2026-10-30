@@ -1491,3 +1491,40 @@ real wallets on the mock chain, with the contract validated by the chain.
   lock with only a 1-hour timeout, and swaps beyond its inventory.
 
 Full suite: **141 passing** (20 files); both type-checks clean.
+
+## Step 3: "Fay has only USDC", a narrated demo
+
+**`npm run demo:swap` (`swap/swapDemo.ts`):** about 30 seconds, offline, with
+balances on both chains printed as it goes.
+- **Act 1:** quote → secret (only its hash leaves Fay's agent) → 100 USDC
+  locked, refundable after 5 h → the LP checks that lock, then locks
+  2,150,000 sats for Fay's key, refundable after 3 h → Fay's agent checks the
+  BSV lock ("all good") → Fay claims into her own wallet → the LP reads the
+  secret and collects 100 USDC → Fay backs "Clean water for Kitui" with
+  1,000,000 sats.
+- **Act 2:** a *different*, shady liquidity agent quotes 215,000 sats but
+  locks 115,000. Fay's agent refuses; after the timeout she has her 10 USDC
+  back.
+
+**What broke:**
+- **The demo never exited** after "Done.": mock-chain storage timers keep
+  Node alive. The entry point now exits explicitly (checked: exit code 0).
+- **Act 2 told the story wrongly.** We first faked the cheat by swapping in a
+  short lock *after* the honest LP had already locked its sats, so on screen
+  the honest LP's balance dropped by 215,000 as if *it* had cheated.
+  `LiquidityAgent` now has a `lockedAmount()` extension point, and act 2
+  uses its own `ShortchangingAgent`. The honest LP's balance stays put
+  (2,849,861).
+- Cosmetic: the refusal reason printed "115000"; now "115,000".
+
+**How we checked it:**
+- `test/swapDemo.test.ts` runs both acts at full speed and checks the
+  outcome: 100 USDC → 2,150,000 sats, LP +100 USDC, the secret revealed on
+  BSV, a 1,000,000-sat pledge; the cheat refused with "less than the quoted",
+  10 USDC back; 11 narrated steps.
+- The real command, run end to end.
+- Full suite: **142 passing** (21 files); both type-checks clean.
+
+**What's simulated, and what's next:** the USDC side. Next steps: a viem
+adapter against a local Anvil chain, then Base Sepolia; the NGO's "accept
+USDC into escrow" and "pay out in USDC"; the quote board; UI.
