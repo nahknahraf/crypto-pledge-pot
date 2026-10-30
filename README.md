@@ -324,6 +324,22 @@ used. The model can only pick campaigns from the index.
 npm run donor:search -- children in need                 # from the terminal (read-only, no wallet)
 ```
 
+**Giving plans:** "every month for a year, 5000 sats to children in need; if
+nothing fits, ask me". The agent turns this into a draft you confirm, then:
+
+- **Good match** (≥ 70% relevance): it gives on its own, within your
+  mandate's hard rules, due diligence and budget.
+- **Only a weaker match:** it does what the plan says. It asks you (the
+  default, with the top options), gives to the closest match on its own, or
+  skips.
+- **Nothing similar:** it asks you, or skips and tells you. A question you
+  don't answer within 72 h is skipped, or goes to the closest match if the
+  plan says so.
+
+In co-pilot, each installment is a proposal you approve. Messages and
+questions appear on the **My donor agent** page. With `DONOR_NOTIFY_URL` they
+are also pushed to your phone, e.g. through an `https://ntfy.sh/<topic>` URL.
+
 ```bash
 cp donor-mandate.example.json data/donor-mandate.json   # your terms; "mode": "copilot" or "autopilot"
 npm run donor                                            # your agent, on 127.0.0.1:8792 (personal: never exposed)

@@ -10,11 +10,18 @@
  *   POST /api/donor/fund              autopilot: a BRC-29 budget top-up into the agent's wallet
  *   POST /api/donor/step              run one round now (instead of waiting for the timer)
  *   POST /api/donor/search            { query, limit? }: campaigns that fit a few words, each summarised
+ *   GET  /api/donor/plans             giving plans with every installment
+ *   POST /api/donor/plans/draft       { text }: a plan from plain words, to confirm (not saved)
+ *   POST /api/donor/plans             { cause, amountSats, cadence, occurrences, … }: create a plan
+ *   POST /api/donor/plans/:id/pause | /resume | /cancel
+ *   GET  /api/donor/inbox             the agent's messages and questions, newest first
+ *   POST /api/donor/inbox/:id/answer  { choice }: a campaign id from the question's options, or "skip"
  */
 import express, { type Express } from 'express'
 import type { ChainTracker, WalletInterface } from '@bsv/sdk'
 import { acceptBrc29Payment, type Brc29Payment } from '../client/payments'
 import type { DonorAgent, StepSummary } from './donorAgent'
+import { describePlan, type GivingPlanInput, type GivingPlanner, type PlanParser } from './givingPlan'
 
 export interface DonorHttpOptions {
   agent: DonorAgent
@@ -24,6 +31,8 @@ export interface DonorHttpOptions {
   spendable?: () => Promise<number>
   lastStep: () => StepSummary | undefined
   runStep: () => Promise<StepSummary>
+  planner?: GivingPlanner
+  planParser?: PlanParser
 }
 
 export function createDonorApp (o: DonorHttpOptions): Express {
@@ -77,6 +86,28 @@ export function createDonorApp (o: DonorHttpOptions): Express {
     const limit = req.body?.limit === undefined ? undefined : Math.max(1, Math.min(20, Math.floor(Number(req.body.limit)) || 5))
     return await o.agent.search(String(req.body?.query ?? ''), { limit })
   }))
+
+  const planner = (): GivingPlanner => {
+    if (o.planner === undefined) throw new Error('giving plans are not enabled on this agent')
+    return o.planner
+  }
+  app.get('/api/donor/plans', wrap(async () => planner().plans().map(p => ({ ...p, description: describePlan(p) }))))
+  app.post('/api/donor/plans/draft', wrap(async (req) => {
+    const text = String(req.body?.text ?? '').trim()
+    if (text === '' || text.length > 1000) throw new Error('describe your plan in 1–1000 characters')
+    if (o.planParser === undefined) throw new Error('no plan parser configured')
+    const draft = await o.planParser.parse(text)
+    return { draft, description: describePlan(draft) }
+  }))
+  app.post('/api/donor/plans', wrap(async (req) => {
+    const plan = planner().create(req.body as GivingPlanInput)
+    return { ...plan, description: describePlan(plan) }
+  }))
+  for (const [action, status] of [['pause', 'paused'], ['resume', 'active'], ['cancel', 'cancelled']] as const) {
+    app.post(`/api/donor/plans/:id/${action}`, wrap(async (req) => planner().setStatus(String(req.params.id), status)))
+  }
+  app.get('/api/donor/inbox', wrap(async () => [...planner().deps.inbox.all()].reverse()))
+  app.post('/api/donor/inbox/:id/answer', wrap(async (req) => await planner().answer(String(req.params.id), String(req.body?.choice ?? ''))))
 
   app.post('/api/donor/step', wrap(async () => await o.runStep()))
 

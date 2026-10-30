@@ -34,6 +34,9 @@ export interface Memo {
   pledgeId?: string
   txid?: string
   error?: string
+  /** Pledges made for a giving plan: which plan and which installment. */
+  planId?: string
+  installment?: number
 }
 
 export class MemoBook {
