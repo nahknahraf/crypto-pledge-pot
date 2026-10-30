@@ -16,11 +16,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { WalletClient } from '@bsv/sdk'
 import { CryptoPledgePot } from '../../client/cryptoPledgePot'
 import { CryptoPledgePotApi } from '../../client/cryptoPledgePotApi'
+import { openWallet, spendPrompt, type ServerNetwork } from './walletGate'
 
+export type { ServerNetwork } from './walletGate'
 export const api = new CryptoPledgePotApi(window.location.origin)
-
-export type ServerNetwork = 'main' | 'test' | 'mock'
-const WALLET_NETWORK: Record<'main' | 'test', string> = { main: 'mainnet', test: 'testnet' }
 
 interface WalletState {
   cryptopledgepot?: CryptoPledgePot
@@ -36,8 +35,7 @@ interface WalletState {
 const Ctx = createContext<WalletState | undefined>(undefined)
 
 /** Ask before anything that moves money. Returns false if the user cancels. */
-export const confirmSpend = (what: string): boolean =>
-  window.confirm(`${what}\n\nThis is a real BSV transaction from your wallet. Continue?`)
+export const confirmSpend = (what: string): boolean => window.confirm(spendPrompt(what))
 
 export function WalletProvider ({ children }: { children: ReactNode }) {
   const [cryptopledgepot, setCryptoPledgePot] = useState<CryptoPledgePot>()
@@ -52,36 +50,18 @@ export function WalletProvider ({ children }: { children: ReactNode }) {
   const connect = useCallback(async () => {
     if (cryptopledgepot !== undefined) return cryptopledgepot
     setError(undefined)
-    let server = serverNetwork
-    if (server === undefined) {
-      try { server = (await api.health()).network ?? 'main'; setServerNetwork(server) } catch {
-        setError('The CryptoPledgePot server is unreachable, so no wallet actions are possible right now.')
-        return undefined
-      }
-    }
-    if (server === 'mock') {
-      setError('This is the offline demo: campaigns are simulated, so wallet actions are disabled and your wallet is never contacted.')
-      return undefined
-    }
     setConnecting(true)
     try {
-      const wallet = new WalletClient('auto')
-      await wallet.waitForAuthentication({})
-      const { network } = await wallet.getNetwork({})
-      if (network !== WALLET_NETWORK[server]) {
-        setError(`Your wallet is on ${network} but this CryptoPledgePot server runs on ${WALLET_NETWORK[server]}. Switch networks in your wallet.`)
-        return undefined
-      }
-      const { publicKey } = await wallet.getPublicKey({ identityKey: true })
-      api.connect(wallet)
-      const client = new CryptoPledgePot(wallet, api)
+      // The rules (mock: never touch the wallet; networks must match) live in walletGate.ts.
+      const r = await openWallet(async () => await api.health(), () => new WalletClient('auto'), serverNetwork)
+      if (r.server !== undefined) setServerNetwork(r.server)
+      if (!r.ok) { setError(r.error); return undefined }
+      api.connect(r.wallet)
+      const client = new CryptoPledgePot(r.wallet, api)
       setCryptoPledgePot(client)
-      setIdentityKey(publicKey)
-      setNetwork(network)
+      setIdentityKey(r.identityKey)
+      setNetwork(r.network)
       return client
-    } catch (e) {
-      setError(`Could not reach a BRC-100 wallet. Open and unlock BSV Desktop, then retry. (${(e as Error).message})`)
-      return undefined
     } finally {
       setConnecting(false)
     }

@@ -1958,3 +1958,15 @@ The other §6 cases (the user cancels in the wallet, too few sats) fail inside t
 - `TestUSDC` implements `permit` like real USDC (version "2").
 - `EvmUsdcChain({ permit: true })` signs the EIP-712 permit with the donor's account (`signTypedData`) and calls `lockWithPermit`. It's off by default, so nothing existing changes.
 - Test (`bridge.evm`): the donor's nonce goes up by 1 with permit and by 2 without; both locks are identical on chain.
+
+**8.24 The web app's wallet gate, made readable and tested** (§7). The rules for when the app may touch the wallet lived inside a React hook, where they couldn't be tested without a browser. They are now plain functions in `app/src/walletGate.ts` (`openWallet`, `spendPrompt`), and `wallet.tsx` only wires them into state. Behaviour is unchanged.
+
+Tests (`walletGate`, in Node, with a fake wallet factory):
+- **mock: the wallet is never constructed**;
+- server unreachable: no wallet;
+- a testnet wallet against a mainnet server is refused *before any key is read*;
+- no wallet running: a clear message;
+- matching networks connect, and a known server network skips the health call;
+- the spend prompt says it's a real transaction.
+
+No jsdom or Testing Library dependency was needed. The app build is unchanged.
