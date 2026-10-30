@@ -137,7 +137,7 @@ async function main (): Promise<void> {
         refundAfter: now + 14 * DAY,
         milestones: [{ title: 'First readings: 5 cities', percent: 40 }, { title: 'Full coverage: 10 cities', percent: 60 }],
         kind: 'agent',
-        agentUrl: `http://localhost:${agentPort}`
+        agentUrl: process.env.AGENT_PUBLIC_URL ?? `http://localhost:${agentPort}` // public /agent URL when shared
       },
       dataUrl: `http://${dataHost}`,
       pricePerCall: 50,

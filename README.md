@@ -186,6 +186,11 @@ npm run build && npm run crosscheck   # regenerate the byte-for-byte fixtures
 cd .. && npm test
 ```
 
+**Let others test it over the internet** from your laptop with a fixed free
+ngrok domain: `npm run share:internet` (setup and tester guide:
+[`docs/SHARING.md`](docs/SHARING.md)). Never tunnel `npm run app` (the dev
+server); the share command serves only the built app.
+
 ### Repository map
 | Path | What |
 |---|---|

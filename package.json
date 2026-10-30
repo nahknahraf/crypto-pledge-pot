@@ -21,7 +21,8 @@
     "agent": "vite-node --config vitest.config.ts agent/main.ts --",
     "data-provider": "vite-node --config vitest.config.ts agent/providerMain.ts",
     "import": "vite-node --config vitest.config.ts server/importTx.ts --",
-    "share": "vite build app && vite preview app"
+    "share": "vite build app && vite preview app",
+    "share:internet": "bash scripts/share.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

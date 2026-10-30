@@ -29,6 +29,7 @@ import {
 import { ALL_SCOPE, cumulativeSchedule, escrowedAfter, METHOD, MIN_PLEDGE, scheduleIsStrict, parsePledgeScript, pledgeLockingScript, preimage } from '../core/pledge'
 import type { CampaignDetail, CampaignEvent, ReleasablePledges, SpendablePledge } from '../core/api'
 import { CryptoPledgePotDb, type PledgeRow } from './db'
+import { connectionCap, rateLimit } from './rateLimit'
 import { campaignView, mayRefundEarly, mayRelease, pledgeView } from './policy'
 
 export interface CryptoPledgePotServerOptions {
@@ -47,6 +48,12 @@ export interface CryptoPledgePotServerOptions {
    * against simulated campaigns.
    */
   network?: 'main' | 'test' | 'mock'
+  /**
+   * Per-IP limits for public traffic (loopback is exempt).
+   * Defaults: 30 SPV-checked submissions/min, 120 authenticated requests/min,
+   * 20 open live feeds. `false` disables them.
+   */
+  limits?: false | { spvPerMinute?: number, authPerMinute?: number, feedsPerIp?: number }
 }
 
 class HttpError extends Error {
@@ -99,6 +106,14 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
   const { wallet, db, chainTracker } = opts
   const now = opts.now ?? (() => Math.floor(Date.now() / 1000))
   const app = express()
+  // Behind a tunnel or reverse proxy on this machine: take the client IP from
+  // X-Forwarded-For, but only when the request came from a loopback proxy.
+  app.set('trust proxy', 'loopback')
+  const limits = opts.limits === false ? undefined : { spvPerMinute: 30, authPerMinute: 120, feedsPerIp: 20, ...opts.limits }
+  const pass = (_req: Request, _res: Response, next: () => void): void => { next() }
+  const limitSpv = limits !== undefined ? rateLimit({ windowMs: 60_000, max: limits.spvPerMinute, what: 'submissions' }) : pass
+  const limitAuth = limits !== undefined ? rateLimit({ windowMs: 60_000, max: limits.authPerMinute, what: 'requests' }) : pass
+  const capFeeds = limits !== undefined ? connectionCap(limits.feedsPerIp) : pass
 
   // ── live feed (SSE) ──
   const listeners = new Map<string, Set<Response>>()
@@ -189,7 +204,7 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
     return { ...view, feed: pledges.slice(0, 100).map(p => pledgeView(c.meta, p)) }
   }))
 
-  app.get('/api/campaigns/:id/events', (req, res) => {
+  app.get('/api/campaigns/:id/events', capFeeds, (req, res) => {
     const id = String(req.params.id)
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' })
     res.write(': connected\n\n')
@@ -326,19 +341,20 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
    * it: the transaction itself is the proof. Public so that a donor's refund is
    * indexed even if they lost access to CryptoPledgePot.
    */
-  app.post('/api/spends', wrap(async (req) => {
+  app.post('/api/spends', limitSpv, wrap(async (req) => {
     const { tx, bytes } = parseAtomic(req.body?.beef)
     return await recordSpend(tx, bytes)
   }))
 
   /** Rebuild index entries from chain. Body: { beef, txid? } (AtomicBEEF, or plain BEEF + txid). */
-  app.post('/api/import', wrap(async (req) => {
+  app.post('/api/import', limitSpv, wrap(async (req) => {
     const { tx, bytes } = parseAnyBeef(req.body?.beef, req.body?.txid)
     return await importTx(tx, bytes)
   }))
 
   // ═════════════════════════ authenticated ═════════════════════════
 
+  app.use(limitAuth)
   app.use(createAuthMiddleware({ wallet, allowUnauthenticated: false }))
 
   const caller = (req: Request): string => {

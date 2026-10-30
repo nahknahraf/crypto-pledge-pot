@@ -10,3 +10,5 @@ data/agent-wallet.sqlite*
 data/provider-wallet.sqlite*
 data/agent-ledger.json*
 data/agent-state.json*
+.env.share
+data/logs/

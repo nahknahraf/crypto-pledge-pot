@@ -889,3 +889,59 @@ header get 403.
   first bytes of each response to be sure.)
 
 The dev server's config now says in a comment never to expose it.
+
+## Opening it up to testers: ngrok, hardening, one-command launch
+
+Goal: other people test the app from their own machines, with their own
+wallets, while it runs on one laptop. We chose ngrok's free static domain:
+a fixed address matters because the agent writes its public URL into its
+on-chain campaign record, and wallets grant permissions per address.
+
+**What we built:**
+- **Hardening for public traffic** (deployment plan items C1–C3):
+  - **Per-visitor rate limits** (`server/rateLimit.ts`, no new dependency):
+    30 SPV-heavy submissions per minute, 120 authenticated requests per
+    minute, 20 open live feeds. Excess gets JSON `429` with `Retry-After`.
+    Requests from the laptop itself are never limited.
+  - **Real visitor IPs behind the tunnel:** the server trusts
+    `X-Forwarded-For` only from loopback proxies, and the share proxy passes
+    it on (`xfwd`). Visitors can't fake their IP, and one visitor can't use
+    up the limit for everyone.
+  - **CORS from env:** `CRYPTOPLEDGEPOT_CORS_ORIGIN`, set to the ngrok address
+    by the launcher.
+- **`npm run share:internet` (`scripts/share.sh`):**
+  - reads `.env.share` (domain, `main` or `demo`, agent yes/no);
+  - checks ngrok and its token, and that the ports are free;
+  - starts server, data API, agent and share server, waiting until each is
+    healthy;
+  - opens `ngrok http --url=<domain>` and prints the link;
+  - `SKIP_TUNNEL=yes` rehearses everything except the tunnel.
+- **The shared demo's agent** now uses the public `/agent` address instead of
+  `localhost:8791`, which a visitor's browser can't reach.
+- **ngrok 3.39 installed** in `~/.local/bin` (user-level, no sudo).
+- **`docs/SHARING.md`:** host setup, per-session steps, tester guide (including
+  ngrok's "Visit Site" notice and the browser's local-network permission
+  prompt), a 10-row test checklist, and troubleshooting.
+
+**What broke: stopping didn't stop everything.** In the first rehearsal, 4
+processes kept running after the stop signal. Part of that was how we tested
+(a backgrounded script ignores SIGINT; a real Ctrl+C reaches the whole
+terminal). But part was a real bug: cleanup killed `npm` and its direct
+children, while the actual Node servers are grandchildren (`npm` → `sh` →
+`node`). Each service now starts in its own process group (`setsid`), and
+cleanup stops the whole group (TERM, then KILL after 2 s). Re-tested:
+**0 processes and 0 ports left.**
+
+**How we checked it:**
+- 2 new tests: limits per visitor (the 4th submission → 429 with
+  `Retry-After`; another visitor and local calls unaffected); the live-feed cap.
+- Launcher, real mode without a token: stops with "ngrok has no auth token
+  yet…".
+- Rehearsal in demo mode: all services up; through the share server
+  `/api/health` reports `mock`, `/agent/api/agent` answers, and the agent
+  campaign's `agentUrl` is `https://<domain>/agent`.
+- Full suite: **100 passing**.
+
+**Not verified yet:** the real tunnel. It needs the host's ngrok account
+(auth token plus the free static domain), and only a real remote tester can
+confirm the browser → local wallet connection from a public HTTPS page.
