@@ -1367,3 +1367,36 @@ Full suite: **128 passing** (17 files); both type-checks clean.
   budget);
 - a screenshot of the autopilot view;
 - adding the donor agent to the "AirWatch live" story (D6).
+
+## Plan: making the agents on-ramps for other chains' assets
+
+The track weights *adoption* highest, and explicitly values liquidity and
+users from other chains. `docs/CROSS_CHAIN_PLAN.md` plans how the donor and
+NGO agents can bring assets into BSV wallets **non-custodially**: either both
+sides of a trade complete, or each side gets its own money back.
+
+**Options compared:**
+- **atomic swaps** (hash-time-locked contracts on both chains): recommended
+  first. Fully non-custodial, and it reuses our sCrypt timelock and agent loop;
+- a **threshold bridge** (e.g. ICP chain-key, named in the brief): later,
+  for stablecoins *on* BSV;
+- **exchanges**: rejected as custodial.
+
+**Checked in the repo first:** the BSV-21 kit only admits tokens whose script
+ends in a plain P2PKH, and its overlay is what enforces token rules. So putting
+tokens like a stablecoin *into our escrow* would need both extended. That's why
+wrapped stablecoins come second, and the first version swaps into native sats.
+
+**What the plan covers:**
+- the swap flow (USDC on Base ⇄ BSV), with the safety rules in code: T2 < T1,
+  confirmations before locking, claims only to the donor's own derived key;
+- roles:
+  - the donor agent: "fund from anywhere", co-pilot;
+  - the NGO agent: accept USDC into escrow, and pay out in USDC;
+  - a **new liquidity agent** that market-makes without ever holding user
+    funds;
+  - a quote board that never touches funds;
+- building blocks, phases with exit criteria (about 7–8 days; a 4-day offline
+  hackathon cut), adversarial tests, risks, and five decisions.
+
+Nothing is built yet.
