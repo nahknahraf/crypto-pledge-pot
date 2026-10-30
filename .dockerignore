@@ -1,0 +1,13 @@
+# Never send secrets, local state or bulky folders to the Docker build
+node_modules
+contracts/node_modules
+contracts/dist
+dist
+data
+.env
+.env.*
+!.env.share.example
+!.env.docker.example
+cpp_prompt.md
+.git
+docs/screenshots

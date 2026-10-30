@@ -66,3 +66,13 @@ describe('rate limits for public traffic (via a tunnel on this machine)', () => 
     await a.body?.cancel(); await b.body?.cancel()
   })
 })
+
+describe('client IPs behind a proxy in another container', () => {
+  it('ignores X-Forwarded-For from untrusted addresses, honours it from configured proxies', async () => {
+    const db = new CryptoPledgePotDb(memoryKnex()); await db.migrate()
+    const app = createCryptoPledgePotApp({ wallet: await chain.makeWallet(), db, chainTracker: chain.chainTracker, trustProxy: 'loopback, uniquelocal' })
+    expect(app.get('trust proxy fn')('172.18.0.5', 1)).toBe(true) // a Docker network address is trusted
+    expect(app.get('trust proxy fn')('203.0.113.1', 1)).toBe(false) // a public address is not
+  })
+})
+

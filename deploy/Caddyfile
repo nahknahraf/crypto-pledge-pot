@@ -1,0 +1,54 @@
+# CryptoPledgePot behind Caddy.
+#   {$DOMAIN}  public site with automatic HTTPS (Let's Encrypt), e.g. pledgepot.example.com
+#              (DOMAIN=localhost gives a locally trusted certificate for testing)
+#   :8080      plain HTTP for a tunnel in front (ngrok terminates TLS), see the
+#              `tunnel` profile in docker-compose.yml
+
+{
+	servers {
+		# Keep X-Forwarded-For only when it comes from a private network (ngrok
+		# container, VPS-local proxy). Public clients can't spoof their IP; the
+		# server then rate-limits each real visitor separately.
+		trusted_proxies static private_ranges
+	}
+}
+
+(cryptopledgepot) {
+	encode zstd gzip
+
+	# BRC-103 mutual-auth handshake. (ACME challenges under /.well-known are handled by Caddy itself.)
+	handle /.well-known/auth* {
+		reverse_proxy server:8787
+	}
+	# API + live feed (SSE: flush immediately, never buffer)
+	handle /api/* {
+		reverse_proxy server:8787 {
+			flush_interval -1
+		}
+	}
+	# The agent's public status page: /agent/api/agent → agent:8791/api/agent
+	handle_path /agent/* {
+		reverse_proxy agent:8791
+	}
+	# The web app (single-page app: unknown paths serve index.html)
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+}
+
+{$DOMAIN:localhost} {
+	import cryptopledgepot
+}
+
+http://:8080 {
+	import cryptopledgepot
+}

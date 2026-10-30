@@ -1,0 +1,123 @@
+# CryptoPledgePot: everything with one command.
+#
+#   cp .env.docker.example .env.docker      # fill in DOMAIN (and the rest as needed)
+#   docker compose --env-file .env.docker up -d --build
+#
+# Services: caddy (HTTPS + web app + reverse proxy) → server (indexer, arbiter,
+# chain watcher), agent (AI agent + its status page) → data-provider (paid API).
+# Each Node service runs the same `app` image and keeps its own keys and
+# databases in its own volume.
+#
+# Profiles:
+#   tunnel → also run ngrok in front (laptop sharing; no domain or open ports needed)
+#   demo   → run the offline demo instead of server/agent/data-provider:
+#            docker compose --env-file .env.docker --profile demo up -d caddy demo
+
+x-app: &app
+  build: { context: ., target: app }
+  image: cryptopledgepot-app
+  restart: unless-stopped
+  environment: &app-env
+    NETWORK: ${NETWORK:-main}
+  healthcheck: &health
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 60s
+
+services:
+  server:
+    <<: *app
+    command: ["npm", "run", "server"]
+    environment:
+      <<: *app-env
+      PORT: "8787"
+      CRYPTOPLEDGEPOT_CORS_ORIGIN: ${PUBLIC_URL:-https://localhost}
+      CRYPTOPLEDGEPOT_TRUST_PROXY: loopback, uniquelocal    # Caddy reaches us over the Docker network
+      CRYPTOPLEDGEPOT_WATCH_S: ${WATCH_S:-300}
+      CRYPTOPLEDGEPOT_ARBITER_KEY: ${CRYPTOPLEDGEPOT_ARBITER_KEY:-}  # empty: generated once into the volume
+    volumes: [server-data:/app/data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8787/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  data-provider:
+    <<: *app
+    command: ["npm", "run", "data-provider"]
+    environment:
+      <<: *app-env
+      DATA_PORT: "8790"
+      DATA_PRICE_SATS: ${DATA_PRICE_SATS:-50}
+      DATA_PROVIDER_KEY: ${DATA_PROVIDER_KEY:-}
+    volumes: [provider-data:/app/data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8790/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  agent:
+    <<: *app
+    command: ["npm", "run", "agent"]
+    depends_on:
+      server: { condition: service_healthy }
+      data-provider: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      AGENT_PORT: "8791"
+      CRYPTOPLEDGEPOT_URL: http://server:8787               # internal, never leaves the Docker network
+      DATA_URL: http://data-provider:8790
+      AGENT_PUBLIC_URL: ${PUBLIC_URL:-https://localhost}/agent  # written into the agent's campaign: must be its public address
+      AGENT_ROOT_KEY: ${AGENT_ROOT_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_PRICE_CAP: ${AGENT_PRICE_CAP:-50}
+      AGENT_MAX_SPEND: ${AGENT_MAX_SPEND:-500}
+      AGENT_GOAL: ${AGENT_GOAL:-20000}
+    volumes: [agent-data:/app/data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8791/api/agent').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  caddy:
+    build: { context: ., target: web }
+    image: cryptopledgepot-web
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data        # certificates
+      - caddy-config:/config
+    # No depends_on: Caddy answers 502 until the backends are up, which is fine
+    # and lets the same Caddy front the demo profile too.
+
+  # ── optional: ngrok in front (profile "tunnel"): no domain, no open ports ──
+  ngrok:
+    profiles: [tunnel]
+    image: ngrok/ngrok:3
+    restart: unless-stopped
+    command: ["http", "--url=${NGROK_DOMAIN:-}", "caddy:8080"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    depends_on: [caddy]
+
+  # ── optional: the offline demo (profile "demo"): simulated campaigns, wallets disabled ──
+  demo:
+    <<: *app
+    profiles: [demo]
+    command: ["npm", "run", "demo"]
+    environment:
+      AGENT_PUBLIC_URL: ${PUBLIC_URL:-https://localhost}/agent
+    networks:
+      default:
+        aliases: [server, agent]   # Caddy's routes reach the demo under the usual names
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8787/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+volumes:
+  server-data:
+  provider-data:
+  agent-data:
+  caddy-data:
+  caddy-config:

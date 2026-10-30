@@ -945,3 +945,47 @@ cleanup stops the whole group (TERM, then KILL after 2 s). Re-tested:
 **Not verified yet:** the real tunnel. It needs the host's ngrok account
 (auth token plus the free static domain), and only a real remote tester can
 confirm the browser → local wallet connection from a public HTTPS page.
+
+## Docker Compose: one command, separate containers
+
+We asked whether to put everything in one container and decided: no. **One
+Compose setup, one shared image, separate containers.** Each service restarts
+and logs on its own and keeps its own keys in its own volume, and it all
+still starts with one command.
+
+**Files:**
+- `Dockerfile`: one build with two targets. `app` is Node; its entry points
+  still run with vite-node, which loads a single copy of `@bsv/sdk`. `web` is
+  Caddy plus the built app. The services run as the unprivileged `node` user.
+- `docker-compose.yml`: `server`, `data-provider`, `agent` and `caddy`, with
+  health checks; the agent waits for server and data API. Two optional
+  profiles: `tunnel` (ngrok in front, for a laptop) and `demo` (the offline
+  demo, taking over the `server`/`agent` names).
+- `deploy/Caddyfile`: automatic HTTPS; `/api` (SSE unbuffered),
+  `/.well-known/auth`, `/agent`; the app with SPA fallback; security headers;
+  `:8080` as plain HTTP for ngrok.
+- `.env.docker.example`, `.dockerignore` (never sends `data/`, `.env*` or the
+  brief to the build), `docs/DOCKER.md`.
+
+**Two problems found while designing (fixed before they could bite):**
+1. **Rate limits would have merged everyone.** The server trusted forwarded
+   IPs only from loopback, but in Compose, Caddy arrives from another
+   container's private address. Every visitor would have looked like Caddy and
+   shared one limit. The trusted proxies are now configurable
+   (`CRYPTOPLEDGEPOT_TRUST_PROXY`, `loopback, uniquelocal` in Compose), with a
+   test that a Docker address is trusted and a public one isn't.
+2. **The same thing again one hop earlier, in tunnel mode** (ngrok → Caddy →
+   server): Caddy replaces the forwarded IP with the ngrok container's. Caddy
+   now keeps `X-Forwarded-For` from private networks only
+   (`trusted_proxies static private_ranges`), so tunnel visitors keep their own
+   IP, and public clients still can't fake one.
+
+**What we couldn't do:**
+- Docker isn't installed here, and installing it needs sudo.
+- Downloading Caddy to run `caddy validate` was blocked by the permission
+  system, so we didn't try another way around it.
+
+So the setup is **checked statically only**: YAML parsed, every command maps
+to an npm script, every Caddy route reaches a service, volumes are per
+service, full suite at **101 passing**. `docs/DOCKER.md` lists five things to
+check on the first real run.

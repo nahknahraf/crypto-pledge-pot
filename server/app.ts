@@ -54,6 +54,12 @@ export interface CryptoPledgePotServerOptions {
    * 20 open live feeds. `false` disables them.
    */
   limits?: false | { spvPerMinute?: number, authPerMinute?: number, feedsPerIp?: number }
+  /**
+   * Which proxies may tell us the client IP (X-Forwarded-For), in Express
+   * 'trust proxy' syntax. Default 'loopback' (a tunnel or proxy on this machine).
+   * Behind Caddy in Docker Compose: 'loopback, uniquelocal' (private networks).
+   */
+  trustProxy?: string
 }
 
 class HttpError extends Error {
@@ -108,7 +114,7 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
   const app = express()
   // Behind a tunnel or reverse proxy on this machine: take the client IP from
   // X-Forwarded-For, but only when the request came from a loopback proxy.
-  app.set('trust proxy', 'loopback')
+  app.set('trust proxy', opts.trustProxy ?? 'loopback')
   const limits = opts.limits === false ? undefined : { spvPerMinute: 30, authPerMinute: 120, feedsPerIp: 20, ...opts.limits }
   const pass = (_req: Request, _res: Response, next: () => void): void => { next() }
   const limitSpv = limits !== undefined ? rateLimit({ windowMs: 60_000, max: limits.spvPerMinute, what: 'submissions' }) : pass

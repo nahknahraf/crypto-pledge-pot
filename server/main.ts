@@ -11,6 +11,7 @@
  *   ARBITER_WALLET_DB     ./data/arbiter-wallet.sqlite
  *   CRYPTOPLEDGEPOT_WATCH_S  300 (chain watcher interval; 0 disables it)
  *   CRYPTOPLEDGEPOT_CORS_ORIGIN  allowed browser origin (default: any)
+ *   CRYPTOPLEDGEPOT_TRUST_PROXY  proxies trusted for X-Forwarded-For (default: loopback)
  *
  * The arbiter wallet is a full wallet-toolbox wallet. It never needs funds:
  * it only derives keys, signs sighashes and authenticates the API (BRC-103).
@@ -58,6 +59,7 @@ async function main (): Promise<void> {
     db,
     network: chain,
     corsOrigin: process.env.CRYPTOPLEDGEPOT_CORS_ORIGIN, // e.g. https://<your-domain>.ngrok-free.app (default: any)
+    trustProxy: process.env.CRYPTOPLEDGEPOT_TRUST_PROXY, // 'loopback, uniquelocal' behind Caddy in Docker
     chainTracker: new ArcadeChainTracker(chain === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
   })
   // Index releases and refunds nobody reported (every CRYPTOPLEDGEPOT_WATCH_S seconds, default 300; 0 = off).

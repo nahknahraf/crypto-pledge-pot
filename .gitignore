@@ -12,3 +12,4 @@ data/agent-ledger.json*
 data/agent-state.json*
 .env.share
 data/logs/
+.env.docker
