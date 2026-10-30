@@ -9,13 +9,13 @@ import { MAX_MILESTONES } from '../../../core/pledge'
 import type { Milestone } from '../../../core/campaign'
 import { Notice } from '../components/ui'
 import { formatSats, SATS_PER_BSV, useBsvPrice } from '../format'
-import { useWallet } from '../wallet'
+import { confirmSpend, useWallet } from '../wallet'
 
 const toLocalInput = (d: Date): string => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 const fromLocalInput = (s: string): number => Math.floor(new Date(s).getTime() / 1000)
 
 export function Create () {
-  const { connect } = useWallet()
+  const { connect, error: walletError } = useWallet()
   const price = useBsvPrice()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -45,6 +45,7 @@ export function Create () {
     if (percentTotal !== 100) { setMsg({ ok: false, text: `Milestone shares must add up to 100% (now ${percentTotal}%).` }); return }
     const bf = await connect()
     if (bf === undefined) return
+    if (!confirmSpend(`Launch "${title}"? This writes the campaign record on chain (a fee of a few sats).`)) return
     setBusy(true)
     try {
       const { campaignId } = await bf.launch({
@@ -107,6 +108,7 @@ export function Create () {
       </div>
 
       <button type="submit" className="primary" disabled={busy}>{busy ? 'Approve in your wallet…' : 'Launch campaign'}</button>
+      {walletError !== undefined && msg === undefined && <Notice kind="err">{walletError}</Notice>}
       {msg !== undefined && <Notice kind={msg.ok ? 'ok' : 'err'}>{msg.text}</Notice>}
     </form>
   )

@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createBrc29Payment } from '../../../client/payments'
 import { formatSats, short, WOC_TX } from '../format'
-import { useWallet } from '../wallet'
+import { confirmSpend, useWallet } from '../wallet'
 
 interface AgentStatus {
   identityKey: string
@@ -18,7 +18,7 @@ interface AgentStatus {
 interface SpendEntry { milestone: number, topic: string, why: string, sats: number, txid?: string, at: number }
 
 export function AgentPanel ({ agentUrl }: { agentUrl: string }) {
-  const { connect } = useWallet()
+  const { connect, error: walletError } = useWallet()
   const [status, setStatus] = useState<AgentStatus>()
   const [ledger, setLedger] = useState<SpendEntry[]>([])
   const [error, setError] = useState<string>()
@@ -45,6 +45,7 @@ export function AgentPanel ({ agentUrl }: { agentUrl: string }) {
     if (status === undefined) return
     const bf = await connect()
     if (bf === undefined) return
+    if (!confirmSpend(`Send ${formatSats(topUp)} to the agent for its transaction fees?`)) return
     setBusy(true)
     setMsg(undefined)
     try {
@@ -90,6 +91,7 @@ export function AgentPanel ({ agentUrl }: { agentUrl: string }) {
           <button disabled={busy} onClick={() => { void sendTopUp() }}>{busy ? 'Approve in wallet…' : 'Top up agent fees'}</button>
         </div>
       )}
+      {walletError !== undefined && msg === undefined && <p className="err small">{walletError}</p>}
       {msg !== undefined && <p className={msg.ok ? 'ok small' : 'err small'}>{msg.text}</p>}
     </div>
   )

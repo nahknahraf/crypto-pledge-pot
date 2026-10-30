@@ -8,12 +8,12 @@ import { useState, type FormEvent } from 'react'
 import type { CampaignMeta } from '../../../core/campaign'
 import { MIN_PLEDGE } from '../../../core/pledge'
 import { formatSats, formatUsd, useBsvPrice, WOC_TX } from '../format'
-import { useWallet } from '../wallet'
+import { confirmSpend, useWallet } from '../wallet'
 
 const PRESETS = [1_000, 10_000, 100_000, 1_000_000]
 
 export function DonateButton ({ meta, onDonated }: { meta: CampaignMeta, onDonated?: () => void }) {
-  const { connect, connecting } = useWallet()
+  const { connect, connecting, error: walletError } = useWallet()
   const price = useBsvPrice()
   const [amount, setAmount] = useState(10_000)
   const [name, setName] = useState('')
@@ -30,6 +30,7 @@ export function DonateButton ({ meta, onDonated }: { meta: CampaignMeta, onDonat
     }
     const bf = await connect()
     if (bf === undefined) return
+    if (!confirmSpend(`Donate ${formatSats(amount)} to "${meta.title}"? The sats go into this campaign's escrow.`)) return
     setBusy(true)
     try {
       const p = await bf.donate(meta, amount, { name, message })
@@ -64,6 +65,7 @@ export function DonateButton ({ meta, onDonated }: { meta: CampaignMeta, onDonat
         Your sats go into an on-chain escrow, not to the creator. They are released milestone by milestone; if the campaign fails,
         or nothing has been released by {new Date(meta.refundAfter * 1000).toLocaleDateString()}, you can reclaim them.
       </p>
+      {walletError !== undefined && result === undefined && <p className="err">{walletError}</p>}
       {result !== undefined && (
         <p className={result.ok ? 'ok' : 'err'}>
           {result.text} {result.txid !== undefined && <a href={WOC_TX + result.txid} target="_blank" rel="noreferrer">View transaction</a>}

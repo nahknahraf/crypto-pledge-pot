@@ -123,3 +123,14 @@ blockquote { margin: 0.5rem 0; padding: 0.5rem 0.8rem; background: var(--bg); bo
 blockquote, .description, .feed li p { overflow-wrap: anywhere; }
 .campaign { grid-template-columns: minmax(0, 1fr) 360px; }
 @media (max-width: 860px) { .campaign { grid-template-columns: minmax(0, 1fr); } }
+/* Phones: the header wraps (logo + wallet button, then the nav on its own line). */
+@media (max-width: 640px) {
+  header.top { flex-wrap: wrap; gap: 0.6rem 1rem; padding: 0.7rem 1rem; }
+  header.top nav { order: 3; flex-basis: 100%; gap: 1rem; overflow-x: auto; }
+  header.top .logo { flex: 1; }
+  .page { padding: 1rem; }
+  .hero h1 { font-size: 1.8rem; }
+  .pledge-row { grid-template-columns: 1fr; }
+  .right { text-align: left; }
+}
+.demo-banner { background: #fff1d6; color: #7a4a00; text-align: center; padding: 0.5rem 1rem; font-size: 0.9rem; }

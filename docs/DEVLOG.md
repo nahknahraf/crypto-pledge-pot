@@ -680,3 +680,49 @@ EVALUATION.md.
 - The live feed works (all five event types arrive within 50–400 ms; it had no
   test before).
 - All 12 API security probes behaved.
+
+---
+
+# Fixing what the evaluation found
+
+## Fix 1: the demo can never touch a real wallet; payments need a yes
+
+**The root cause of the accidental spend** wasn't the test script. It was the
+app: the offline demo showed simulated campaigns but happily talked to
+whatever real wallet was running. Anyone opening the demo with BSV Desktop
+running could have done the same thing by hand. We fixed it at three levels:
+
+1. **The server says which network it serves.** `/api/health` now returns
+   `network: 'main' | 'test' | 'mock'`; the offline demo reports `mock`.
+2. **The app refuses before contacting any wallet in the demo.** `connect()`
+   checks the server's network first. In `mock` it returns immediately with
+   "This is the offline demo… your wallet is never contacted", before a wallet
+   client is even created. On real networks it compares the wallet's network
+   (`mainnet` / `testnet`) with the server's and refuses on a mismatch. In the
+   demo the header shows a yellow banner and the Connect button is disabled.
+3. **Every action that moves money asks first.** Donate, launch, withdraw a
+   milestone, reclaim a pledge and top up the agent all show an in-app
+   confirmation ("This is a real BSV transaction from your wallet. Continue?")
+   before the wallet is called. A wallet with auto-approval no longer turns
+   one click into a payment.
+
+Wallet errors used to show only on the dashboard; now they appear where you
+clicked (Donate, Create, agent top-up).
+
+**Also fixed:**
+- **Mobile layout.** The header (logo, nav, button) couldn't wrap, which made
+  every page 627 px wide on a 390 px phone. On small screens the nav now gets
+  its own line. Measured afterwards: home, campaign, agent, create and
+  dashboard are all exactly 390 px wide.
+- **The 413 page.** Oversized bodies returned Express's HTML error page; now
+  they get `{"error":"request body too large"}`, and broken JSON gets
+  `{"error":"malformed JSON body"}`.
+
+**How we checked it:**
+- `test/server.hardening.test.ts` (2 tests): the network report, plus JSON for
+  413 and malformed bodies.
+- Playwright in the offline demo, with the safety net in place this time: the
+  banner shows, Connect is disabled, and clicking Donate gives the demo refusal
+  without any confirmation dialog. The code returns before the wallet is
+  reached.
+- Phone widths re-measured (above).

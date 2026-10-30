@@ -29,7 +29,7 @@ async function main (): Promise<void> {
   await db.migrate()
   const realNow = (): number => Math.floor(Date.now() / 1000)
   let offset = 0 // seed campaigns "in the past" by shifting the server clock
-  const app = createCryptoPledgePotApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => realNow() + offset })
+  const app = createCryptoPledgePotApp({ wallet: arbiter, db, network: 'mock', chainTracker: chain.chainTracker, now: () => realNow() + offset })
   await new Promise<void>(resolve => { app.listen(port, () => resolve()) })
   const url = `http://localhost:${port}`
 

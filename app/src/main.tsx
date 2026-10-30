@@ -19,7 +19,7 @@ function useHashRoute (): string {
 }
 
 function Header () {
-  const { identityKey, network, connect, connecting } = useWallet()
+  const { identityKey, network, connect, connecting, serverNetwork } = useWallet()
   return (
     <header className="top">
       <a className="logo" href="#/">Crypto<span>PledgePot</span></a>
@@ -30,9 +30,15 @@ function Header () {
       </nav>
       {identityKey !== undefined
         ? <span className="chip" title={identityKey}>● {network === 'testnet' ? 'testnet · ' : ''}{short(identityKey)}</span>
-        : <button className="primary" disabled={connecting} onClick={() => { void connect() }}>{connecting ? 'Connecting…' : 'Connect wallet'}</button>}
+        : <button className="primary" disabled={connecting || serverNetwork === 'mock'} title={serverNetwork === 'mock' ? 'Disabled in the offline demo' : undefined} onClick={() => { void connect() }}>{connecting ? 'Connecting…' : 'Connect wallet'}</button>}
     </header>
   )
+}
+
+function DemoBanner () {
+  const { serverNetwork } = useWallet()
+  if (serverNetwork !== 'mock') return null
+  return <div className="demo-banner">Offline demo: campaigns and payments are simulated. Wallet actions are disabled, so your real wallet is never contacted.</div>
 }
 
 function App () {
@@ -41,6 +47,7 @@ function App () {
   return (
     <>
       <Header />
+      <DemoBanner />
       <main className="page">
         {campaign !== null ? <Campaign id={campaign[1]} /> : route === '/create' ? <Create /> : route === '/dashboard' ? <Dashboard /> : <Home />}
       </main>

@@ -53,6 +53,7 @@ async function main (): Promise<void> {
   const app = createCryptoPledgePotApp({
     wallet: setup.wallet,
     db,
+    network: chain,
     chainTracker: new ArcadeChainTracker(chain === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
   })
   app.listen(port, () => {

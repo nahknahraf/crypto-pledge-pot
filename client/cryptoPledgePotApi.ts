@@ -37,7 +37,7 @@ export class CryptoPledgePotApi {
     return body as T
   }
 
-  health = async (): Promise<{ ok: boolean, identityKey: string, now: number }> => await this.get('/api/health')
+  health = async (): Promise<{ ok: boolean, network: 'main' | 'test' | 'mock', identityKey: string, now: number }> => await this.get('/api/health')
   arbiterKey = async (nonce: string): Promise<string> => (await this.get<{ arbiterKey: string }>(`/api/arbiter-key?nonce=${nonce}`)).arbiterKey
   campaigns = async (): Promise<CampaignView[]> => await this.get('/api/campaigns')
   campaign = async (id: string): Promise<CampaignDetail> => await this.get(`/api/campaigns/${id}`)

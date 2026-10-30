@@ -38,6 +38,12 @@ export interface CryptoPledgePotServerOptions {
   now?: () => number
   /** Origin allowed by CORS (default: any). */
   corsOrigin?: string
+  /**
+   * Which chain this server indexes. 'mock' = the offline demo: the web app
+   * then refuses all wallet actions, so a real wallet can never be spent
+   * against simulated campaigns.
+   */
+  network?: 'main' | 'test' | 'mock'
 }
 
 class HttpError extends Error {
@@ -81,6 +87,12 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
     next()
   })
   app.use(express.json({ limit: '20mb' }))
+  // Body-parser failures (e.g. 413 too large, malformed JSON) as JSON, like every other error.
+  app.use((err: any, _req: Request, res: Response, next: (e?: unknown) => void) => {
+    if (err?.type === 'entity.too.large') { res.status(413).json({ error: 'request body too large' }); return }
+    if (err?.type === 'entity.parse.failed') { res.status(400).json({ error: 'malformed JSON body' }); return }
+    next(err)
+  })
 
   const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) => async (req: Request, res: Response) => {
     try {
@@ -129,7 +141,7 @@ export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): E
 
   // ════════════════════════════ public ════════════════════════════
 
-  app.get('/api/health', wrap(async () => ({ ok: true, identityKey: (await wallet.getPublicKey({ identityKey: true })).publicKey, now: now() })))
+  app.get('/api/health', wrap(async () => ({ ok: true, network: opts.network ?? 'main', identityKey: (await wallet.getPublicKey({ identityKey: true })).publicKey, now: now() })))
 
   app.get('/api/arbiter-key', wrap(async (req) => {
     const nonce = String(req.query.nonce ?? '')

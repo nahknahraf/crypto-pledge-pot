@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { CampaignView, PledgeView } from '../../../core/api'
 import { Notice, Progress, StatusBadge } from '../components/ui'
 import { dateTime, formatSats, WOC_TX } from '../format'
-import { api, useWallet } from '../wallet'
+import { api, confirmSpend, useWallet } from '../wallet'
 
 type Msg = { ok: boolean, text: string, txid?: string }
 
@@ -80,6 +80,7 @@ function CreatorPanel ({ c, onChange }: { c: CampaignView, onChange: () => void 
           {next.approved
             ? (
               <button className="primary" disabled={busy || cryptopledgepot === undefined} onClick={() => {
+                if (!confirmSpend(`Withdraw milestone ${next.index} of "${c.meta.title}" into your wallet?`)) return
                 void act(async () => {
                   const r = await cryptopledgepot!.release(c.id)
                   return { ok: true, text: `Released ${formatSats(r.released)} for milestone ${r.milestone} into your wallet (minus network fee).`, txid: r.txids[0] }
@@ -112,6 +113,7 @@ function PledgeRow ({ p, view, onChange }: { p: PledgeView & { campaignTitle: st
   const canRefund = p.status === 'active' && view !== undefined && (view.status === 'failed' || canSelfRefund)
 
   async function refund () {
+    if (!confirmSpend(`Reclaim ${formatSats(p.escrowed)} from your pledge to "${p.campaignTitle}"?`)) return
     setBusy(true)
     setMsg(undefined)
     try {
