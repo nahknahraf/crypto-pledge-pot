@@ -263,3 +263,30 @@ and the components are plain React that drop into Next.js unchanged.
   output plus the wallet's funding input and change. A release is **18,650
   bytes / 1,866 sats for 3 escrows**. The test prints both figures so the
   README can be re-checked.
+
+---
+
+## 7. Checked against the track requirements: the agent gap
+
+**What I found:** I built from the brief in `cpp_prompt.md`, which never
+mentions agents. The developer pack's `TBC26_BSV_Track_Requirements.pdf`
+defines the track as "DeFi Rails for Agentic Payments". It requires an AI agent
+that makes a payment through the project, plus real on-chain transactions, a
+usage/value note and a demo video. BitFund had none of those yet.
+
+**Decision:** of three options (an AI backer that donates; an agent service
+that raises its budget on BitFund and pays for APIs over HTTP 402; an LLM
+milestone reviewer), the agent service fits the track best. It matches the
+PDF's thesis (agents paying for APIs) and its listed example ("a launchpad
+where agent-powered services raise funds"). The LLM reviewer makes no payment,
+so it can't satisfy the rule on its own.
+
+**Added:**
+- `docs/USAGE_AND_VALUE.md`: the required note. It covers the problem, users,
+  usage, value for BSV, and a built/pending status table.
+- `docs/prompts/BUILD_AGENT_SERVICE.md`: a self-contained prompt for building
+  the agent service. It lists the reuse points, safety caps, tests, the mainnet
+  runbook and known pitfalls.
+
+**Still open:** stablecoin or cross-chain liquidity, which the adoption
+criterion rewards, is roadmap only.

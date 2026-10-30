@@ -20,6 +20,9 @@ itself**. Fees are a fraction of a cent, so tiny donations are practical.
 
 Team: Farhan · Finja · Louisa
 
+**Usage and value note** (problem, users, value for BSV, status): [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md).
+**Next step:** the AI agent service for the track's agentic-payment requirement. Build prompt: [`docs/prompts/BUILD_AGENT_SERVICE.md`](docs/prompts/BUILD_AGENT_SERVICE.md).
+
 ---
 
 ## 1. System architecture and data flow
