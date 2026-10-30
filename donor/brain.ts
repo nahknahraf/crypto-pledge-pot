@@ -53,8 +53,8 @@ export function sanitizeAssessment (a: CampaignAssessment): CampaignAssessment {
 }
 
 /** Phrases aimed at AI agents in campaign text: a red flag in itself. */
-const INJECTION = /(ignore (all |your |previous )*(instructions|rules)|you are an? (ai|assistant|agent)|as an ai|system prompt|pledge (everything|all|the (whole|entire) budget)|disregard)/i
-const URGENCY = /(only \d+ (hours|minutes) left|act now|last chance|urgent!|send (directly|to my address))/i
+export const INJECTION = /(ignore (all |your |previous )*(instructions|rules)|you are an? (ai|assistant|agent)|as an ai|system prompt|pledge (everything|all|the (whole|entire) budget)|disregard)/i
+export const URGENCY = /(only \d+ (hours|minutes) left|act now|last chance|urgent!|send (directly|to my address))/i
 const MEASURABLE = /\d|report|audit|test|measure|publish|deliver|install|photo|link|data|survey|sample|map|count/i
 
 /** Deterministic, offline brain for tests, demos and runs without Anthropic credentials. */

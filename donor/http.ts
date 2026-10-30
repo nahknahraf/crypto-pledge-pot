@@ -9,6 +9,7 @@
  *   POST /api/donor/memos/:id/decline co-pilot
  *   POST /api/donor/fund              autopilot: a BRC-29 budget top-up into the agent's wallet
  *   POST /api/donor/step              run one round now (instead of waiting for the timer)
+ *   POST /api/donor/search            { query, limit? }: campaigns that fit a few words, each summarised
  */
 import express, { type Express } from 'express'
 import type { ChainTracker, WalletInterface } from '@bsv/sdk'
@@ -71,6 +72,11 @@ export function createDonorApp (o: DonorHttpOptions): Express {
   }))
 
   app.post('/api/donor/memos/:id/decline', wrap(async (req) => o.agent.decline(String(req.params.id))))
+
+  app.post('/api/donor/search', wrap(async (req) => {
+    const limit = req.body?.limit === undefined ? undefined : Math.max(1, Math.min(20, Math.floor(Number(req.body.limit)) || 5))
+    return await o.agent.search(String(req.body?.query ?? ''), { limit })
+  }))
 
   app.post('/api/donor/step', wrap(async () => await o.runStep()))
 

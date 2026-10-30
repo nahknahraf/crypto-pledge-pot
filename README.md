@@ -313,6 +313,17 @@ terms (budget, interests, limits), and does the due diligence.
 - **A 0–100 score with reasons.** Campaign text that tries to instruct AI
   agents **disqualifies** the campaign.
 
+**Find campaigns from a few words:** "children in need" → the open campaigns
+that fit, best first, each with a two-sentence summary of what it does, how
+far it is funded, how long is left, and warnings from code (e.g. text that
+tries to steer AI agents). Claude ranks and summarises when
+`ANTHROPIC_API_KEY` is set; otherwise an offline keyword and theme matcher is
+used. The model can only pick campaigns from the index.
+
+```bash
+npm run donor:search -- children in need                 # from the terminal (read-only, no wallet)
+```
+
 ```bash
 cp donor-mandate.example.json data/donor-mandate.json   # your terms; "mode": "copilot" or "autopilot"
 npm run donor                                            # your agent, on 127.0.0.1:8792 (personal: never exposed)

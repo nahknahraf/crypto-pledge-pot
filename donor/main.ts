@@ -23,6 +23,7 @@ import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/ar
 import { fileStore } from '../agent/ledger'
 import { createToolboxWallet, loadOrCreateKey } from '../agent/wallet'
 import { defaultDonorBrain } from './brain'
+import { defaultSearchBrain } from './search'
 import { DonorAgent, type StepSummary } from './donorAgent'
 import { createDonorApp } from './http'
 import { parseMandate } from './mandate'
@@ -60,7 +61,7 @@ if (mandate.mode === 'autopilot') {
 }
 const api = new CryptoPledgePotApi(serverUrl, wallet)
 const memos = new MemoBook(fileStore<Memo[]>(path.join(dataDir, 'donor-memos.json'), []))
-const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), memos, chainTracker, txExists })
+const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), searchBrain: defaultSearchBrain(), memos, chainTracker, txExists })
 
 const spendable = async (): Promise<number> => {
   if (wallet === undefined) return 0

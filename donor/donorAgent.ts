@@ -22,10 +22,13 @@ import type { Mandate } from './mandate'
 import type { Memo, MemoBook } from './memo'
 import { amountFor, creatorRecord, screen, type Portfolio } from './screen'
 import { scoreCampaign } from './score'
+import { MockSearchBrain, searchCampaigns, type SearchBrain, type SearchOptions, type SearchResult } from './search'
 
 export interface DonorDeps extends DiligenceDeps {
   api: CryptoPledgePotApi
   brain: DonorBrain
+  /** Ranks campaigns for a donor's few-word request (default: the offline keyword brain). */
+  searchBrain?: SearchBrain
   memos: MemoBook
   /** Autopilot only: the client bound to the agent's own budget wallet. */
   client?: CryptoPledgePot
@@ -77,6 +80,11 @@ export class DonorAgent {
       s.refunds = await this.recover()
     }
     return s
+  }
+
+  /** "children in need": the open campaigns that fit, each with a short summary and its facts. */
+  async search (query: string, opts: SearchOptions = {}): Promise<SearchResult> {
+    return await searchCampaigns(query, await this.deps.api.campaigns(), this.deps.searchBrain ?? new MockSearchBrain(), { now: this.now(), ...opts })
   }
 
   /** Hard rules → due diligence → judgement → score → amount → pledge (autopilot) or proposal (co-pilot). */
