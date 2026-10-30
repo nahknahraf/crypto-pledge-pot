@@ -1675,3 +1675,51 @@ Full suite: **149 passing** (23 files); both type-checks clean.
 **Why:** the old `DEMO_SCRIPT.md` is longer, mainnet-first, and predates the donor agent and the swap. It still says "88 tests" and "milestone one: 40 %". The AirWatch campaign is actually 30/40/30, and the script uses the real numbers from `server/agentDemo.ts` and the real `demo:swap` output.
 
 **What broke / still missing:** the script calls `npm run demo:donor` and `npm run demo:bridge`, which don't exist yet. They are the next two steps.
+
+## Step 5: the bridge's happy path on a real EVM chain
+
+**What:** the swap's other side is no longer only a simulation.
+- `evm/contracts/HashedTimelockERC20.sol`:
+  - an ERC-20 HTLC with `lock`, `claim(secret)` and `refund`;
+  - the hashlock is **sha256**, the same as our BSV `AtomicSwap`;
+  - no owner, no admin, no upgrades;
+  - it checks the balance delta on `lock`, so fee-on-transfer tokens are refused.
+
+  `TestUSDC.sol` is a 6-decimal token for local runs. `npm run evm:compile` (solc-js 0.8.38) writes `evm/artifacts.json`, which is committed.
+- `swap/evmChain.ts`, a viem adapter implementing `SourceChain`:
+  - `lock` = `approve` + `lock`, with the id read from the `Locked` event;
+  - `claim` and `refund` send transactions;
+  - `htlc(id)` reads the contract storage, plus the secret from the `Claimed` event;
+  - every write is simulated first, so a revert shows the contract's reason.
+- `swap/anvil.ts` starts Foundry's Anvil from the `@foundry-rs/anvil` npm package (the official prebuilt binary) on a free port, and can move its clock.
+- `npm run demo:bridge`: USDC on a local EVM chain → sats in Fay's own BSV wallet → a pledge. It can point at Base Sepolia through env vars.
+- `npm run evm:deploy` deploys the HTLC.
+- `test/bridge.evm.test.ts` has 3 tests: the happy path; an expired quote with a refund that is refused before T1 and works after it; and the contract refusing a wrong secret, a stranger, or a second claim.
+
+**Why:** the user asked for a happy-path implementation of the bridging plan, with the rest in a TBD list. Phase 1a (a real EVM HTLC on a local chain) is the part that can be built and verified on this machine with no money.
+
+**How:**
+- `SourceChain.now()` became **async**. A real chain's time is the latest block's timestamp, which is a network call. `LiquidityAgent` and `DonorSwap` now await it, and `SimulatedUsdcChain` wraps its clock. Everything else ran unchanged on the new chain, which shows that the interface was the right seam.
+- Addresses are checksummed with `getAddress` on both sides, so the LP's "does this lock pay me?" comparison works.
+
+**What broke:**
+- The first compile failed: the pragma said 0.8.30 but the installed solc is 0.8.38. I pinned it to 0.8.38.
+- `npx anvil` did not work because npm did not create a bin link for the wrapper package. We call the platform binary directly.
+- One strict-null type error in the demo after reassigning the record.
+
+**Verified:**
+- `bridge.evm` 3/3 on the first run.
+- `demo:bridge` prints the whole story, ending with Fay at 2,149,956 sats before the pledge.
+- `evm:deploy` against a live Anvil prints the contract address.
+- Full suite **152 passing**; both typechecks clean.
+
+**Not done (TBD in BRIDGING_PLAN):**
+- the real BSV leg;
+- a Base Sepolia run (the code path is untested);
+- persisted LP state;
+- confirmation depth on the donor's lock;
+- edge cases on Anvil;
+- a contract review;
+- donor signing in the browser;
+- `permit`;
+- Docker.

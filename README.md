@@ -41,11 +41,11 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | Fundraising agent | ✅ offline, with a scripted brain or Claude; 🟡 real Claude needs `ANTHROPIC_API_KEY` | 31 tests; `npm run demo:agent` |
 | Pay-per-call data API (HTTP 402) | ✅ real Open-Meteo data, synthetic fallback | `agent.pay402`, `pay-per-request` tests |
 | Donor agent | ✅ autopilot and co-pilot, budget caps, manipulation → score 0 | 22 tests; Donor page in the app |
-| Liquidity agent / swaps | 🟡 the BSV side is real; **the USDC side is simulated** | 12 tests; `npm run demo:swap` |
-| Real bridges (EVM, BTC, Lightning, DeFi, CeFi) | ❌ planned | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
+| Liquidity agent / swaps | 🟡 the BSV side is real; the USDC side is simulated in `demo:swap`, and a **real Solidity HTLC on a local EVM chain** in `demo:bridge` | 15 tests; `npm run demo:swap`, `npm run demo:bridge` |
+| Real bridges | 🟡 EVM: the happy path works on a local chain (Anvil); a public testnet is untested · ❌ BTC, Lightning, DeFi, CeFi are planned | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **149 tests**, all passing (`npm test`), and both typechecks are clean.
+In total there are **152 tests**, all passing (`npm test`), and both typechecks are clean.
 
 ## Try it
 
@@ -55,7 +55,8 @@ Requires Node.js ≥ 22.
 npm install
 npm test               # everything, offline
 npm run demo:agent     # the AI-agent story, offline (then: npm run app → http://localhost:5174)
-npm run demo:swap      # USDC → sats → pledge, in the terminal
+npm run demo:swap      # USDC → sats → pledge, in the terminal (simulated USDC)
+npm run demo:bridge    # the same with a real Solidity HTLC on a local EVM chain
 ```
 
 - **Real use on mainnet:** install BSV Desktop, then `npm run server` and `npm run app`.

@@ -76,7 +76,7 @@ export class LiquidityAgent {
     const sats = Math.floor((usdc / USDC) * this.config.satsPerUsdc)
     const openExposure = [...this.swaps.values()].filter(s => s.state === 'quoted' || s.state === 'locked').reduce((t, s) => t + s.quote.sats, 0)
     if ((await this.spendable()) - openExposure - sats < this.config.feeReserve) throw new Error('not enough BSV inventory for this swap right now')
-    const now = this.source.now()
+    const now = await this.source.now()
     const q: Quote = { id: `q${this.swaps.size + 1}`, usdc, sats, lpAddress: this.usdc.address, donorBsvKey, expiresAt: now + this.config.quoteValidity, minSourceRefundAfter: now + this.config.minSourceWindow }
     this.swaps.set(q.id, { quote: q, state: 'quoted' })
     this.say(`quoted ${formatUsdc(usdc)} → ${sats.toLocaleString('en-US')} sats (${q.id})`)
@@ -88,7 +88,7 @@ export class LiquidityAgent {
     const s = this.swaps.get(quoteId)
     if (s === undefined || s.state !== 'quoted') throw new Error('no open quote')
     const reject = (why: string): never => { s.state = 'rejected'; s.note = why; this.say(`rejected ${quoteId}: ${why}`); throw new Error(why) }
-    if (this.source.now() > s.quote.expiresAt) reject('the quote expired')
+    if ((await this.source.now()) > s.quote.expiresAt) reject('the quote expired')
     const h = await this.source.htlc(sourceHtlcId)
     if (h === undefined || h.state !== 'locked') reject('no locked USDC found on the other chain')
     if (h!.receiver !== this.usdc.address) reject('the USDC lock does not pay this agent')
@@ -116,7 +116,7 @@ export class LiquidityAgent {
         await this.usdc.claim(s.sourceHtlcId!, secret)
         s.state = 'settled'
         this.say(`donor claimed the sats; read the secret from BSV and collected ${formatUsdc(s.quote.usdc)}`)
-      } else if (spend === undefined && this.source.now() >= s.lock.terms.refundAfter) {
+      } else if (spend === undefined && (await this.source.now()) >= s.lock.terms.refundAfter) {
         await refundSats(this.wallet, s.lock, s.senderKeyID!)
         s.state = 'refunded'
         this.say(`donor never claimed; refunded our ${s.quote.sats.toLocaleString('en-US')} sats`)

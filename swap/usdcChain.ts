@@ -35,7 +35,8 @@ export interface SourceChain {
   readonly name: string
   account: (address: string) => SourceAccount
   htlc: (id: string) => Promise<SourceHtlc | undefined>
-  now: () => number
+  /** The chain's own time (unix seconds). Async: on a real chain it is a network call (the latest block). */
+  now: () => Promise<number>
 }
 
 export const USDC = 1_000_000 // micro-USDC per USDC
@@ -46,7 +47,9 @@ export class SimulatedUsdcChain implements SourceChain {
   private readonly balances = new Map<string, number>()
   private readonly htlcs = new Map<string, SourceHtlc>()
 
-  constructor (readonly now: () => number = () => Math.floor(Date.now() / 1000)) {}
+  constructor (private readonly clock: () => number = () => Math.floor(Date.now() / 1000)) {}
+
+  async now (): Promise<number> { return this.clock() }
 
   /** Test/demo faucet. */
   mint (address: string, amount: number): void {
@@ -66,7 +69,7 @@ export class SimulatedUsdcChain implements SourceChain {
       lock: async ({ receiver, amount, hashlock, refundAfter }) => {
         if (!Number.isSafeInteger(amount) || amount <= 0) fail('amount must be positive')
         if (!/^[0-9a-f]{64}$/.test(hashlock)) fail('hashlock must be 32 bytes hex')
-        if (refundAfter <= this.now()) fail('refund time must be in the future')
+        if (refundAfter <= this.clock()) fail('refund time must be in the future')
         if ((this.balances.get(address) ?? 0) < amount) fail('insufficient balance')
         this.balances.set(address, (this.balances.get(address) ?? 0) - amount)
         const id = `htlc-${this.htlcs.size + 1}`
@@ -77,7 +80,7 @@ export class SimulatedUsdcChain implements SourceChain {
         const h = this.htlcs.get(id) ?? fail('no such HTLC')
         if (h.state !== 'locked') fail(`HTLC is ${h.state}`)
         if (h.receiver !== address) fail('only the receiver can claim')
-        if (this.now() >= h.refundAfter) fail('too late to claim: the refund time has passed')
+        if (this.clock() >= h.refundAfter) fail('too late to claim: the refund time has passed')
         if (!/^[0-9a-f]{64}$/.test(secret) || Utils.toHex(Hash.sha256(Utils.toArray(secret, 'hex'))) !== h.hashlock) fail('wrong secret')
         h.state = 'claimed'; h.secret = secret
         this.balances.set(address, (this.balances.get(address) ?? 0) + h.amount)
@@ -86,7 +89,7 @@ export class SimulatedUsdcChain implements SourceChain {
         const h = this.htlcs.get(id) ?? fail('no such HTLC')
         if (h.state !== 'locked') fail(`HTLC is ${h.state}`)
         if (h.sender !== address) fail('only the sender can refund')
-        if (this.now() < h.refundAfter) fail('refund time not reached')
+        if (this.clock() < h.refundAfter) fail('refund time not reached')
         h.state = 'refunded'
         this.balances.set(address, (this.balances.get(address) ?? 0) + h.amount)
       }

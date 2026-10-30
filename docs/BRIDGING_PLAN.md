@@ -1,10 +1,21 @@
 # Bridging plan: real money from other chains, DeFi and CeFi into BSV
 
-**What exists today.** The swap flow is built, but only half of it is real:
+**Status (30 Oct 2026): Phase 1a happy path built.** The swap now runs against a **real EVM contract**, not only the simulated ledger:
+
+- `evm/contracts/HashedTimelockERC20.sol` (Solidity 0.8.38, compiled into `evm/artifacts.json` by `npm run evm:compile`);
+- `swap/evmChain.ts`, a viem adapter that implements `SourceChain`;
+- `swap/anvil.ts`, which starts a local EVM chain (Foundry's Anvil, from the `@foundry-rs/anvil` npm package);
+- `npm run demo:bridge`, which runs USDC on a local EVM chain → sats in the donor's own BSV wallet → a pledge;
+- `npm run evm:deploy`, which deploys the HTLC (tested against Anvil);
+- `test/bridge.evm.test.ts`, with 3 tests: the happy path, the refund path, and the contract refusing a wrong secret, a stranger, or a second claim.
+
+The BSV side still runs on the offline mock chain, and nothing has run on a public chain yet. What is left is listed in the [TBD list](#tbd-after-the-happy-path) at the end.
+
+**What existed before.** The swap flow was built, but only half of it was real:
 
 - `swap/` runs a full atomic swap (an HTLC on each side).
 - The BSV half is **real**: the sCrypt `AtomicSwap` contract, cross-checked byte for byte, tested in the SDK interpreter and on the mock chain.
-- The USDC half is **simulated** (`swap/usdcChain.ts`, `SimulatedUsdcChain`).
+- The USDC half was **simulated** (`swap/usdcChain.ts`, `SimulatedUsdcChain`). The simulation is still used by `demo:swap` and `swap.e2e`.
 
 The design reasoning is in [`CROSS_CHAIN_PLAN.md`](CROSS_CHAIN_PLAN.md). This document is the plan to replace the simulation with real rails, one at a time, and to connect DeFi and CeFi sources without becoming custodial.
 
@@ -151,7 +162,7 @@ Every adapter must pass the **same** `swap.e2e` suite that the simulation passes
 
 | Phase | Deliverable | Effort |
 |---|---|---|
-| 1a | EVM HTLC + Foundry tests + `evmChain.ts` on Anvil | 1–2 days |
+| 1a | EVM HTLC + `evmChain.ts` on Anvil: **happy path done**; the full edge-case suite is in the TBD list | 3–4 days in total (revised from 1–2) |
 | 1b | Base Sepolia + a real BSV leg, txids in USAGE_AND_VALUE | 0.5 day |
 | 1c | Review, Base mainnet with a 20 USDC cap | 0.5 day + review |
 | 2 | DEX multicall + the "Fund from an exchange" panel | 2 days |
@@ -159,3 +170,18 @@ Every adapter must pass the **same** `swap.e2e` suite that the simulation passes
 | 4–5 | On-ramp widget; BSV-21 escrow research | open |
 
 For the hackathon, Phase **1a + 1b** is the realistic target. It turns "simulated USDC" into "real USDC on a public testnet, real sats on BSV mainnet", which is the honest claim judges can check.
+
+## TBD after the happy path
+
+What the Phase 1a happy path does **not** do yet, in rough order:
+
+- [ ] **The real BSV leg.** The demo's BSV side is the mock chain. Run the BSV half on mainnet with tiny amounts (needs team sats) and record the txids.
+- [ ] **Base Sepolia run.** Deploy with `npm run evm:deploy`, then run `npm run demo:bridge` with `BRIDGE_RPC_URL` and the other env vars. The public-chain code path exists but is **untested**: it needs funded testnet accounts. Check Circle's docs for the current test-USDC address.
+- [ ] **Persisted LP state.** `LiquidityAgent` keeps open swaps in memory. After a crash it cannot claim the USDC it is owed (AGENT_TEST_PLAN S4). This is needed before any public-chain run with someone else's money.
+- [ ] **Confirmations before locking sats** (S10). `EvmUsdcChain` waits N confirmations for its *own* transactions. The LP should also check the *donor's* lock depth before locking sats.
+- [ ] **Edge cases on Anvil.** Run S1–S9 against `EvmUsdcChain` (today only the happy path, the expired-quote refund and 3 contract checks run on the EVM). The simplest way is to run `swap.e2e` parameterised over both chains.
+- [ ] **Contract hardening.** A Foundry/slither pass and a second reviewer. Test a fee-on-transfer token (the contract refuses it by checking the balance delta, but no test covers it), a 0 amount, and `refundAfter` in the past.
+- [ ] **Donor signs in the browser.** Today both EVM accounts are local keys in one process (Anvil's public dev keys, or testnet keys from env). A real donor signs `approve` + `lock` with their own EVM wallet (EIP-1193 through viem's `custom()` transport) in the web app.
+- [ ] **One transaction instead of two.** `approve` + `lock` are two transactions. EIP-2612 `permit` (USDC supports it) would make them one.
+- [ ] **Docker.** `@foundry-rs/anvil` is a dev dependency, so `demo:bridge` needs the dev install. `demo:bridge` has not been tried in the container.
+- [ ] **Phases 2–5** (DEX, CeFi helper, BTC, Lightning, on-ramp, wrapped stablecoins): not started.
