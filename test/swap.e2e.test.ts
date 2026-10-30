@@ -88,6 +88,28 @@ describe('happy path: USDC on another chain → sats in the donor\'s own wallet 
   })
 })
 
+describe('timing at the edges (S3)', () => {
+  it('the donor claims one second before the agent could refund; the agent still collects the USDC one second before the donor could', async () => {
+    clock = T0 + 60 * H
+    const d = await donor('Ivy', 30 * USDC)
+    let r = await d.swap.requestQuote(lp, 30 * USDC)
+    r = await d.swap.lockAndRequest(lp, r)
+    const t2 = r.lock!.terms.refundAfter // the agent's BSV refund time
+    const t1 = (await usdc.htlc(r.sourceHtlcId!))!.refundAfter // the donor's USDC refund time
+    expect(t1 - t2).toBeGreaterThanOrEqual(DEFAULT_LIQUIDITY.safetyMargin)
+    clock = t2 - 1
+    await lp.step() // nothing to do yet: not claimed, not refundable
+    expect(lp.state(r.quote.id)).toBe('locked')
+    r = await d.swap.claim(r)
+    expect(r.state).toBe('claimed')
+    clock = t1 - 1 // the agent was slow: it only looks again at the last second
+    await lp.step()
+    expect(lp.state(r.quote.id)).toBe('settled')
+    clock = t1
+    await expect(d.swap.refundSource(r)).rejects.toThrow(/HTLC is claimed/)
+  })
+})
+
 describe('when things go wrong, everyone gets their own money back', () => {
   it('the LP refuses (expired quote): the donor refunds the USDC after T1, not before', async () => {
     clock = T0 + 10 * H

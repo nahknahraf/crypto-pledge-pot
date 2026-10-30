@@ -1930,3 +1930,11 @@ Test (`agent.e2e`): the anchor fails once. Nothing is posted, the milestone isn'
 - `GET /api/lp/swaps/:quoteId` returns `{ state, lock }`, and `LiquidityProvider.lockFor` is implemented by the agent and the HTTP client.
 - When asking again fails ("no open quote", because the agent already locked), `DonorSwap.requestLock` fetches the lock that was made. `verifyLock` still checks it on chain.
 - Test (`bridge.service`, on Anvil): lock, drop the reply, ask again. The donor gets the identical lock, it verifies, and the agent has exactly one locked swap.
+
+**8.19 Timing at the edges** (S3), in `swap.e2e`:
+- The timeouts are at least the safety margin apart.
+- At T2 − 1 the agent does nothing: not claimed yet, not refundable yet.
+- The donor claims at T2 − 1. The agent is slow and only looks again at T1 − 1, and it still collects the USDC.
+- At T1 the donor's refund is refused, because the HTLC is already claimed.
+
+So the margin really does protect both sides.
