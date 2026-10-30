@@ -290,3 +290,51 @@ so it can't satisfy the rule on its own.
 
 **Still open:** stablecoin or cross-chain liquidity, which the adoption
 criterion rewards, is roadmap only.
+
+---
+
+# Building the agent service (option 2), step by step
+
+We're following `docs/prompts/BUILD_AGENT_SERVICE.md`. The idea in one line:
+an AI agent raises its own budget on BitFund, gets paid as it delivers, and
+spends that money on a pay-per-call data API.
+
+## Step 0: housekeeping
+
+We copied `AGENTS.md` from the developer pack into the repo root, so any coding
+assistant that opens the project sees the BSV rules first. Then we ran the
+suite to know where we stand: 68 passing. There's no Anthropic API key on this
+machine, so the plan is to write the real Claude "brain" and also a mock
+brain, so tests never depend on the network.
+
+## Step 1: something for the agent to buy, and a wallet that can say no
+
+**The data shop (`agent/dataProvider.ts`).** The agent needs a real service to
+pay for, so we built a tiny API that sells air-quality readings for ten European
+cities at 50 sats a call. It's protected by the official BRC-121 middleware
+(`@bsv/402-pay`): ask without paying and you get a `402 Payment Required` with
+the price and the shop's identity key. We were upfront that the numbers are
+synthetic (generated from the city and date, and flagged `synthetic: true`).
+The thing we're demonstrating is the payment rail, and a real data seller could
+swap in real data without touching the payment code.
+
+**The careful payer (`agent/pay402.ts`).** The starter kit's `create402Fetch`
+pays whatever the server asks. That's fine for a human clicking a button, but
+scary for an autonomous agent. So we split the flow in two:
+1. ask normally and read the price from the 402 response;
+2. check that the shop is on the agent's allow-list and the price is under its
+   cap. Only then build the payment (`constructPaymentHeaders`) and ask again.
+
+If either check fails, nothing is paid. We also pull the payment's txid out of
+the payment header, so every purchase can go in the agent's spending log and
+link to WhatsOnChain later.
+
+**How we checked it (`test/agent.pay402.test.ts`).** Real wallet-toolbox wallets
+on the mock chain:
+- the agent buys Munich's data and the shop's balance goes up by exactly 50 sats;
+- a greedy shop charging 5,000 sats is refused and the agent's balance doesn't move;
+- a shop that isn't on the allow-list is refused even with a generous cap.
+
+All three passed on the first run. Nothing broke this time, which is mostly
+thanks to the starter kit having already solved the awkward bit (the
+`withHostOriginator` workaround for wallet-toolbox wallets).
