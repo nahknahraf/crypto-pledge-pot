@@ -384,3 +384,71 @@ Anthropic client that returns whatever we script:
 
 **Not verified:** a live call to Claude. There's no API key on this machine;
 the first real call will happen on a teammate's machine with a key.
+
+## Step 3: the agent's loop, its spending log, and a 35 KB surprise
+
+**The loop (`agent/agent.ts`).** The agent is one class with a `step()`
+method. Every time you call it, it looks at its campaign and does the next
+sensible thing:
+- no campaign → launch one;
+- still raising → wait;
+- a milestone was approved → withdraw it;
+- money arrived but not spent yet → plan purchases, pay per call, write a report;
+- goal missed or all done → stop.
+
+Because the agent's wallet *is* the campaign creator, a milestone release
+drops the money straight into its balance. We didn't touch the contract or
+the release flow at all.
+
+The report goes to backers as the progress update for the *next* milestone,
+and that's what opens their vote. So the cycle is: get funded → do the work →
+show the receipts → backers decide whether to fund the next stage.
+
+**The spending log (`agent/ledger.ts`).** Every paid call is written down with
+the city, the reason, the price and the txid. The report includes WhatsOnChain
+links for each payment, so a backer can check any sat they gave. The agent also
+remembers which milestones it has already spent, so running `step()` twice
+never spends twice. Files are written atomically (write a temp file, then
+rename), so a crash can't leave half a ledger.
+
+**Budget rules, enforced in code:**
+- budget = the smaller of `maxSpendPerMilestone` and (balance − fee reserve);
+- the number of calls follows from the expected price;
+- the loop stops buying the moment the next call would exceed the budget,
+  whatever the brain asked for.
+
+**What broke: HTTP 431, "Request Header Fields Too Large".** The first full run
+passed 8 of 9 tests. The agent bought its milestone 1 data fine, but a
+milestone 2 purchase failed. The reason: BRC-121 puts the payment in an HTTP
+header, as a BEEF that includes every unconfirmed ancestor of the coins being
+spent. Straight after a release, the agent's coins come from a transaction with
+several ~3 KB escrow inputs. We added the header size to the error message and
+measured **35,416 bytes**, more than twice Node's 16 KB default.
+
+This isn't a test artefact. On mainnet the agent also pays at 0-conf right
+after a release, so it would fail the same way. Two possible fixes:
+- wait for the release to be mined, so the ancestors get merkle proofs and the
+  BEEF shrinks. Robust, but adds ~10 minutes per milestone;
+- let the provider accept bigger headers.
+
+We chose the second. `serveDataProvider()` runs the shop on an HTTP server with
+a 1 MB header limit, and the reason is documented in the code. We also noted
+that a reverse proxy in front of a paid API needs the same change (nginx's
+default is only 8 KB). That's worth telling the BSV team as feedback on BRC-121.
+
+**How we checked it (`test/agent.e2e.test.ts`, 9 tests, full stack offline):**
+- the agent launches its own campaign; Alice and Bob back it with 25,000 sats;
+- before the deadline it waits; after it, it withdraws milestone 1 (10,000 sats).
+  Its balance rises by exactly 10,000 minus the release fee;
+- it buys 3 readings for exactly 150 sats; the shop is credited exactly 150;
+  the ledger has 3 entries with txids; the report with WhatsOnChain links is now
+  the milestone 2 update;
+- a second `step()` doesn't spend again;
+- Alice votes YES, the agent withdraws milestone 2, buys 3 *different* cities,
+  and the campaign ends as `completed`;
+- a greedy brain asking for 10 calls is held to 2 by a 100-sat budget;
+- a shop that isn't allow-listed, or overpriced, is refused, and the balance
+  doesn't move;
+- an underfunded agent campaign gets nothing, and the backer gets a refund.
+
+Full suite: **85 passing** (68 before + 3 payer + 5 brain + 9 agent).

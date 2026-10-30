@@ -9,6 +9,7 @@
  * Runs as its own process with its own wallet, so every call is a real
  * transfer between two parties: `npm run data-provider`.
  */
+import http from 'node:http'
 import express, { type Express } from 'express'
 import { createPaymentMiddleware } from '@bsv/402-pay/server'
 import { Hash, Utils, type WalletInterface } from '@bsv/sdk'
@@ -52,4 +53,19 @@ export function createDataProviderApp (merchant: WalletInterface, priceSats: num
     res.json({ ...syntheticReading(city), receiptId: Utils.toHex(Hash.sha256(JSON.stringify((req as any).payment ?? {}), 'utf8')).slice(0, 16) })
   })
   return app
+}
+
+/**
+ * BRC-121 carries the payment as a BEEF in a request header, and that BEEF
+ * includes every unconfirmed ancestor of the payer's coins. An agent paying at
+ * 0-conf right after a milestone release spends change from a transaction with
+ * several ~3 KB escrow inputs: we measured a 35 KB header, well over Node's
+ * 16 KB default (→ HTTP 431). Serve paid routes with a larger header limit; a
+ * reverse proxy in front needs the same (e.g. nginx large_client_header_buffers).
+ */
+export const PAID_HEADER_LIMIT = 1024 * 1024
+
+export function serveDataProvider (app: Express, port: number, host?: string): Promise<http.Server> {
+  const server = http.createServer({ maxHeaderSize: PAID_HEADER_LIMIT }, app)
+  return new Promise(resolve => { server.listen(port, host, () => resolve(server)) })
 }

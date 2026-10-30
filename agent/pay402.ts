@@ -61,7 +61,7 @@ export function createCappedPayer (opts: Pay402Options) {
 
     const headers = await constructPaymentHeaders(wallet, url, price, server)
     const paid = await doFetch(url, { headers: headers as unknown as Record<string, string> })
-    if (!paid.ok) throw new Error(`${url}: payment not accepted (HTTP ${paid.status})`)
+    if (!paid.ok) throw new Error(`${url}: payment not accepted (HTTP ${paid.status}, payment header ${headers['x-bsv-beef'].length} bytes)`)
     return { body: await paid.json() as T, paid: price, txid: paymentTxid(headers['x-bsv-beef']) }
   }
 }
