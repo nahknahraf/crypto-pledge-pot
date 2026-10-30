@@ -643,3 +643,40 @@ history isn't worth the risk.)
     protocol names.
 
   Lesson: never chain an inspection and a delete in one command.
+
+---
+
+## Self-evaluation, and a mistake that spent real sats
+
+We tested the app against the track's rubric (full write-up in
+`docs/EVALUATION.md`, score ≈ 63/100 today). Two things from the testing
+belong in this log.
+
+**We spent 10,000 real sats by accident.** One UI test clicked "Donate"
+expecting it to fail with "no wallet found". But BSV Desktop was running on the
+machine, and it approved the request without asking: `localhost:5174` already
+had spending permission. The click sent a real mainnet donation
+(`217be330…`) into an escrow belonging to the *offline demo* campaign, whose
+creator and arbiter keys only ever existed in memory. The sats aren't lost: we
+decoded the escrow from chain, and its donor (the team's wallet) can reclaim
+them alone from 2027-01-28. But it was a real-money action nobody asked for.
+
+What we learned:
+1. Before automating any UI that can reach a wallet, check whether a wallet
+   is listening (ports 3321/2121).
+2. The app itself should confirm the amount before calling the wallet, because
+   a wallet with auto-approval turns one click into a payment.
+
+**The good news hidden in the same trace:** the team had already launched a real
+campaign on mainnet ("Fund a  well") and pledged 1,000 sats to it, under the old
+BitFund name. So launching and donating with BSV Desktop work on mainnet. That
+campaign is the one whose local index we deleted earlier. It's still on chain,
+but the renamed app can't sign for its pledge without supporting the old key
+names, and we have no re-indexer yet. Both are on the to-do list in
+EVALUATION.md.
+
+**Other findings:**
+- Mobile is broken: 627 px wide on a 390 px phone.
+- The live feed works (all five event types arrive within 50–400 ms; it had no
+  test before).
+- All 12 API security probes behaved.
