@@ -628,5 +628,18 @@ history isn't worth the risk.)
 - The real server, data provider and agent all start under the new name with
   the same identities. The keys in `data/` carry over, and the agent still
   stops at "insufficient funds" until it's topped up.
-- Removed the leftover `data/bitfund.db` (an empty index from a smoke test,
-  0 campaigns).
+- **Mistake:** we removed `data/bitfund.db`, believing it was an empty leftover
+  from a smoke test. The check printed `campaigns in old db: 1`, but the
+  delete ran in the same command, before anyone read the result. The file is
+  gone (no WAL or backup). None of our own runs could have registered a
+  campaign there, so it most likely came from a manual run with BSV Desktop.
+  If that campaign was real:
+  - its record is still on chain (OP_RETURN tagged `bitfund`), but this index
+    is lost;
+  - any pledges to it were made with the old `bitfund …` key-derivation
+    protocol IDs, which the renamed app no longer uses;
+  - pledged sats are not lost: the escrow scripts are unchanged and still
+    refundable after the refund date, but reclaiming them needs the old
+    protocol names.
+
+  Lesson: never chain an inspection and a delete in one command.
