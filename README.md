@@ -21,7 +21,7 @@ itself**. Fees are a fraction of a cent, so tiny donations are practical.
 Team: Farhan · Finja · Louisa
 
 **Usage and value note** (problem, users, value for BSV, status): [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md).
-**Next step:** the AI agent service for the track's agentic-payment requirement. Build prompt: [`docs/prompts/BUILD_AGENT_SERVICE.md`](docs/prompts/BUILD_AGENT_SERVICE.md).
+**AI agent payments:** an autonomous agent raises its own budget on BitFund and spends it on a pay-per-call API, one micropayment per call. See [section 5](#5-ai-agent-service-agentic-payments).
 
 ---
 
@@ -162,12 +162,12 @@ Requires Node.js ≥ 22.
 
 ```bash
 npm install
-npm test                 # 68 tests: contract, mock-chain end to end, plus the original token kit
+npm test                 # 88 tests: contract, BitFund and agent end to end on the mock chain, plus the original token kit
 ```
 
 **Explore the UI with no wallet (offline demo):**
 ```bash
-npm run demo             # server on :8787, mock chain, seeded campaigns in every state
+npm run demo             # server :8787 + data API :8790 + agent :8791, mock chain, campaigns in every state incl. an AI agent
 npm run app              # http://localhost:5174
 ```
 
@@ -197,6 +197,7 @@ cd .. && npm test
 | `client/bitfund.ts` · `client/bitfundApi.ts` | wallet flows · HTTP/AuthFetch API client |
 | `server/` | indexer + arbiter (`app.ts`, `policy.ts`, `db.ts`), `main.ts`, `demo.ts` |
 | `app/` | React frontend |
+| `agent/` | AI agent service: loop (`agent.ts`), Claude brain (`brain.ts`), capped 402 payer (`pay402.ts`), spend ledger, paid data API, status endpoint |
 | `test/pledge.script.test.ts` · `test/bitfund.e2e.test.ts` | contract tests · end-to-end flows |
 | `docs/DEVLOG.md` | engineering log: decisions, what broke, fixes |
 | `overlay/`, `client/token.ts`, `web/`… | the BSV-21 token kit this project started from (still tested) |
@@ -206,9 +207,82 @@ cd .. && npm test
 - Releasing a milestone: ~6.2 KB per escrow → ~620 sats (≈ $0.0001).
   A 3-escrow release measured 18,650 bytes / 1,866 sats. Both figures are printed by `test/bitfund.e2e.test.ts`.
 
+---
+
+## 5. AI agent service (agentic payments)
+
+**An AI agent raises its own operating budget on BitFund, gets paid milestone by
+milestone as backers approve its work, and spends that budget on a
+pay-per-call data API: one BSV micropayment per call, each one on chain and
+linked in its report.**
+
+![Agent campaign](docs/screenshots/agent-campaign.png)
+
+```
+backers ──donate──▶ escrow ──milestone released──▶ agent's wallet (wallet-toolbox)
+                                                        │ Claude plans which data to buy
+                                                        │ capped HTTP 402 payer (BRC-121)
+                                                        ▼
+                                            paid data API ◀── 50 sats per call
+                                                        │
+             backers vote ◀── report + WhatsOnChain link per payment ──┘
+```
+
+Why BitFund suits agents: backers can fund an autonomous agent **without
+giving it a blank cheque**. Money stays in escrow and is released one milestone
+at a time after a report and a vote. If the agent fails, backers reclaim what's
+left.
+
+**Safety: the LLM decides *what* to buy, code decides *how much*.**
+- Plans are cut to whitelisted topics and a call cap (`sanitizePlan`).
+- A per-milestone budget and a fee reserve.
+- The payer reads the 402 price first and refuses hosts that aren't
+  allow-listed and prices over the cap, before paying anything.
+- Purchased data goes to the model as data, never as instructions.
+
+**Run it on mainnet** (four terminals):
+```bash
+npm run server           # BitFund indexer + arbiter
+npm run data-provider    # the paid data API (:8790, 50 sats/call)
+npm run agent            # the agent (:8791); --once for one step, --dry-run to plan without paying
+npm run app              # web UI
+```
+1. On first start, the agent prints its identity key. It needs about 3,000
+   sats for fees: open its campaign and click **Top up agent fees**, or send a
+   BRC-29 payment to `/api/agent/fund`.
+2. The agent launches its campaign (15-minute deadline by default). Back it from
+   BSV Desktop.
+3. After the deadline it withdraws milestone 1, buys data, and posts its report.
+4. Backers vote in the UI, and it releases milestone 2.
+
+`ANTHROPIC_API_KEY` switches on the Claude brain (`claude-opus-5-5` with
+structured output and the server-side refusal fallback). Without it, a
+deterministic mock brain is used. All limits are env vars (see
+`agent/main.ts`).
+
+The data is **synthetic** (deterministic per city and date, flagged
+`synthetic: true`). The demo is about the payment rail; a real provider plugs in
+behind the same middleware.
+
+**Tests** (offline, real wallet-toolbox wallets):
+- `test/agent.pay402.test.ts`: price cap and allow-list.
+- `test/agent.brain.test.ts`: hostile plans are sanitized; refusals fail safe.
+- `test/agent.e2e.test.ts`: the full cycle with exact sat accounting, a greedy
+  brain held to budget, an overpriced API refused, and the underfunded case.
+- `test/agent.http.test.ts`: status, ledger, top-ups.
+
+Build log: `docs/DEVLOG.md` (agent steps 0–6).
+
 ### Known limitations
 - Not yet exercised with a real BSV Desktop wallet on mainnet; the identical
-  code runs end to end against wallet-toolbox wallets in the tests.
+  code runs end to end against wallet-toolbox wallets in the tests. The agent's
+  mainnet start-up was smoke-tested and stops cleanly at "insufficient funds"
+  until it is topped up.
+- The agent's Claude brain has only been tested with a scripted client (no API
+  key in the build environment).
+- BRC-121 sends the payment BEEF in a header; at 0-conf after a release it
+  reached 35 KB, so paid APIs (and any proxy in front) need a raised header
+  limit (`serveDataProvider` uses 1 MB).
 - The arbiter is a single key; an M-of-N guardian set is the next step.
 - If a refund or release is not reported to `/api/spends`, the index stays
   stale until someone reports it; a chain watcher (Arcade/WoC spent lookups)

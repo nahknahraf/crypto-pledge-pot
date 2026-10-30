@@ -545,3 +545,35 @@ agent now shows up properly in the web app.
 **How we checked it:** Playwright screenshots of the agent campaign page and
 the home page with zero console errors (`docs/screenshots/agent-campaign.png`,
 `home-funded.png`); `vite build` OK; `tsc` clean; 88 tests passing.
+
+## Step 6: telling the story
+
+The code was done; now the people reading the repo (judges, teammates, future
+us) need to understand it in a couple of minutes.
+
+- **README:** a new section 5 explains the agent with one diagram, the safety
+  rules ("the LLM decides *what* to buy, code decides *how much*"), the
+  four-terminal mainnet run, and which tests cover what. The test count is now
+  88. Known limitations gained three honest entries:
+  - the agent hasn't run on mainnet yet;
+  - the Claude brain has only been tested with a scripted client;
+  - BRC-121's large payment headers need a raised server limit.
+- **Usage and value note:** the agent row moved from "planned" to
+  "✅ offline · ⏳ mainnet", and the agent-economy bullet lost its
+  "(in progress)".
+- **`docs/DEMO_SCRIPT.md`:** a timed 2½-minute script for the required video
+  (problem → donate → the agent gets paid and pays → backers vote → refunds →
+  why BSV). It also lists exactly which transactions to capture as WhatsOnChain
+  links.
+
+**Where we are against the build prompt's checklist:**
+- [x] tests pass (88) and `tsc` is clean;
+- [x] `npm run agent` drives the full cycle (mock chain via `npm run demo`, and
+      e2e tests); mainnet start-up is smoke-tested;
+- [ ] a real mainnet API payment by the agent. Blocked on team sats: the agent's
+      wallet needs about 3,000 sats, then follow the README's four-terminal run;
+- [x] UI shows the agent badge and spend ledger;
+- [x] README, DEVLOG, usage/value note and demo script are updated.
+
+The one open box needs a human with a funded wallet. Everything up to that
+point is ready.

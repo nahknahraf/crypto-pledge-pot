@@ -49,9 +49,10 @@ operating budget.**
   fee levels.
 - **A showcase for sCrypt and BRC-100:** a real covenant contract driven
   entirely by standard wallets. Users never handle keys or scripts.
-- **Funding rails for the agent economy (in progress):** agent services funded
-  through BitFund spend their tranches on BSV pay-per-request APIs (HTTP 402),
-  creating demand for BSV micropayments.
+- **Funding rails for the agent economy:** agent services funded through BitFund
+  spend their tranches on BSV pay-per-request APIs (HTTP 402), one micropayment
+  per call. That creates demand for BSV micropayments, with every sat
+  traceable on chain.
 - **Roadmap:** accepting bridged stablecoins would make BitFund a launchpad for
   liquidity from other chains. This is not built yet.
 
@@ -63,9 +64,9 @@ operating budget.**
 | Wallet flows (`client/bitfund.ts`) | ✅ | `createAction` / `signAction` with BRC-42 derived keys. The app computes sighashes and the wallet signs (`createSignature`), so keys never leave the wallet. Released sats land in the creator's wallet as change |
 | Indexer + arbiter (`server/`) | ✅ | Express + SQLite. SPV-verifies every transaction via Arcade, checks escrow terms, authenticates writes with BRC-103 (AuthFetch), and streams a live feed (SSE). The arbiter is a wallet-toolbox wallet that co-signs only when the rules hold: goal met by the deadline, or a creator update plus a majority vote |
 | Web app (`app/`, React) | ✅ | Campaign list, campaign page with live feed and Donate, create form, creator/donor dashboard. `npm run demo` serves seeded campaigns offline |
-| Tests | ✅ | 68 passing: contract matches the sCrypt compiler byte for byte and every spending path is run through the script interpreter; end-to-end on wallet-toolbox's mock chain |
-| Mainnet transactions | ⏳ | Waiting for team sats; links will be added here |
-| Agent service (raises funds, pays APIs) | ⏳ | Planned: see `docs/prompts/BUILD_AGENT_SERVICE.md` |
+| AI agent service (`agent/`) | ✅ offline · ⏳ mainnet | A wallet-toolbox agent launches its own campaign, withdraws milestones into its wallet, lets Claude choose which data to buy, and pays a BRC-121 API per call through a capped payer (allow-list, price cap, budget). It logs every payment and posts its report with WhatsOnChain links, which opens the backers' vote |
+| Tests | ✅ | 88 passing: contract matches the sCrypt compiler byte for byte and every spending path is run through the script interpreter; BitFund and the agent end to end on wallet-toolbox's mock chain |
+| Mainnet transactions | ⏳ | Waiting for team sats. The agent's mainnet start-up is smoke-tested and needs about 3,000 sats of fee float. Links will be added here |
 
 **Trust model.** Neither BitFund nor the creator can take donors' money alone.
 The arbiter can't spend anything by itself. A colluding creator and arbiter
