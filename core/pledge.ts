@@ -7,15 +7,18 @@
  * computes the sighash preimages and assembles unlocking scripts, so the
  * browser and server work with plain @bsv/sdk objects and any BRC-100 wallet.
  *
- * Script layout (sCrypt stateful contract, artifact version 9):
- *   <code: template with constructor args> OP_RETURN <state> <len: u32le> <version: 00>
- *   state = 00 <stage: len-prefixed script number>
+ * The contract is stateless: a milestone release re-creates the identical
+ * script holding the next remaining amount, so the escrow's value alone tells
+ * how many milestones were released (see stageOf). That is why pledges must be
+ * at least MIN_PLEDGE: every 1% step must free at least one satoshi.
  */
-import { BigNumber, LockingScript, OP, Script, TransactionSignature, UnlockingScript, Utils, type Transaction } from '@bsv/sdk'
+import { LockingScript, OP, Script, TransactionSignature, UnlockingScript, Utils, type Transaction } from '@bsv/sdk'
 import artifact from './bitfundPledge.artifact.json'
 
 export const MAX_MILESTONES = 4
 export const BPS = 10_000
+/** Smallest pledge for which every milestone step (>= 1%) frees at least 1 sat. */
+export const MIN_PLEDGE = 100
 
 /** Sighash for the release covenant's OP_PUSH_TX preimage. */
 export const RELEASE_PREIMAGE_SCOPE =
@@ -40,11 +43,6 @@ export interface PledgeTerms {
   cumulativeBps: number[]
   /** Unix time after which the donor may reclaim alone. */
   refundAfter: number
-}
-
-export interface PledgeState extends PledgeTerms {
-  /** Milestones already released. */
-  stage: number
 }
 
 // ── Template ────────────────────────────────────────────────────────────────
@@ -83,23 +81,10 @@ function argValues (t: PledgeTerms): Record<string, string> {
   return v
 }
 
-/** sCrypt state int: <len><script number>, with 0 written as a single 0x00 byte. */
-function serializeStateInt (n: number): string {
-  const data = n === 0 ? [0] : new BigNumber(n).toSm('little')
-  return Utils.toHex([data.length, ...data])
-}
-
-function stateSuffix (stage: number): string {
-  const state = '00' + serializeStateInt(stage)
-  const len = state.length / 2
-  return '6a' + state + Utils.toHex([len & 0xff, (len >> 8) & 0xff, (len >> 16) & 0xff, (len >>> 24) & 0xff]) + '00'
-}
-
-/** Locking script of a pledge escrow at `stage` (0 for a new donation). */
-export function pledgeLockingScript (t: PledgeTerms, stage = 0): LockingScript {
+/** Locking script of a pledge escrow. It never changes across milestone releases. */
+export function pledgeLockingScript (t: PledgeTerms): LockingScript {
   const v = argValues(t)
-  const code = TEMPLATE.map(p => ('lit' in p ? p.lit : v[p.arg])).join('')
-  return LockingScript.fromHex(code + stateSuffix(stage))
+  return LockingScript.fromHex(TEMPLATE.map(p => ('lit' in p ? p.lit : v[p.arg])).join(''))
 }
 
 /** Read one script push at `hex[pos]` (hex offset). Returns its value bytes and the next offset. */
@@ -130,7 +115,7 @@ const decodeNum = (data: number[]): number => {
 }
 
 /** Parse a pledge escrow locking script. Returns undefined if it is not a BitFundPledge. */
-export function parsePledgeScript (script: LockingScript | string): PledgeState | undefined {
+export function parsePledgeScript (script: LockingScript | string): PledgeTerms | undefined {
   const hex = (typeof script === 'string' ? script : script.toHex()).toLowerCase()
   const values: Record<string, number[]> = {}
   let pos = 0
@@ -145,22 +130,18 @@ export function parsePledgeScript (script: LockingScript | string): PledgeState 
       pos = push.next
     }
   }
-  // State: OP_RETURN 00 <len><num> <u32le len> 00
-  if (hex.slice(pos, pos + 4) !== '6a00') return undefined
-  const stageLen = parseInt(hex.slice(pos + 4, pos + 6), 16)
-  const stage = decodeNum(Utils.toArray(hex.slice(pos + 6, pos + 6 + stageLen * 2), 'hex'))
-  const terms: PledgeState = {
+  if (pos !== hex.length) return undefined
+  const terms: PledgeTerms = {
     campaignId: Utils.toHex(values.campaignId),
     creator: Utils.toHex(values.creator),
     arbiter: Utils.toHex(values.arbiter),
     donor: Utils.toHex(values.donor),
     pledged: decodeNum(values.pledged),
     cumulativeBps: Array.from({ length: MAX_MILESTONES }, (_, i) => decodeNum(values[`cumulativeBps[${i}]`])),
-    refundAfter: decodeNum(values.refundAfter),
-    stage
+    refundAfter: decodeNum(values.refundAfter)
   }
   // Canonical encoding only: re-encode and compare, so one pledge has exactly one script.
-  return pledgeLockingScript(terms, stage).toHex() === hex ? terms : undefined
+  return pledgeLockingScript(terms).toHex() === hex ? terms : undefined
 }
 
 // ── Schedule ────────────────────────────────────────────────────────────────
@@ -178,6 +159,24 @@ export function cumulativeSchedule (percentages: number[]): number[] {
   for (const p of percentages) { acc += p * 100; out.push(acc) }
   while (out.length < MAX_MILESTONES) out.push(BPS)
   return out
+}
+
+/** True when every milestone frees at least one satoshi, so value ↔ stage is one-to-one. */
+export function scheduleIsStrict (t: Pick<PledgeTerms, 'pledged' | 'cumulativeBps'>): boolean {
+  let prev = t.pledged
+  for (let stage = 1; stage <= MAX_MILESTONES; stage++) {
+    const next = escrowedAfter(t, stage)
+    if (prev === 0) break
+    if (next >= prev) return false
+    prev = next
+  }
+  return true
+}
+
+/** Milestones already released, read from the escrow's current value (as the contract does). */
+export function stageOf (t: Pick<PledgeTerms, 'pledged' | 'cumulativeBps'>, value: number): number | undefined {
+  for (let stage = 0; stage <= MAX_MILESTONES; stage++) if (escrowedAfter(t, stage) === value) return stage
+  return undefined
 }
 
 /** Satoshis still escrowed after `stage` milestones (mirrors the contract's integer maths). */

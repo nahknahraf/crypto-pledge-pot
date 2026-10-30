@@ -9,7 +9,7 @@ import {
     Sig,
     SigHash,
     SmartContract,
-    toByteString,
+    Utils,
 } from 'scrypt-ts'
 
 /** Campaigns have at most this many milestones (unused slots repeat 10000). */
@@ -21,10 +21,16 @@ export const MAX_MILESTONES = 4
  * Each donation is locked in its own instance, so donations never contend for
  * a shared UTXO and micro-donations scale with BSV's parallel UTXO model.
  *
+ * The contract is stateless: the escrow's own value tells how many milestones
+ * were released, because the release schedule makes the remaining amount
+ * strictly decrease (the indexer enforces pledges of at least 100 sats, so
+ * every 1% step frees at least one satoshi). A release re-creates this exact
+ * script holding the next remaining amount.
+ *
  * Spending paths:
  *  - release:      creator + arbiter (BitFund vote oracle) release the next
  *                  milestone tranche. The covenant forces the unreleased part
- *                  back into this contract (stage + 1) at the same output index.
+ *                  back into this contract at the same output index.
  *  - refund:       after `refundAfter` the donor alone reclaims whatever is
  *                  still escrowed. Needs nobody's cooperation — not even BitFund.
  *  - refundFailed: donor + arbiter, any time: the oracle attests that the
@@ -59,10 +65,6 @@ export class BitFundPledge extends SmartContract {
     @prop()
     refundAfter: bigint
 
-    /** Number of milestones already released. */
-    @prop(true)
-    stage: bigint
-
     constructor(
         campaignId: ByteString,
         creator: PubKey,
@@ -80,40 +82,40 @@ export class BitFundPledge extends SmartContract {
         this.pledged = pledged
         this.cumulativeBps = cumulativeBps
         this.refundAfter = refundAfter
-        this.stage = 0n
     }
 
     /**
      * Release the next milestone tranche to the creator.
      *
      * The preimage is ANYONECANPAY|SINGLE, so many pledges can be released in
-     * one transaction: input i's continuation must be output i. The two
+     * one transaction: input i's remainder must be output i. The two
      * signatures are SIGHASH_ALL, which commits them to every input and output,
      * so nobody can redirect the released satoshis.
      */
     @method(SigHash.ANYONECANPAY_SINGLE)
     public release(creatorSig: Sig, arbiterSig: Sig) {
+        // Which stage are we at? The one whose remaining amount equals our value.
+        const value = this.ctx.utxo.value
+        let current = this.pledged
+        let found = false
+        let next = 0n
+        for (let i = 0; i < MAX_MILESTONES; i++) {
+            const after = this.pledged - (this.pledged * this.cumulativeBps[i]) / 10000n
+            if (!found && value == current && after < current) {
+                found = true
+                next = after
+            }
+            current = after
+        }
+
+        assert(
+            found &&
+                (next == 0n ||
+                    hash256(Utils.buildOutput(this.ctx.utxo.script, next)) == this.ctx.hashOutputs),
+            'the unreleased remainder must stay escrowed at the same output index'
+        )
         assert(this.checkSig(creatorSig, this.creator), 'creator signature invalid')
         assert(this.checkSig(arbiterSig, this.arbiter), 'arbiter signature invalid')
-        assert(this.stage < BigInt(MAX_MILESTONES), 'all milestones released')
-
-        let releasedBps = 0n
-        for (let i = 0; i < MAX_MILESTONES; i++) {
-            if (this.stage == BigInt(i)) {
-                releasedBps = this.cumulativeBps[i]
-            }
-        }
-        const remaining = this.pledged - (this.pledged * releasedBps) / 10000n
-
-        let continuation = toByteString('')
-        if (remaining > 0n) {
-            this.stage = this.stage + 1n
-            continuation = this.buildStateOutput(remaining)
-        }
-        assert(
-            remaining == 0n || hash256(continuation) == this.ctx.hashOutputs,
-            'unreleased funds must stay escrowed at the same output index'
-        )
     }
 
     /** After `refundAfter` the donor reclaims the remaining escrow, trustlessly. */

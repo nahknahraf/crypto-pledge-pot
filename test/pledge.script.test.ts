@@ -14,6 +14,8 @@ import {
   pledgeLockingScript,
   preimage,
   RELEASE_PREIMAGE_SCOPE,
+  scheduleIsStrict,
+  stageOf,
   refundFailedUnlock,
   refundUnlock,
   releaseUnlock,
@@ -23,21 +25,23 @@ import {
 
 describe('compiled template', () => {
   it('reproduces the scrypt-ts locking scripts byte for byte', () => {
-    for (const f of fixtures) {
-      f.stages.forEach((stage, i) => {
-        expect(pledgeLockingScript(f.terms as PledgeTerms, stage).toHex()).toBe(f.scripts[i])
-      })
-    }
+    for (const f of fixtures) expect(pledgeLockingScript(f.terms as PledgeTerms).toHex()).toBe(f.script)
   })
 
-  it('parses its own scripts back, including state', () => {
-    for (const f of fixtures) {
-      f.stages.forEach((stage, i) => {
-        expect(parsePledgeScript(f.scripts[i])).toEqual({ ...f.terms, stage })
-      })
-    }
+  it('parses its own scripts back', () => {
+    for (const f of fixtures) expect(parsePledgeScript(f.script)).toEqual(f.terms)
     expect(parsePledgeScript(new P2PKH().lock(PrivateKey.fromRandom().toAddress()))).toBeUndefined()
-    expect(parsePledgeScript(fixtures[0].scripts[0].slice(0, -2) + '01')).toBeUndefined()
+    expect(parsePledgeScript(fixtures[0].script + '00')).toBeUndefined()
+    expect(parsePledgeScript(fixtures[0].script.slice(0, -2))).toBeUndefined()
+  })
+
+  it('reads the stage from the escrow value, and needs a strictly decreasing schedule', () => {
+    const t = { pledged: 1000, cumulativeBps: cumulativeSchedule([25, 25, 50]) }
+    expect([1000, 750, 500, 0].map(v => stageOf(t, v))).toEqual([0, 1, 2, 3])
+    expect(stageOf(t, 600)).toBeUndefined()
+    expect(scheduleIsStrict(t)).toBe(true)
+    expect(scheduleIsStrict({ pledged: 100, cumulativeBps: cumulativeSchedule([1, 99]) })).toBe(true)
+    expect(scheduleIsStrict({ pledged: 99, cumulativeBps: cumulativeSchedule([1, 99]) })).toBe(false)
   })
 
   it('builds cumulative schedules', () => {
@@ -72,7 +76,7 @@ const terms: PledgeTerms = {
 function sourceTx (stage = 0, satoshis = escrowedAfter(terms, stage)): Transaction {
   const tx = new Transaction()
   tx.addInput({ sourceTXID: '00'.repeat(32), sourceOutputIndex: 0, unlockingScript: new P2PKH().lock(outsider.toAddress()), sequence: 0xffffffff })
-  tx.addOutput({ lockingScript: pledgeLockingScript(terms, stage), satoshis })
+  tx.addOutput({ lockingScript: pledgeLockingScript(terms), satoshis })
   return tx
 }
 
@@ -107,6 +111,7 @@ function run (tx: Transaction): boolean {
   try { return spend.validate() } catch { return false }
 }
 
+const escrow = (sats: number) => ({ lockingScript: pledgeLockingScript(terms), satoshis: sats })
 const payout = (sats: number) => ({ lockingScript: new P2PKH().lock(creatorKey.toAddress()), satoshis: sats })
 
 function release (src: Transaction, outputs: Array<{ lockingScript: any, satoshis: number }>, signers = { creator: creatorKey, arbiter: arbiterKey }): Transaction {
@@ -117,36 +122,42 @@ function release (src: Transaction, outputs: Array<{ lockingScript: any, satoshi
 
 describe('release (creator + arbiter, milestone covenant)', () => {
   it('releases milestone 1 and keeps the remainder escrowed at stage 1', () => {
-    const tx = release(sourceTx(0), [{ lockingScript: pledgeLockingScript(terms, 1), satoshis: 7_500 }, payout(2_400)])
+    const tx = release(sourceTx(0), [escrow(7_500), payout(2_400)])
     expect(run(tx)).toBe(true)
     expect(tx.inputs[0].unlockingScript!.toBinary().length).toBeLessThanOrEqual(unlockLength.release(pledgeLockingScript(terms).toBinary().length))
   })
 
   it('walks every milestone to the end; the last one releases everything', () => {
-    expect(run(release(sourceTx(1), [{ lockingScript: pledgeLockingScript(terms, 2), satoshis: 5_000 }, payout(2_400)]))).toBe(true)
+    expect(run(release(sourceTx(1), [escrow(5_000), payout(2_400)]))).toBe(true)
     expect(run(release(sourceTx(2), [payout(4_900)]))).toBe(true)
   })
 
   it('refuses to release more than the milestone allows', () => {
-    expect(run(release(sourceTx(0), [{ lockingScript: pledgeLockingScript(terms, 1), satoshis: 7_499 }, payout(2_400)]))).toBe(false)
+    expect(run(release(sourceTx(0), [escrow(7_499), payout(2_400)]))).toBe(false)
+    expect(run(release(sourceTx(0), [escrow(5_000), payout(4_900)]))).toBe(false) // two milestones at once
     expect(run(release(sourceTx(0), [payout(9_900)]))).toBe(false)
   })
 
-  it('refuses a continuation that skips a stage or sits at another output index', () => {
-    expect(run(release(sourceTx(0), [{ lockingScript: pledgeLockingScript(terms, 2), satoshis: 7_500 }]))).toBe(false)
-    expect(run(release(sourceTx(0), [payout(100), { lockingScript: pledgeLockingScript(terms, 1), satoshis: 7_500 }]))).toBe(false)
+  it('refuses a remainder locked elsewhere or at another output index', () => {
+    const other = pledgeLockingScript({ ...terms, donor: creatorKey.toPublicKey().toString() })
+    expect(run(release(sourceTx(0), [{ lockingScript: other, satoshis: 7_500 }]))).toBe(false)
+    expect(run(release(sourceTx(0), [payout(100), escrow(7_500)]))).toBe(false)
+  })
+
+  it('refuses to release an escrow whose value matches no stage', () => {
+    expect(run(release(sourceTx(0, 9_000), [escrow(6_750)]))).toBe(false)
   })
 
   it('needs both the creator and the arbiter', () => {
-    const cont = [{ lockingScript: pledgeLockingScript(terms, 1), satoshis: 7_500 }]
+    const cont = [escrow(7_500)]
     expect(run(release(sourceTx(0), cont, { creator: outsider, arbiter: arbiterKey }))).toBe(false)
     expect(run(release(sourceTx(0), cont, { creator: creatorKey, arbiter: outsider }))).toBe(false)
     expect(run(release(sourceTx(0), cont, { creator: creatorKey, arbiter: creatorKey }))).toBe(false)
   })
 
   it('rejects a forged preimage', () => {
-    const tx = spending(sourceTx(0), [{ lockingScript: pledgeLockingScript(terms, 1), satoshis: 7_500 }])
-    const other = spending(sourceTx(0), [{ lockingScript: pledgeLockingScript(terms, 1), satoshis: 7_500 }], { lockTime: 5 })
+    const tx = spending(sourceTx(0), [escrow(7_500)])
+    const other = spending(sourceTx(0), [escrow(7_500)], { lockTime: 5 })
     tx.inputs[0].unlockingScript = releaseUnlock(sign(creatorKey, tx), sign(arbiterKey, tx), preimage(other, 0, RELEASE_PREIMAGE_SCOPE))
     expect(run(tx)).toBe(false)
   })
