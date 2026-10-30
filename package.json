@@ -20,6 +20,7 @@
     "demo": "vite-node --config vitest.config.ts server/demo.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@bsv/402-pay": "^0.3.3",
     "@bsv/auth-express-middleware": "^2.2.9",
     "@bsv/overlay": "^2.6.4",
@@ -31,7 +32,8 @@
     "express": "^5.3.0",
     "knex": "^3.3.0",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

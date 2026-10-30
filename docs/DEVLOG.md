@@ -338,3 +338,49 @@ on the mock chain:
 All three passed on the first run. Nothing broke this time, which is mostly
 thanks to the starter kit having already solved the awkward bit (the
 `withHostOriginator` workaround for wallet-toolbox wallets).
+
+## Step 2: the brain, and why it isn't allowed near the wallet
+
+**What it does (`agent/brain.ts`).** The brain answers two questions: *which
+cities should we buy data for this round?* and *how do we explain the results
+to the backers?* For the real thing we use Claude (`claude-opus-5-5`) through
+the official Anthropic SDK. We use `beta.messages.parse` with a zod schema, so
+the answer comes back as checked JSON instead of free text we'd have to scrape.
+We also switched on the API's server-side refusal fallback
+(`fallbacks: 'default'`): if the model declines a request, the API retries on a
+fallback model instead of the agent stalling.
+
+**The important design choice: Claude picks what to buy, the code decides how
+much.** The brain is told how many calls it may make, but we don't trust it to
+listen. Its answer goes through `sanitizePlan`, which:
+- drops anything that isn't one of the ten cities the shop sells;
+- removes duplicates;
+- cuts the list to the cap.
+
+The payer from step 1 then checks prices separately. So even a confused or
+manipulated model can't overspend. The report-writing prompt wraps the
+purchased data in a `<data>` block and says it is data, not instructions.
+
+**A mock brain for everyone without an API key.** `MockBrain` makes the same
+kind of decisions deterministically, so the tests (and anyone running the demo
+without Anthropic credentials) never touch the network. `defaultBrain()`
+picks Claude when credentials exist and the mock otherwise.
+
+**What broke.** The first test run failed:
+`expected [ { topic: 'munich', why: '' } ] to deeply equal []`.
+With a cap of zero, `sanitizePlan` still let one purchase through, because it
+checked the limit *after* adding an item. The real agent wouldn't have hit it
+(`planCalls` returns early when the budget is zero), but a spending limit that
+only works because of a check somewhere else isn't really a limit. We moved the
+check before the add. This is exactly the kind of bug we wanted tests for.
+
+**How we checked it (`test/agent.brain.test.ts`, 5 tests).** We used a fake
+Anthropic client that returns whatever we script:
+- a plan with a made-up city, a URL smuggled in as a "topic", duplicates and
+  too many calls comes out as exactly three valid cities;
+- the request really does ask for structured output with the fallback enabled;
+- a refusal or a missing answer makes the brain fail loudly instead of guessing;
+- with zero budget the model isn't even called.
+
+**Not verified:** a live call to Claude. There's no API key on this machine;
+the first real call will happen on a teammate's machine with a key.
