@@ -2,7 +2,7 @@
 // app (browser + server) never depends on the sCrypt toolchain at runtime.
 const fs = require('fs')
 const path = require('path')
-const a = require('../artifacts/bitfundPledge.json')
+const a = require('../artifacts/cryptoPledgePotEscrow.json')
 const slim = {
   contract: a.contract,
   version: a.version,
@@ -12,6 +12,6 @@ const slim = {
   stateProps: a.stateProps,
   hex: a.hex
 }
-const out = path.join(__dirname, '..', '..', 'core', 'bitfundPledge.artifact.json')
+const out = path.join(__dirname, '..', '..', 'core', 'cryptoPledgePotEscrow.artifact.json')
 fs.writeFileSync(out, JSON.stringify(slim, null, 2) + '\n')
 console.log('wrote', out, `(${a.hex.length / 2 | 0} byte template)`)

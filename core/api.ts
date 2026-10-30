@@ -1,4 +1,4 @@
-/** Shapes of the BitFund indexer API, shared by the server, the client library and the UI. */
+/** Shapes of the CryptoPledgePot indexer API, shared by the server, the client library and the UI. */
 import type { CampaignMeta, CampaignStatus } from './campaign'
 
 export interface MilestoneView {

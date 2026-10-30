@@ -1,10 +1,10 @@
 /**
- * BitFund on any BRC-100 wallet (BSV Desktop in the browser, wallet-toolbox on
+ * CryptoPledgePot on any BRC-100 wallet (BSV Desktop in the browser, wallet-toolbox on
  * a server or in tests). Private keys never leave the wallet: the app computes
  * sighashes and asks the wallet to sign them with BRC-42 derived keys.
  *
  *   launch()   creator  OP_RETURN campaign anchor → register with the indexer
- *   donate()   donor    escrow output (sCrypt BitFundPledge) + OP_RETURN memo
+ *   donate()   donor    escrow output (sCrypt CryptoPledgePotEscrow) + OP_RETURN memo
  *   release()  creator  spend escrows: creator sig + arbiter sig per input,
  *                       remainders re-locked by the covenant, released sats
  *                       land in the creator's wallet as change
@@ -38,7 +38,7 @@ import {
   cumulativeSchedule
 } from '../core/pledge'
 import type { PledgeView } from '../core/api'
-import type { BitFundApi } from './bitfundApi'
+import type { CryptoPledgePotApi } from './cryptoPledgePotApi'
 
 export interface LaunchInput {
   title: string
@@ -62,10 +62,10 @@ const newKeyID = (): string => Utils.toHex(Random(16))
 const outpointOf = (tx: Transaction, i: number): string =>
   `${tx.inputs[i].sourceTXID ?? tx.inputs[i].sourceTransaction!.id('hex')}.${tx.inputs[i].sourceOutputIndex}`
 
-export class BitFund {
+export class CryptoPledgePot {
   private identity?: string
 
-  constructor (readonly wallet: WalletInterface, readonly api: BitFundApi, readonly originator?: string) {}
+  constructor (readonly wallet: WalletInterface, readonly api: CryptoPledgePotApi, readonly originator?: string) {}
 
   async identityKey (): Promise<string> {
     this.identity ??= (await this.wallet.getPublicKey({ identityKey: true }, this.originator)).publicKey
@@ -112,9 +112,9 @@ export class BitFund {
     }
     validateCampaign(meta)
     const res = await this.wallet.createAction({
-      description: 'Launch BitFund campaign',
-      labels: ['bitfund'],
-      outputs: [{ lockingScript: campaignAnchorScript(meta).toHex(), satoshis: 0, outputDescription: 'BitFund campaign record' }],
+      description: 'Launch CryptoPledgePot campaign',
+      labels: ['cryptopledgepot'],
+      outputs: [{ lockingScript: campaignAnchorScript(meta).toHex(), satoshis: 0, outputDescription: 'CryptoPledgePot campaign record' }],
       options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
     }, this.originator)
     if (res.tx === undefined) throw new Error('wallet did not return the anchor transaction')
@@ -158,10 +158,10 @@ export class BitFund {
       escrowedAfter({ pledged: p.amount, cumulativeBps: schedule }, p.stage + 1), 0)
 
     const created = await this.wallet.createAction({
-      description: `Release BitFund milestone ${milestone}`,
-      labels: ['bitfund'],
+      description: `Release CryptoPledgePot milestone ${milestone}`,
+      labels: ['cryptopledgepot'],
       inputBEEF: Utils.toArray(beefHex, 'hex'),
-      inputs: pledges.map(p => ({ outpoint: p.outpoint, unlockingScriptLength: unlockLength.release(scriptLen), inputDescription: 'BitFund escrow' })),
+      inputs: pledges.map(p => ({ outpoint: p.outpoint, unlockingScriptLength: unlockLength.release(scriptLen), inputDescription: 'CryptoPledgePot escrow' })),
       outputs,
       options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
     }, this.originator)
@@ -202,17 +202,17 @@ export class BitFund {
     const lockingScript = pledgeScriptFor(meta, donorKey, satoshis).toHex()
     const res = await this.wallet.createAction({
       description: `Pledge to ${meta.title}`.slice(0, 50).padEnd(5, '.'),
-      labels: ['bitfund'],
+      labels: ['cryptopledgepot'],
       outputs: [
         {
           lockingScript,
           satoshis,
-          outputDescription: 'BitFund escrow pledge',
+          outputDescription: 'CryptoPledgePot escrow pledge',
           basket: PLEDGE_BASKET,
           customInstructions: JSON.stringify({ protocolID: DONOR_PROTOCOL, keyID, counterparty: 'self', campaignId }),
-          tags: ['bitfund', `campaign:${campaignId}`]
+          tags: ['cryptopledgepot', `campaign:${campaignId}`]
         },
-        { lockingScript: pledgeMemoScript(campaignId, memo).toHex(), satoshis: 0, outputDescription: 'BitFund donation memo' }
+        { lockingScript: pledgeMemoScript(campaignId, memo).toHex(), satoshis: 0, outputDescription: 'CryptoPledgePot donation memo' }
       ],
       options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
     }, this.originator)
@@ -227,7 +227,7 @@ export class BitFund {
 
   /**
    * Reclaim a pledge's remaining escrow into this wallet.
-   *  - 'deadline': after refundAfter, signed by the donor alone (needs no BitFund approval).
+   *  - 'deadline': after refundAfter, signed by the donor alone (needs no CryptoPledgePot approval).
    *  - 'failed':   any time once the campaign failed, co-signed by the arbiter.
    * Default: 'deadline' if refundAfter has passed, otherwise 'failed'.
    */
@@ -240,13 +240,13 @@ export class BitFund {
     const scriptLen = pledgeScriptFor(meta, pledge.donorKey, pledge.amount).toBinary().length
 
     const created = await this.wallet.createAction({
-      description: 'Reclaim BitFund pledge',
-      labels: ['bitfund'],
+      description: 'Reclaim CryptoPledgePot pledge',
+      labels: ['cryptopledgepot'],
       inputBEEF: Utils.toArray(beef, 'hex'),
       inputs: [{
         outpoint: pledge.outpoint,
         unlockingScriptLength: path === 'deadline' ? unlockLength.refund(scriptLen) : unlockLength.refundFailed(),
-        inputDescription: 'BitFund escrow',
+        inputDescription: 'CryptoPledgePot escrow',
         sequenceNumber: path === 'deadline' ? NON_FINAL : undefined
       }],
       outputs: [],

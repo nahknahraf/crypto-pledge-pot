@@ -1,9 +1,9 @@
 /**
- * BitFundPledge escrow — @bsv/sdk runtime for the compiled sCrypt contract.
+ * CryptoPledgePotEscrow — @bsv/sdk runtime for the compiled sCrypt contract.
  *
  * The contract is written and compiled with sCrypt (contracts/src/contracts/
- * bitfundPledge.ts). The app only needs the compiled script template
- * (bitfundPledge.artifact.json): this module fills it in, reads its state,
+ * cryptoPledgePotEscrow.ts). The app only needs the compiled script template
+ * (cryptoPledgePotEscrow.artifact.json): this module fills it in, reads its state,
  * computes the sighash preimages and assembles unlocking scripts, so the
  * browser and server work with plain @bsv/sdk objects and any BRC-100 wallet.
  *
@@ -13,7 +13,7 @@
  * at least MIN_PLEDGE: every 1% step must free at least one satoshi.
  */
 import { LockingScript, OP, Script, TransactionSignature, UnlockingScript, Utils, type Transaction } from '@bsv/sdk'
-import artifact from './bitfundPledge.artifact.json'
+import artifact from './cryptoPledgePotEscrow.artifact.json'
 
 export const MAX_MILESTONES = 4
 export const BPS = 10_000
@@ -114,7 +114,7 @@ const decodeNum = (data: number[]): number => {
   return neg ? -n : n
 }
 
-/** Parse a pledge escrow locking script. Returns undefined if it is not a BitFundPledge. */
+/** Parse a pledge escrow locking script. Returns undefined if it is not a CryptoPledgePotEscrow. */
 export function parsePledgeScript (script: LockingScript | string): PledgeTerms | undefined {
   const hex = (typeof script === 'string' ? script : script.toHex()).toLowerCase()
   const values: Record<string, number[]> = {}

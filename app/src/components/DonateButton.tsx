@@ -1,7 +1,7 @@
 /**
- * Donate: pledge satoshis into a BitFundPledge escrow from the user's BRC-100
+ * Donate: pledge satoshis into a CryptoPledgePotEscrow contract from the user's BRC-100
  * wallet. One wallet approval creates the escrow output (tracked in the
- * donor's "bitfund pledges" basket) and an OP_RETURN memo; the indexer then
+ * donor's "cryptopledgepot pledges" basket) and an OP_RETURN memo; the indexer then
  * verifies it with SPV and the live feed updates for everyone.
  */
 import { useState, type FormEvent } from 'react'

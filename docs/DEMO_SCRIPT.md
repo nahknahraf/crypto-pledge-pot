@@ -1,4 +1,4 @@
-# BitFund: demo video script (2–3 minutes)
+# CryptoPledgePot: demo video script (2–3 minutes)
 
 Record either **mainnet** (preferred; the track wants real transactions) or the
 **offline demo** (`npm run demo` + `npm run app`) if sats aren't available yet.
@@ -15,7 +15,7 @@ each.
 **0:00 – 0:20 · The problem**
 > "Crowdfunding platforms hold your money, take up to 8%, and once they pay out
 > you have no leverage. And the new kind of creator, an AI agent that needs a
-> budget to buy data and APIs, can't be trusted with a lump sum at all. BitFund
+> budget to buy data and APIs, can't be trusted with a lump sum at all. CryptoPledgePot
 > fixes both on the BSV Blockchain."
 
 *Show the home page with the tabs.*
@@ -56,7 +56,7 @@ WhatsOnChain.*
 wallet. The agent terminal shows the milestone 2 release on its next step.*
 
 > "And if a campaign fails, or the agent stops delivering, backers reclaim what
-> is still in escrow, after the refund date even without BitFund's help.
+> is still in escrow, after the refund date even without CryptoPledgePot's help.
 > Nobody, not us and not the agent, can take donors' money alone."
 
 *Dashboard → a pledge → Reclaim (offline demo: the missed-goal campaign).*

@@ -1,26 +1,26 @@
 /**
- * Run the BitFund agent service (mainnet by default).
+ * Run the CryptoPledgePot agent service (mainnet by default).
  *
  *   npm run agent                  # watch mode: one step every AGENT_INTERVAL_S (20 s)
  *   npm run agent -- --once        # a single step, then exit
  *   npm run agent -- --dry-run     # plan and log purchases without paying
  *
- * Needs: `npm run server` (BitFund), `npm run data-provider` (the paid API), and
+ * Needs: `npm run server` (CryptoPledgePot), `npm run data-provider` (the paid API), and
  * a few thousand sats in the agent's wallet for fees: use "Top up agent" on the
  * campaign page, or POST a BRC-29 payment to /api/agent/fund.
  *
  * Env (all optional):
- *   NETWORK=main|test  BITFUND_URL=http://localhost:8787  DATA_URL=http://localhost:8790
+ *   NETWORK=main|test  CRYPTOPLEDGEPOT_URL=http://localhost:8787  DATA_URL=http://localhost:8790
  *   AGENT_PORT=8791  AGENT_PUBLIC_URL=http://localhost:8791  AGENT_INTERVAL_S=20
  *   AGENT_ROOT_KEY (else data/agent.key)  AGENT_PRICE_CAP=50  AGENT_MAX_SPEND=500
  *   AGENT_FEE_RESERVE=3000  AGENT_GOAL=20000  AGENT_DEADLINE_MIN=15  AGENT_REFUND_DAYS=7
  *   ANTHROPIC_API_KEY (Claude brain; without it the mock brain is used)  AGENT_MODEL  AGENT_BRAIN=mock
  */
 import path from 'node:path'
-import { BitFund } from '../client/bitfund'
-import { BitFundApi } from '../client/bitfundApi'
+import { CryptoPledgePot } from '../client/cryptoPledgePot'
+import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
-import { BitFundAgent, type AgentConfig, type StepOutcome } from './agent'
+import { CryptoPledgePotAgent, type AgentConfig, type StepOutcome } from './agent'
 import { defaultBrain } from './brain'
 import { createAgentApp } from './http'
 import { fileStore, Ledger, type AgentState, type SpendEntry } from './ledger'
@@ -38,10 +38,10 @@ async function main (): Promise<void> {
     chain,
     rootKey: loadOrCreateKey('AGENT_ROOT_KEY', path.join(dataDir, 'agent.key')),
     dbFile: path.join(dataDir, 'agent-wallet.sqlite'),
-    dbName: 'bitfund_agent'
+    dbName: 'cryptopledgepot_agent'
   })
   const wallet = setup.wallet
-  const api = new BitFundApi(env('BITFUND_URL', 'http://localhost:8787'), wallet)
+  const api = new CryptoPledgePotApi(env('CRYPTOPLEDGEPOT_URL', 'http://localhost:8787'), wallet)
   const dataUrl = env('DATA_URL', 'http://localhost:8790')
   const port = num('AGENT_PORT', 8791)
   const now = Math.floor(Date.now() / 1000)
@@ -72,9 +72,9 @@ async function main (): Promise<void> {
   const brain = defaultBrain()
   const ledger = new Ledger(fileStore<SpendEntry[]>(path.join(dataDir, 'agent-ledger.json'), []))
   const state = fileStore<AgentState>(path.join(dataDir, 'agent-state.json'), { worked: [] })
-  const agent = new BitFundAgent(config, {
+  const agent = new CryptoPledgePotAgent(config, {
     wallet,
-    bitfund: new BitFund(wallet, api),
+    cryptopledgepot: new CryptoPledgePot(wallet, api),
     api,
     brain,
     ledger,

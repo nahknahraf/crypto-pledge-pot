@@ -1,5 +1,5 @@
 /**
- * BitFund indexer storage (knex; SQLite by default, MySQL/Postgres work too).
+ * CryptoPledgePot indexer storage (knex; SQLite by default, MySQL/Postgres work too).
  *
  * The chain is the source of truth for money; this index makes it fast to
  * browse campaigns and keeps the BEEF needed to spend each escrow.
@@ -41,7 +41,7 @@ const makeKnex = ((knexPkg as any).knex ?? knexPkg) as typeof knexPkg
 export const sqliteKnex = (filename: string): Knex =>
   makeKnex({ client: 'better-sqlite3', connection: { filename }, useNullAsDefault: true, pool: { min: 1, max: 1 } })
 
-export class BitFundDb {
+export class CryptoPledgePotDb {
   constructor (readonly knex: Knex) {}
 
   async migrate (): Promise<void> {
@@ -197,8 +197,8 @@ export class BitFundDb {
       .map(r => ({ campaignId: r.campaign_id, milestone: r.milestone, voter: r.voter, approve: Boolean(r.approve), createdAt: r.created_at }))
   }
 
-  async transaction<T> (fn: (db: BitFundDb) => Promise<T>): Promise<T> {
-    return await this.knex.transaction(async trx => await fn(new BitFundDb(trx)))
+  async transaction<T> (fn: (db: CryptoPledgePotDb) => Promise<T>): Promise<T> {
+    return await this.knex.transaction(async trx => await fn(new CryptoPledgePotDb(trx)))
   }
 }
 

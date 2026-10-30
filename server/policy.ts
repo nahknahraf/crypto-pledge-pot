@@ -1,5 +1,5 @@
 /**
- * The arbiter's policy: when does the BitFund vote oracle co-sign?
+ * The arbiter's policy: when does the CryptoPledgePot vote oracle co-sign?
  *
  *  - Milestone 1 is released once the campaign is funded: the deadline has
  *    passed and the goal was met (all-or-nothing).

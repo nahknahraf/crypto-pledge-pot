@@ -1,5 +1,5 @@
 /**
- * Offline demo: the real BitFund server on wallet-toolbox's mock chain, seeded
+ * Offline demo: the real CryptoPledgePot server on wallet-toolbox's mock chain, seeded
  * with campaigns in every state by real (mock-chain) wallets running the same
  * client code as the browser. Lets you browse the UI and API with no wallet
  * or funds. Browser wallet actions need `npm run server` (mainnet) instead,
@@ -7,17 +7,17 @@
  *
  *   npm run demo        # API on :8787, then `npm run app` → http://localhost:5174
  */
-import { BitFund } from '../client/bitfund'
-import { BitFundApi } from '../client/bitfundApi'
+import { CryptoPledgePot } from '../client/cryptoPledgePot'
+import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { createMockChain, memoryKnex } from '../test/helpers/mockchain'
-import { BitFundAgent, type StepOutcome } from '../agent/agent'
+import { CryptoPledgePotAgent, type StepOutcome } from '../agent/agent'
 import { MockBrain } from '../agent/brain'
 import { createDataProviderApp, serveDataProvider } from '../agent/dataProvider'
 import { createAgentApp } from '../agent/http'
 import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../agent/ledger'
 import { createCappedPayer } from '../agent/pay402'
-import { createBitFundApp } from './app'
-import { BitFundDb } from './db'
+import { createCryptoPledgePotApp } from './app'
+import { CryptoPledgePotDb } from './db'
 
 const port = Number(process.env.PORT ?? 8787)
 const DAY = 86_400
@@ -25,17 +25,17 @@ const DAY = 86_400
 async function main (): Promise<void> {
   const chain = await createMockChain()
   const arbiter = await chain.makeWallet()
-  const db = new BitFundDb(memoryKnex())
+  const db = new CryptoPledgePotDb(memoryKnex())
   await db.migrate()
   const realNow = (): number => Math.floor(Date.now() / 1000)
   let offset = 0 // seed campaigns "in the past" by shifting the server clock
-  const app = createBitFundApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => realNow() + offset })
+  const app = createCryptoPledgePotApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => realNow() + offset })
   await new Promise<void>(resolve => { app.listen(port, () => resolve()) })
   const url = `http://localhost:${port}`
 
   const people = await Promise.all(Array.from({ length: 6 }, async () => await chain.makeWallet()))
   for (const w of people) await chain.fund(w, 5_000_000)
-  const [ana, ben, chloe, dev, eli, fay] = people.map(w => new BitFund(w, new BitFundApi(url, w)))
+  const [ana, ben, chloe, dev, eli, fay] = people.map(w => new CryptoPledgePot(w, new CryptoPledgePotApi(url, w)))
   const now = realNow()
 
   // 1. Active campaign, still raising.
@@ -124,10 +124,10 @@ async function main (): Promise<void> {
     const dataHost = `localhost:${dataPort}`
     const ledger = new Ledger(memoryStore<SpendEntry[]>([]))
     const state = memoryStore<AgentState>({ worked: [] })
-    const agentApi = new BitFundApi(url, agentWallet)
+    const agentApi = new CryptoPledgePotApi(url, agentWallet)
     let last: StepOutcome | undefined
     const mission = 'Map urban air quality across European cities and publish open reports for anyone to use.'
-    const agent = new BitFundAgent({
+    const agent = new CryptoPledgePotAgent({
       mission,
       campaign: {
         title: 'AirWatch: an AI agent buying open air-quality data',
@@ -143,13 +143,13 @@ async function main (): Promise<void> {
       pricePerCall: 50,
       maxSpendPerMilestone: 250,
       feeReserve: 1_000
-    }, { wallet: agentWallet, bitfund: new BitFund(agentWallet, agentApi), api: agentApi, brain: new MockBrain(), ledger, state, pay: createCappedPayer({ wallet: agentWallet, allowedHosts: [dataHost], maxPricePerCall: 50 }) })
+    }, { wallet: agentWallet, cryptopledgepot: new CryptoPledgePot(agentWallet, agentApi), api: agentApi, brain: new MockBrain(), ledger, state, pay: createCappedPayer({ wallet: agentWallet, allowedHosts: [dataHost], maxPricePerCall: 50 }) })
     createAgentApp({ wallet: agentWallet, ledger, state, chainTracker: chain.chainTracker, mission, spendable: async () => await agent.spendable(), lastOutcome: () => last })
       .listen(agentPort)
 
     offset = -2 * DAY
     last = await agent.step() // launch
-    const { meta } = await new BitFundApi(url).campaign(state.load().campaignId!)
+    const { meta } = await new CryptoPledgePotApi(url).campaign(state.load().campaignId!)
     await ana.donate(meta, 20_000, { name: 'Ana', message: 'Curious to see what an agent does with this.' })
     await eli.donate(meta, 15_000, { name: 'Eli' })
     await fay.donate(meta, 10_000, { name: 'Fay', message: 'Open data FTW' })
@@ -159,7 +159,7 @@ async function main (): Promise<void> {
     await fay.vote(state.load().campaignId!, 2, true)
   }
 
-  console.log(`BitFund demo API on ${url} (mock chain, seeded). Run \`npm run app\` and open http://localhost:5174`)
+  console.log(`CryptoPledgePot demo API on ${url} (mock chain, seeded). Run \`npm run app\` and open http://localhost:5174`)
 }
 
 main().catch(e => { console.error(e); process.exit(1) })

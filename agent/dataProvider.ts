@@ -45,7 +45,7 @@ export function createDataProviderApp (merchant: WalletInterface, priceSats: num
     res.setHeader('Access-Control-Expose-Headers', '*')
     next()
   })
-  app.get('/', (_req, res) => { res.json({ service: 'BitFund demo air-quality data', priceSats, topics: CITIES, synthetic: true }) })
+  app.get('/', (_req, res) => { res.json({ service: 'CryptoPledgePot demo air-quality data', priceSats, topics: CITIES, synthetic: true }) })
   app.use('/data/:city', createPaymentMiddleware({ wallet: merchant, calculatePrice: () => priceSats }))
   app.get('/data/:city', (req, res) => {
     const city = String(req.params.city).toLowerCase()

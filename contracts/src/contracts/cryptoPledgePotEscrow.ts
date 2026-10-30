@@ -16,7 +16,7 @@ import {
 export const MAX_MILESTONES = 4
 
 /**
- * BitFundPledge — one escrow UTXO per donation.
+ * CryptoPledgePotEscrow — one escrow UTXO per donation.
  *
  * Each donation is locked in its own instance, so donations never contend for
  * a shared UTXO and micro-donations scale with BSV's parallel UTXO model.
@@ -28,15 +28,15 @@ export const MAX_MILESTONES = 4
  * script holding the next remaining amount.
  *
  * Spending paths:
- *  - release:      creator + arbiter (BitFund vote oracle) release the next
+ *  - release:      creator + arbiter (CryptoPledgePot vote oracle) release the next
  *                  milestone tranche. The covenant forces the unreleased part
  *                  back into this contract at the same output index.
  *  - refund:       after `refundAfter` the donor alone reclaims whatever is
- *                  still escrowed. Needs nobody's cooperation — not even BitFund.
+ *                  still escrowed. Needs nobody's cooperation — not even CryptoPledgePot.
  *  - refundFailed: donor + arbiter, any time: the oracle attests that the
  *                  campaign missed its goal, so donors need not wait.
  */
-export class BitFundPledge extends SmartContract {
+export class CryptoPledgePotEscrow extends SmartContract {
     /** sha256 of the campaign's canonical metadata. Binds the pledge to one campaign. */
     @prop()
     campaignId: ByteString

@@ -1,1 +1,1 @@
-{"scryptBase":"artifacts","bindings":[{"symbol":"BitFundPledge","path":"bitfundPledge.scrypt"}]}
+{"scryptBase":"artifacts","bindings":[{"symbol":"CryptoPledgePotEscrow","path":"cryptoPledgePotEscrow.scrypt"}]}

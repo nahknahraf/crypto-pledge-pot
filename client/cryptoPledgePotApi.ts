@@ -1,5 +1,5 @@
 /**
- * HTTP client for the BitFund indexer. Reads are plain fetch; writes go
+ * HTTP client for the CryptoPledgePot indexer. Reads are plain fetch; writes go
  * through `AuthFetch` (BRC-103/104), so the server knows the caller's verified
  * identity key without accounts or passwords.
  */
@@ -7,7 +7,7 @@ import { AuthFetch, type WalletInterface } from '@bsv/sdk'
 import type { CampaignMeta } from '../core/campaign'
 import type { CampaignDetail, CampaignView, PledgeView, ReleasablePledges, SpendablePledge } from '../core/api'
 
-export class BitFundApi {
+export class CryptoPledgePotApi {
   private auth?: AuthFetch
 
   constructor (readonly baseUrl: string, wallet?: WalletInterface) {

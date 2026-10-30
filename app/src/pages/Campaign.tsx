@@ -12,7 +12,7 @@ import { dateTime, formatSats, formatUsd, short, timeLeft, useBsvPrice, WOC_TX }
 import { api, useWallet } from '../wallet'
 
 export function Campaign ({ id }: { id: string }) {
-  const { identityKey, bitfund, connect } = useWallet()
+  const { identityKey, cryptopledgepot, connect } = useWallet()
   const price = useBsvPrice()
   const [c, setC] = useState<CampaignDetail>()
   const [error, setError] = useState<string>()
@@ -40,7 +40,7 @@ export function Campaign ({ id }: { id: string }) {
   const myPledges = c.feed.filter(p => p.donorIdentity === identityKey && p.status !== 'refunded')
 
   async function vote (milestone: number, approve: boolean) {
-    const bf = bitfund ?? await connect()
+    const bf = cryptopledgepot ?? await connect()
     if (bf === undefined) return
     try {
       await bf.vote(id, milestone, approve)

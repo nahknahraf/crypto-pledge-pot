@@ -33,7 +33,7 @@ export function Home () {
       <section className="hero">
         <h1>Fund ideas without paying the middleman.</h1>
         <p>
-          On BitFund, donations go straight into on-chain escrow contracts. Creators get funds milestone by milestone as donors approve.
+          On CryptoPledgePot, donations go straight into on-chain escrow contracts. Creators get funds milestone by milestone as donors approve.
           If a campaign fails, donors take their sats back without asking anyone. Fees are a fraction of a cent, so tiny donations work too.
         </p>
         <div className="row">

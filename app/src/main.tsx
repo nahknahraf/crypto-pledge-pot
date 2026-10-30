@@ -22,7 +22,7 @@ function Header () {
   const { identityKey, network, connect, connecting } = useWallet()
   return (
     <header className="top">
-      <a className="logo" href="#/">Bit<span>Fund</span></a>
+      <a className="logo" href="#/">Crypto<span>PledgePot</span></a>
       <nav>
         <a href="#/">Campaigns</a>
         <a href="#/create">Start a campaign</a>

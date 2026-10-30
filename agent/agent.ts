@@ -1,6 +1,6 @@
 /**
- * The BitFund agent service: an AI agent that raises its own operating budget
- * on BitFund and spends it, milestone by milestone, on a pay-per-call data API.
+ * The CryptoPledgePot agent service: an AI agent that raises its own operating budget
+ * on CryptoPledgePot and spends it, milestone by milestone, on a pay-per-call data API.
  *
  * The agent's wallet is the campaign's creator wallet, so a milestone release
  * lands directly in its spendable balance (no contract changes needed).
@@ -12,11 +12,11 @@
  *   funds not yet used → plan purchases (brain), pay per call (capped payer),
  *                        log every payment, report to backers (opens the vote
  *                        on the next milestone)
- *   failed / done      → nothing to do; backers refund via BitFund
+ *   failed / done      → nothing to do; backers refund via CryptoPledgePot
  */
 import type { WalletInterface } from '@bsv/sdk'
-import type { BitFund, LaunchInput } from '../client/bitfund'
-import type { BitFundApi } from '../client/bitfundApi'
+import type { CryptoPledgePot, LaunchInput } from '../client/cryptoPledgePot'
+import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import type { CampaignView } from '../core/api'
 import type { Brain } from './brain'
 import type { AirQualityReport, City } from './dataProvider'
@@ -42,8 +42,8 @@ export interface AgentConfig {
 
 export interface AgentDeps {
   wallet: WalletInterface
-  bitfund: BitFund
-  api: BitFundApi
+  cryptopledgepot: CryptoPledgePot
+  api: CryptoPledgePotApi
   brain: Brain
   ledger: Ledger
   state: Store<AgentState>
@@ -61,7 +61,7 @@ export type StepOutcome =
   | { action: 'worked', milestone: number, calls: number, sats: number, report: string, updatePosted: boolean }
   | { action: 'stopped', reason: string }
 
-export class BitFundAgent {
+export class CryptoPledgePotAgent {
   private readonly log: (line: string) => void
 
   constructor (readonly config: AgentConfig, readonly deps: AgentDeps) {
@@ -83,7 +83,7 @@ export class BitFundAgent {
     const state = this.deps.state.load()
 
     if (state.campaignId === undefined) {
-      const { campaignId } = await this.deps.bitfund.launch(this.config.campaign)
+      const { campaignId } = await this.deps.cryptopledgepot.launch(this.config.campaign)
       this.deps.state.save({ ...state, campaignId })
       this.log(`launched campaign ${campaignId} — "${this.config.campaign.title}", goal ${this.config.campaign.goal} sats`)
       return { action: 'launched', campaignId }
@@ -100,7 +100,7 @@ export class BitFundAgent {
     // 2) Withdraw the next approved milestone.
     const ready = await this.deps.api.releasable(view.id)
     if (ready.milestone > 0 && ready.pledges.length > 0) {
-      const r = await this.deps.bitfund.release(view.id)
+      const r = await this.deps.cryptopledgepot.release(view.id)
       this.log(`released milestone ${r.milestone}: ${r.released} sats → agent wallet (${r.txids.join(', ')})`)
       return { action: 'released', milestone: r.milestone, sats: r.released, txids: r.txids }
     }
@@ -151,7 +151,7 @@ export class BitFundAgent {
     let updatePosted = false
     if (this.config.dryRun !== true && nextIndex <= view.meta.milestones.length) {
       const links = txids.map(t => `https://whatsonchain.com/tx/${t}`).join('\n')
-      await this.deps.bitfund.postUpdate(view.id, nextIndex, `${report}\n\nPayments (${spent} sats):\n${links}`.slice(0, 4000))
+      await this.deps.cryptopledgepot.postUpdate(view.id, nextIndex, `${report}\n\nPayments (${spent} sats):\n${links}`.slice(0, 4000))
       updatePosted = true
       this.log(`posted progress report; backers can now vote on milestone ${nextIndex}`)
     }

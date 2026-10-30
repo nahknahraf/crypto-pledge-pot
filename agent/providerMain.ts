@@ -19,7 +19,7 @@ async function main (): Promise<void> {
     chain,
     rootKey: loadOrCreateKey('DATA_PROVIDER_KEY', path.resolve('data', 'provider.key')),
     dbFile: path.resolve('data', 'provider-wallet.sqlite'),
-    dbName: 'bitfund_provider'
+    dbName: 'cryptopledgepot_provider'
   })
   await serveDataProvider(createDataProviderApp(setup.wallet, price), port)
   console.log(`[data] paid air-quality API on http://localhost:${port} · ${price} sats per call · merchant ${setup.identityKey}`)

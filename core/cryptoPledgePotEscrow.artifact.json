@@ -1,5 +1,5 @@
 {
-  "contract": "BitFundPledge",
+  "contract": "CryptoPledgePotEscrow",
   "version": 9,
   "compilerVersion": "1.20.0+commit.693498a",
   "md5": "a4f707f4a1d1b3ad6bb81294a0ee278d",

@@ -56,7 +56,7 @@ export function Dashboard () {
 }
 
 function CreatorPanel ({ c, onChange }: { c: CampaignView, onChange: () => void }) {
-  const { bitfund } = useWallet()
+  const { cryptopledgepot } = useWallet()
   const next = c.milestones.find(m => !m.released)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -79,9 +79,9 @@ function CreatorPanel ({ c, onChange }: { c: CampaignView, onChange: () => void 
           <p><strong>Next: milestone {next.index}, {next.title}</strong> ({next.percent}%)</p>
           {next.approved
             ? (
-              <button className="primary" disabled={busy || bitfund === undefined} onClick={() => {
+              <button className="primary" disabled={busy || cryptopledgepot === undefined} onClick={() => {
                 void act(async () => {
-                  const r = await bitfund!.release(c.id)
+                  const r = await cryptopledgepot!.release(c.id)
                   return { ok: true, text: `Released ${formatSats(r.released)} for milestone ${r.milestone} into your wallet (minus network fee).`, txid: r.txids[0] }
                 })
               }}>{busy ? 'Approve in your wallet…' : `Withdraw milestone ${next.index}`}</button>)
@@ -92,7 +92,7 @@ function CreatorPanel ({ c, onChange }: { c: CampaignView, onChange: () => void 
                 <textarea rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder="What did you deliver? Links to evidence help donors vote." />
               </label>
               <button disabled={busy || note.trim() === ''} onClick={() => {
-                void act(async () => { await bitfund!.postUpdate(c.id, next.index, note); setNote(''); return { ok: true, text: 'Update posted. Donors can vote now.' } })
+                void act(async () => { await cryptopledgepot!.postUpdate(c.id, next.index, note); setNote(''); return { ok: true, text: 'Update posted. Donors can vote now.' } })
               }}>Post update and open the vote</button>
             </div>
           )}
@@ -104,7 +104,7 @@ function CreatorPanel ({ c, onChange }: { c: CampaignView, onChange: () => void 
 }
 
 function PledgeRow ({ p, view, onChange }: { p: PledgeView & { campaignTitle: string }, view?: CampaignView, onChange: () => void }) {
-  const { bitfund } = useWallet()
+  const { cryptopledgepot } = useWallet()
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<Msg>()
   const now = Date.now() / 1000
@@ -115,7 +115,7 @@ function PledgeRow ({ p, view, onChange }: { p: PledgeView & { campaignTitle: st
     setBusy(true)
     setMsg(undefined)
     try {
-      const r = await bitfund!.refund(p.id, canSelfRefund ? 'deadline' : 'failed')
+      const r = await cryptopledgepot!.refund(p.id, canSelfRefund ? 'deadline' : 'failed')
       setMsg({ ok: true, text: `Reclaimed ${formatSats(r.satoshis)}.`, txid: r.txid })
       onChange()
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }) } finally { setBusy(false) }

@@ -1,9 +1,9 @@
 {
-  "name": "bitfund",
+  "name": "crypto-pledge-pot",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "BitFund: trustless milestone crowdfunding on BSV (sCrypt escrow + BRC-100 wallets). Includes the BSV-21 token kit it was built from.",
+  "description": "CryptoPledgePot: trustless milestone crowdfunding on BSV (sCrypt escrow + BRC-100 wallets). Includes the BSV-21 token kit it was built from.",
   "engines": {
     "node": ">=22"
   },

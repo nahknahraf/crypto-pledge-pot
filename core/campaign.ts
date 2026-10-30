@@ -1,23 +1,23 @@
 /**
- * BitFund campaign model and on-chain records.
+ * CryptoPledgePot campaign model and on-chain records.
  *
  * A campaign is a canonical JSON document. Its id is sha256 of that JSON, and
  * the id is baked into every pledge escrow, so a pledge provably belongs to
  * exactly one set of terms (goal, deadline, milestones, keys).
  *
  * On-chain records (OP_FALSE OP_RETURN, provably unspendable, 0 sats):
- *   campaign anchor:  'bitfund' 'campaign' <campaignId> <canonical JSON>
- *   donation memo:    'bitfund' 'pledge'   <campaignId> <JSON {name, message}>
+ *   campaign anchor:  'cryptopledgepot' 'campaign' <campaignId> <canonical JSON>
+ *   donation memo:    'cryptopledgepot' 'pledge'   <campaignId> <JSON {name, message}>
  * Anyone can rebuild the index from the chain with these.
  */
 import { Hash, OP, Script, Utils, type LockingScript, type WalletProtocol } from '@bsv/sdk'
 import { cumulativeSchedule, MAX_MILESTONES, pledgeLockingScript, type PledgeTerms } from './pledge'
 
-export const BITFUND = 'bitfund'
-export const CREATOR_PROTOCOL: WalletProtocol = [1, 'bitfund creator']
-export const DONOR_PROTOCOL: WalletProtocol = [1, 'bitfund donor']
-export const ARBITER_PROTOCOL: WalletProtocol = [1, 'bitfund arbiter']
-export const PLEDGE_BASKET = 'bitfund pledges'
+export const CRYPTOPLEDGEPOT = 'cryptopledgepot'
+export const CREATOR_PROTOCOL: WalletProtocol = [1, 'cryptopledgepot creator']
+export const DONOR_PROTOCOL: WalletProtocol = [1, 'cryptopledgepot donor']
+export const ARBITER_PROTOCOL: WalletProtocol = [1, 'cryptopledgepot arbiter']
+export const PLEDGE_BASKET = 'cryptopledgepot pledges'
 
 export const LIMITS = { title: 80, description: 4000, milestoneTitle: 80, name: 40, message: 280 } as const
 
@@ -116,7 +116,7 @@ function opReturn (fields: number[][]): Script {
 }
 
 export const campaignAnchorScript = (meta: CampaignMeta): Script =>
-  opReturn([utf8(BITFUND), utf8('campaign'), Utils.toArray(campaignIdOf(meta), 'hex'), utf8(canonicalJson(meta))])
+  opReturn([utf8(CRYPTOPLEDGEPOT), utf8('campaign'), Utils.toArray(campaignIdOf(meta), 'hex'), utf8(canonicalJson(meta))])
 
 export interface PledgeMemo { name?: string, message?: string }
 
@@ -125,15 +125,15 @@ export function pledgeMemoScript (campaignId: string, memo: PledgeMemo): Script 
     name: memo.name?.trim().slice(0, LIMITS.name) || undefined,
     message: memo.message?.trim().slice(0, LIMITS.message) || undefined
   }
-  return opReturn([utf8(BITFUND), utf8('pledge'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(clean))])
+  return opReturn([utf8(CRYPTOPLEDGEPOT), utf8('pledge'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(clean))])
 }
 
-export type BitfundRecord =
+export type CryptoPledgePotRecord =
   | { kind: 'campaign', campaignId: string, meta: CampaignMeta }
   | { kind: 'pledge', campaignId: string, memo: PledgeMemo }
 
-/** Decode a BitFund OP_RETURN output, or undefined if it is not one. */
-export function parseBitfundRecord (script: Script | string): BitfundRecord | undefined {
+/** Decode a CryptoPledgePot OP_RETURN output, or undefined if it is not one. */
+export function parseCryptoPledgePotRecord (script: Script | string): CryptoPledgePotRecord | undefined {
   try {
     const s = typeof script === 'string' ? Script.fromHex(script) : script
     if (s.chunks.length !== 2 || s.chunks[0].op !== OP.OP_FALSE || s.chunks[1].op !== OP.OP_RETURN) return undefined
@@ -141,7 +141,7 @@ export function parseBitfundRecord (script: Script | string): BitfundRecord | un
     const c = Script.fromBinary(s.chunks[1].data ?? []).chunks
     if (c.length !== 4) return undefined
     const text = (i: number): string => Utils.toUTF8(c[i].data ?? [])
-    if (text(0) !== BITFUND) return undefined
+    if (text(0) !== CRYPTOPLEDGEPOT) return undefined
     const campaignId = Utils.toHex(c[2].data ?? [])
     if (campaignId.length !== 64) return undefined
     const payload = JSON.parse(text(3))

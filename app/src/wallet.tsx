@@ -1,35 +1,35 @@
 /**
  * Wallet provider: connects to the user's BRC-100 wallet (BSV Desktop or any
- * compatible wallet) through @bsv/sdk's WalletClient and exposes a BitFund
+ * compatible wallet) through @bsv/sdk's WalletClient and exposes a CryptoPledgePot
  * client bound to it. Keys stay in the wallet; every action is approved there.
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { WalletClient } from '@bsv/sdk'
-import { BitFund } from '../../client/bitfund'
-import { BitFundApi } from '../../client/bitfundApi'
+import { CryptoPledgePot } from '../../client/cryptoPledgePot'
+import { CryptoPledgePotApi } from '../../client/cryptoPledgePotApi'
 
-export const api = new BitFundApi(window.location.origin)
+export const api = new CryptoPledgePotApi(window.location.origin)
 
 interface WalletState {
-  bitfund?: BitFund
+  cryptopledgepot?: CryptoPledgePot
   identityKey?: string
   network?: string
   connecting: boolean
   error?: string
-  connect: () => Promise<BitFund | undefined>
+  connect: () => Promise<CryptoPledgePot | undefined>
 }
 
 const Ctx = createContext<WalletState | undefined>(undefined)
 
 export function WalletProvider ({ children }: { children: ReactNode }) {
-  const [bitfund, setBitfund] = useState<BitFund>()
+  const [cryptopledgepot, setCryptoPledgePot] = useState<CryptoPledgePot>()
   const [identityKey, setIdentityKey] = useState<string>()
   const [network, setNetwork] = useState<string>()
   const [connecting, setConnecting] = useState(false)
   const [error, setError] = useState<string>()
 
   const connect = useCallback(async () => {
-    if (bitfund !== undefined) return bitfund
+    if (cryptopledgepot !== undefined) return cryptopledgepot
     setConnecting(true)
     setError(undefined)
     try {
@@ -38,8 +38,8 @@ export function WalletProvider ({ children }: { children: ReactNode }) {
       const { network } = await wallet.getNetwork({})
       const { publicKey } = await wallet.getPublicKey({ identityKey: true })
       api.connect(wallet)
-      const bf = new BitFund(wallet, api)
-      setBitfund(bf)
+      const bf = new CryptoPledgePot(wallet, api)
+      setCryptoPledgePot(bf)
       setIdentityKey(publicKey)
       setNetwork(network)
       return bf
@@ -49,9 +49,9 @@ export function WalletProvider ({ children }: { children: ReactNode }) {
     } finally {
       setConnecting(false)
     }
-  }, [bitfund])
+  }, [cryptopledgepot])
 
-  const value = useMemo(() => ({ bitfund, identityKey, network, connecting, error, connect }), [bitfund, identityKey, network, connecting, error, connect])
+  const value = useMemo(() => ({ cryptopledgepot, identityKey, network, connecting, error, connect }), [cryptopledgepot, identityKey, network, connecting, error, connect])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 

@@ -2,9 +2,9 @@
 // (test/pledge.script.test.ts) checks core/pledge.ts reproduces them byte for byte.
 const fs = require('fs')
 const path = require('path')
-const { BitFundPledge } = require('../dist/bitfundPledge')
+const { CryptoPledgePotEscrow } = require('../dist/cryptoPledgePotEscrow')
 const { PubKey, toByteString, bsv } = require('scrypt-ts')
-BitFundPledge.loadArtifact(require('../artifacts/bitfundPledge.json'))
+CryptoPledgePotEscrow.loadArtifact(require('../artifacts/cryptoPledgePotEscrow.json'))
 
 const key = (n) => new bsv.PrivateKey(new bsv.crypto.BN(n)).toPublicKey().toHex()
 const cases = [
@@ -13,7 +13,7 @@ const cases = [
   { campaignId: '0f'.repeat(32), creator: key(10), arbiter: key(11), donor: key(12), pledged: 2100000000000000, cumulativeBps: [1600, 3300, 6600, 10000], refundAfter: 4294967295 }
 ]
 const out = cases.map(c => {
-  const inst = new BitFundPledge(toByteString(c.campaignId), PubKey(c.creator), PubKey(c.arbiter), PubKey(c.donor),
+  const inst = new CryptoPledgePotEscrow(toByteString(c.campaignId), PubKey(c.creator), PubKey(c.arbiter), PubKey(c.donor),
     BigInt(c.pledged), c.cumulativeBps.map(BigInt), BigInt(c.refundAfter))
   return { terms: c, script: inst.lockingScript.toHex() }
 })

@@ -1,5 +1,5 @@
 /**
- * BitFund end to end, offline: real wallet-toolbox wallets on the mock chain
+ * CryptoPledgePot end to end, offline: real wallet-toolbox wallets on the mock chain
  * (which validates every script, including the sCrypt escrow), the indexer +
  * arbiter over HTTP with BRC-103/104 mutual auth, SPV everywhere.
  */
@@ -7,10 +7,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Server } from 'node:http'
 import { Transaction } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox'
-import { BitFund } from '../client/bitfund'
-import { BitFundApi } from '../client/bitfundApi'
-import { createBitFundApp } from '../server/app'
-import { BitFundDb } from '../server/db'
+import { CryptoPledgePot } from '../client/cryptoPledgePot'
+import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
+import { createCryptoPledgePotApp } from '../server/app'
+import { CryptoPledgePotDb } from '../server/db'
 import { campaignIdOf, pledgeTerms } from '../core/campaign'
 import { parsePledgeScript, pledgeLockingScript } from '../core/pledge'
 import { createMockChain, memoryKnex, type MockChain } from './helpers/mockchain'
@@ -27,14 +27,14 @@ let clock = T0
 const spendable = async (w: Wallet): Promise<number> =>
   (await w.listOutputs({ basket: 'default', limit: 1000 })).outputs.filter(o => o.spendable).reduce((s, o) => s + o.satoshis, 0)
 
-const as = (w: Wallet): BitFund => new BitFund(w, new BitFundApi(url, w))
+const as = (w: Wallet): CryptoPledgePot => new CryptoPledgePot(w, new CryptoPledgePotApi(url, w))
 
 beforeAll(async () => {
   chain = await createMockChain()
   arbiter = await chain.makeWallet()
-  const db = new BitFundDb(memoryKnex())
+  const db = new CryptoPledgePotDb(memoryKnex())
   await db.migrate()
-  const app = createBitFundApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => clock })
+  const app = createCryptoPledgePotApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => clock })
   await new Promise<void>(resolve => { server = app.listen(0, resolve) })
   url = `http://127.0.0.1:${(server.address() as any).port}`
 })
@@ -47,7 +47,7 @@ afterAll(async () => {
 describe('a funded campaign with three milestones', () => {
   let creator: Wallet, alice: Wallet, bob: Wallet, carol: Wallet, mallory: Wallet
   let campaignId: string
-  const api = (): BitFundApi => new BitFundApi(url)
+  const api = (): CryptoPledgePotApi => new CryptoPledgePotApi(url)
 
   it('creator launches: the campaign is anchored on chain and listed', async () => {
     ;[creator, alice, bob, carol, mallory] = await Promise.all([1, 2, 3, 4, 5].map(async () => await chain.makeWallet()))
@@ -167,7 +167,7 @@ describe('a failed campaign: donors get their money back', () => {
 
   it('after the deadline the arbiter co-signs an immediate refund', async () => {
     clock = T0 + 3_601
-    expect((await new BitFundApi(url).campaign(campaignId)).status).toBe('failed')
+    expect((await new CryptoPledgePotApi(url).campaign(campaignId)).status).toBe('failed')
     await expect(as(creator).release(campaignId)).rejects.toThrow(/no milestone is approved/)
     const before = await spendable(alice)
     const r = await as(alice).refund(alicePledge, 'failed', clock)
@@ -175,7 +175,7 @@ describe('a failed campaign: donors get their money back', () => {
     const gained = (await spendable(alice)) - before
     expect(gained).toBeGreaterThan(3_000)
     expect(gained).toBeLessThanOrEqual(4_000)
-    expect((await new BitFundApi(url).pledge(alicePledge)).pledge.status).toBe('refunded')
+    expect((await new CryptoPledgePotApi(url).pledge(alicePledge)).pledge.status).toBe('refunded')
   })
 
   it('another donor cannot claim someone else\'s pledge', async () => {
@@ -186,15 +186,15 @@ describe('a failed campaign: donors get their money back', () => {
     clock = T0 + 7_201
     const before = await spendable(bob)
     const r = await as(bob).refund(bobPledge, 'deadline', clock)
-    const tx = Transaction.fromAtomicBEEF(Array.from(Buffer.from((await new BitFundApi(url).pledge(bobPledge)).beef, 'hex')))
+    const tx = Transaction.fromAtomicBEEF(Array.from(Buffer.from((await new CryptoPledgePotApi(url).pledge(bobPledge)).beef, 'hex')))
     expect(r.satoshis).toBe(1_500)
     expect((await spendable(bob)) - before).toBeGreaterThan(1_000)
-    expect((await new BitFundApi(url).pledge(bobPledge)).pledge).toMatchObject({ status: 'refunded', spentBy: r.txid })
+    expect((await new CryptoPledgePotApi(url).pledge(bobPledge)).pledge).toMatchObject({ status: 'refunded', spentBy: r.txid })
     expect(tx).toBeDefined()
   })
 
   it('the campaign view shows nothing left in escrow', async () => {
-    expect(await new BitFundApi(url).campaign(campaignId)).toMatchObject({ raised: 0, escrowed: 0, status: 'failed' })
+    expect(await new CryptoPledgePotApi(url).campaign(campaignId)).toMatchObject({ raised: 0, escrowed: 0, status: 'failed' })
   })
 })
 
@@ -206,8 +206,8 @@ describe('the indexer rejects pledges that do not match the campaign', () => {
     const { meta } = await as(creator).launch({
       title: 'Honest campaign', description: '', goal: 1_000, deadline: T0 + 3_600, refundAfter: T0 + 7_200, milestones: [{ title: 'All', percent: 100 }]
     })
-    const { publicKey: rogue } = await donor.getPublicKey({ protocolID: [1, 'bitfund donor'], keyID: 'x', counterparty: 'self' })
-    // Right campaign id, but an arbiter key the donor controls: BitFund must not index it.
+    const { publicKey: rogue } = await donor.getPublicKey({ protocolID: [1, 'cryptopledgepot donor'], keyID: 'x', counterparty: 'self' })
+    // Right campaign id, but an arbiter key the donor controls: CryptoPledgePot must not index it.
     const forged = pledgeLockingScript({ ...pledgeTerms(meta, rogue, 500), arbiter: rogue })
     expect(parsePledgeScript(forged)?.campaignId).toBe(campaignIdOf(meta))
     const res = await donor.createAction({
@@ -215,7 +215,7 @@ describe('the indexer rejects pledges that do not match the campaign', () => {
       outputs: [{ lockingScript: forged.toHex(), satoshis: 500, outputDescription: 'forged' }],
       options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
     })
-    const api = new BitFundApi(url, donor)
+    const api = new CryptoPledgePotApi(url, donor)
     await expect(api.registerPledge(Buffer.from(res.tx!).toString('hex'), 0, '00'.repeat(16))).rejects.toThrow(/escrow terms do not match/)
   })
 })

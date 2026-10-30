@@ -1,8 +1,8 @@
 {
-  "name": "bitfund-contracts",
+  "name": "crypto-pledge-pot-contracts",
   "version": "0.1.0",
   "private": true,
-  "description": "BitFund sCrypt escrow contract (compiled artifact is committed in artifacts/)",
+  "description": "CryptoPledgePot sCrypt escrow contract (compiled artifact is committed in artifacts/)",
   "scripts": {
     "build": "tsc",
     "compile": "npx scrypt-cli compile && node scripts/export.cjs",

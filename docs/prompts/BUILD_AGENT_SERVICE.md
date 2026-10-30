@@ -1,16 +1,16 @@
-# Prompt: build the BitFund agent service (option 2)
+# Prompt: build the CryptoPledgePot agent service (option 2)
 
 Give this whole file to an AI coding agent working at the root of this
 repository.
 
 ---
 
-You are extending **BitFund**, a working crowdfunding app on the BSV
+You are extending **CryptoPledgePot**, a working crowdfunding app on the BSV
 Blockchain. It is for the TUM Blockchain & AI Hackathon 2026, BSV track
 "DeFi Rails for Agentic Payments". A qualification rule says: *"Include at
 least one AI agent that uses the project to make a payment."* Your job is to
 build that agent so it shows the track's thesis end to end: **an AI agent
-service raises its operating budget on BitFund, receives it milestone by
+service raises its operating budget on CryptoPledgePot, receives it milestone by
 milestone, and spends it on pay-per-call APIs with real BSV micropayments.**
 
 ## 0. Read first (do not skip)
@@ -22,13 +22,13 @@ milestone, and spends it on pay-per-call APIs with real BSV micropayments.**
    HTTP 402) and §14 (server wallets) before writing code.
 3. `README.md`, `docs/DEVLOG.md`, `docs/USAGE_AND_VALUE.md`: what exists and why.
 4. Code you will reuse, **not rewrite**:
-   - `client/bitfund.ts`: `launch`, `donate`, `release`, `postUpdate`, `vote`, `refund`
-   - `client/bitfundApi.ts`: indexer client (AuthFetch for writes)
+   - `client/cryptoPledgePot.ts`: `launch`, `donate`, `release`, `postUpdate`, `vote`, `refund`
+   - `client/cryptoPledgePotApi.ts`: indexer client (AuthFetch for writes)
    - `examples/payPerRequest.ts`: BRC-121 server (`createBrc121App`) and
      `withHostOriginator()` (required when a wallet-toolbox wallet uses `@bsv/402-pay`)
    - `test/pay-per-request.e2e.test.ts`: how `create402Fetch` pays automatically
    - `client/payments.ts`: `createBrc29Payment` / `acceptBrc29Payment`
-   - `test/helpers/mockchain.ts`, `test/bitfund.e2e.test.ts`: offline test patterns
+   - `test/helpers/mockchain.ts`, `test/cryptoPledgePot.e2e.test.ts`: offline test patterns
    - `server/main.ts`: building a wallet-toolbox wallet with `Setup.createWalletSQLite`
 5. Run `npm test` first. It must show 68 passing before you change anything.
 
@@ -36,7 +36,7 @@ milestone, and spends it on pay-per-call APIs with real BSV micropayments.**
 
 ### Key fact: the agent is the campaign creator
 The agent owns a **wallet-toolbox wallet** and launches the campaign with it.
-When a milestone is released, `BitFund.release()` puts the released sats into
+When a milestone is released, `CryptoPledgePot.release()` puts the released sats into
 the creator's wallet as change, which is the agent's spendable budget. **Do not
 change the contract, `core/pledge.ts` or the release flow.**
 
@@ -45,7 +45,7 @@ change the contract, `core/pledge.ts` or the release flow.**
 1. **`agent/wallet.ts`**: builds the agent's wallet-toolbox wallet (SQLite) from
    `AGENT_ROOT_KEY` (64 hex). On first run, generate it into `data/agent.key`
    (mode 600) and add that file and the wallet DB to `.gitignore`. Use
-   originator `bitfund-agent.local` for every wallet call. Mirror `server/main.ts`.
+   originator `cryptopledgepot-agent.local` for every wallet call. Mirror `server/main.ts`.
 
 2. **`agent/dataProvider.ts`**: a small, independent **paid data API** (BRC-121,
    built on `createBrc121App` from `examples/payPerRequest.ts`). It sells
@@ -70,7 +70,7 @@ change the contract, `core/pledge.ts` or the release flow.**
 
 5. **`agent/agent.ts`**: the loop (CLI `npm run agent`, one step per run or
    `--watch`):
-   1. **launch** (once): `bitfund.launch({...})`. The campaign title and
+   1. **launch** (once): `cryptopledgepot.launch({...})`. The campaign title and
       description say it is an AI agent service and state exactly what each
       milestone delivers (e.g. "M1: 10 data reports", "M2: 25 more reports").
       Store the campaign id in `data/agent-state.json`.
@@ -80,7 +80,7 @@ change the contract, `core/pledge.ts` or the release flow.**
       for a call plan within that budget, then call the data API with
       `create402Fetch({ wallet: withHostOriginator(agentWallet) })`. **Code**
       enforces the budget before every call, never the LLM. Log every payment.
-   4. **report**: `bitfund.postUpdate(campaignId, nextMilestone, report)` with
+   4. **report**: `cryptopledgepot.postUpdate(campaignId, nextMilestone, report)` with
       the results, a spend summary and the txids. Backers then vote in the
       existing UI.
    5. Repeat when the next milestone is approved.

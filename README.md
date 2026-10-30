@@ -1,8 +1,6 @@
-# BitFund: trustless milestone crowdfunding on BSV
+# CryptoPledgePot: trustless milestone crowdfunding on BSV
 
-*(Repository: Crypto Pledge Pot)*
-
-On BitFund, donations go into **sCrypt escrow contracts**, not to the creator.
+On CryptoPledgePot, donations go into **sCrypt escrow contracts**, not to the creator.
 Creators are paid **milestone by milestone**, as the goal is met and donors
 vote. If a campaign fails, donors **take their sats back from the script
 itself**. Fees are a fraction of a cent, so tiny donations are practical.
@@ -11,7 +9,7 @@ itself**. Fees are a fraction of a cent, so tiny donations are practical.
 
 | | |
 |---|---|
-| Escrow | One sCrypt `BitFundPledge` UTXO per donation: parallel, no contention |
+| Escrow | One sCrypt `CryptoPledgePotEscrow` UTXO per donation: parallel, no contention |
 | Wallets | Any BRC-100 wallet (BSV Desktop). Keys never leave the wallet |
 | Release | Creator + arbiter signatures. A covenant keeps the unreleased part escrowed |
 | Refund | Donor alone after the refund date (nLockTime), or immediately if the campaign failed |
@@ -21,14 +19,14 @@ itself**. Fees are a fraction of a cent, so tiny donations are practical.
 Team: Farhan · Finja · Louisa
 
 **Usage and value note** (problem, users, value for BSV, status): [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md).
-**AI agent payments:** an autonomous agent raises its own budget on BitFund and spends it on a pay-per-call API, one micropayment per call. See [section 5](#5-ai-agent-service-agentic-payments).
+**AI agent payments:** an autonomous agent raises its own budget on CryptoPledgePot and spends it on a pay-per-call API, one micropayment per call. See [section 5](#5-ai-agent-service-agentic-payments).
 
 ---
 
 ## 1. System architecture and data flow
 
 ```
- Browser (React)                     BitFund server (Express)                    BSV blockchain
+ Browser (React)                     CryptoPledgePot server (Express)                    BSV blockchain
  ───────────────                     ────────────────────────                    ──────────────
  WalletClient ──BRC-100──▶ BSV Desktop (keys, approvals)
       │
@@ -78,10 +76,10 @@ from the chain: campaigns and memos are `OP_RETURN` records (`core/campaign.ts`)
 
 ---
 
-## 2. The sCrypt contract: `contracts/src/contracts/bitfundPledge.ts`
+## 2. The sCrypt contract: `contracts/src/contracts/cryptoPledgePotEscrow.ts`
 
 ```ts
-export class BitFundPledge extends SmartContract {
+export class CryptoPledgePotEscrow extends SmartContract {
   @prop() campaignId: ByteString      // sha256(canonical campaign JSON)
   @prop() creator: PubKey             // BRC-42 derived
   @prop() arbiter: PubKey             // vote oracle
@@ -128,21 +126,21 @@ is run by the SDK script interpreter.
 
 ## 3. Wallet and donation component
 
-`app/src/components/DonateButton.tsx` (React) uses `client/bitfund.ts`:
+`app/src/components/DonateButton.tsx` (React) uses `client/cryptoPledgePot.ts`:
 
 ```ts
 // app/src/wallet.tsx
 const wallet = new WalletClient('auto')              // BSV Desktop over BRC-100
 await wallet.waitForAuthentication({})
-const bitfund = new BitFund(wallet, new BitFundApi(origin, wallet))
+const cryptopledgepot = new CryptoPledgePot(wallet, new CryptoPledgePotApi(origin, wallet))
 
-// DonateButton → bitfund.donate(meta, sats, { name, message })
-const donorKey = await wallet.getPublicKey({ protocolID: [1, 'bitfund donor'], keyID, counterparty: 'self' })
+// DonateButton → cryptopledgepot.donate(meta, sats, { name, message })
+const donorKey = await wallet.getPublicKey({ protocolID: [1, 'cryptopledgepot donor'], keyID, counterparty: 'self' })
 await wallet.createAction({
   description: `Pledge to ${meta.title}`,
   outputs: [
     { lockingScript: pledgeScriptFor(meta, donorKey, sats).toHex(), satoshis: sats,
-      basket: 'bitfund pledges', customInstructions: JSON.stringify({ protocolID, keyID, campaignId }) },
+      basket: 'cryptopledgepot pledges', customInstructions: JSON.stringify({ protocolID, keyID, campaignId }) },
     { lockingScript: pledgeMemoScript(campaignId, memo).toHex(), satoshis: 0 }   // OP_RETURN
   ],
   options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
@@ -162,7 +160,7 @@ Requires Node.js ≥ 22.
 
 ```bash
 npm install
-npm test                 # 88 tests: contract, BitFund and agent end to end on the mock chain, plus the original token kit
+npm test                 # 88 tests: contract, CryptoPledgePot and agent end to end on the mock chain, plus the original token kit
 ```
 
 **Explore the UI with no wallet (offline demo):**
@@ -177,8 +175,8 @@ npm run app              # http://localhost:5174
 npm run server           # indexer + arbiter on :8787 (Arcade SPV). Creates data/arbiter.key: back it up!
 npm run app              # http://localhost:5174 → Connect wallet → Start a campaign / Donate
 ```
-Env for the server: `BITFUND_ARBITER_KEY`, `NETWORK=main|test`, `PORT`,
-`BITFUND_DB`, `ARBITER_WALLET_DB` (see `server/main.ts`).
+Env for the server: `CRYPTOPLEDGEPOT_ARBITER_KEY`, `NETWORK=main|test`, `PORT`,
+`CRYPTOPLEDGEPOT_DB`, `ARBITER_WALLET_DB` (see `server/main.ts`).
 
 **Recompile the sCrypt contract** (optional; the compiled artifact is committed):
 ```bash
@@ -194,24 +192,24 @@ cd .. && npm test
 | `contracts/` | sCrypt contract (own TS 5 sub-project), compiled artifacts |
 | `core/pledge.ts` | escrow runtime: script template, preimages, unlocks, schedule maths |
 | `core/campaign.ts` | campaign model, id, validation, OP_RETURN records |
-| `client/bitfund.ts` · `client/bitfundApi.ts` | wallet flows · HTTP/AuthFetch API client |
+| `client/cryptoPledgePot.ts` · `client/cryptoPledgePotApi.ts` | wallet flows · HTTP/AuthFetch API client |
 | `server/` | indexer + arbiter (`app.ts`, `policy.ts`, `db.ts`), `main.ts`, `demo.ts` |
 | `app/` | React frontend |
 | `agent/` | AI agent service: loop (`agent.ts`), Claude brain (`brain.ts`), capped 402 payer (`pay402.ts`), spend ledger, paid data API, status endpoint |
-| `test/pledge.script.test.ts` · `test/bitfund.e2e.test.ts` | contract tests · end-to-end flows |
+| `test/pledge.script.test.ts` · `test/cryptoPledgePot.e2e.test.ts` | contract tests · end-to-end flows |
 | `docs/DEVLOG.md` | engineering log: decisions, what broke, fixes |
 | `overlay/`, `client/token.ts`, `web/`… | the BSV-21 token kit this project started from (still tested) |
 
 ### Costs (measured, 100 sat/kB mainnet policy)
 - Donation: measured 3,458 bytes → 346 sats fee (≈ $0.00006 at $17/BSV), including the wallet's funding input and change.
 - Releasing a milestone: ~6.2 KB per escrow → ~620 sats (≈ $0.0001).
-  A 3-escrow release measured 18,650 bytes / 1,866 sats. Both figures are printed by `test/bitfund.e2e.test.ts`.
+  A 3-escrow release measured 18,650 bytes / 1,866 sats. Both figures are printed by `test/cryptoPledgePot.e2e.test.ts`.
 
 ---
 
 ## 5. AI agent service (agentic payments)
 
-**An AI agent raises its own operating budget on BitFund, gets paid milestone by
+**An AI agent raises its own operating budget on CryptoPledgePot, gets paid milestone by
 milestone as backers approve its work, and spends that budget on a
 pay-per-call data API: one BSV micropayment per call, each one on chain and
 linked in its report.**
@@ -228,7 +226,7 @@ backers ──donate──▶ escrow ──milestone released──▶ agent's w
              backers vote ◀── report + WhatsOnChain link per payment ──┘
 ```
 
-Why BitFund suits agents: backers can fund an autonomous agent **without
+Why CryptoPledgePot suits agents: backers can fund an autonomous agent **without
 giving it a blank cheque**. Money stays in escrow and is released one milestone
 at a time after a report and a vote. If the agent fails, backers reclaim what's
 left.
@@ -242,7 +240,7 @@ left.
 
 **Run it on mainnet** (four terminals):
 ```bash
-npm run server           # BitFund indexer + arbiter
+npm run server           # CryptoPledgePot indexer + arbiter
 npm run data-provider    # the paid data API (:8790, 50 sats/call)
 npm run agent            # the agent (:8791); --once for one step, --dry-run to plan without paying
 npm run app              # web UI

@@ -1,5 +1,5 @@
 /**
- * BitFundPledge at script level: the @bsv/sdk runtime reproduces the sCrypt
+ * CryptoPledgePotEscrow at script level: the @bsv/sdk runtime reproduces the sCrypt
  * compiler's output exactly, and every spending path is executed by the SDK's
  * script interpreter (the same engine the mock chain uses to validate).
  */

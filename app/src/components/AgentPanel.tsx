@@ -48,7 +48,7 @@ export function AgentPanel ({ agentUrl }: { agentUrl: string }) {
     setBusy(true)
     setMsg(undefined)
     try {
-      const payment = await createBrc29Payment(bf.wallet, status.identityKey, topUp, 'Top up BitFund agent fees')
+      const payment = await createBrc29Payment(bf.wallet, status.identityKey, topUp, 'Top up CryptoPledgePot agent fees')
       const res = await fetch(`${agentUrl}/api/agent/fund`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payment) })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`)

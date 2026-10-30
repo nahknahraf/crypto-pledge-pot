@@ -1,6 +1,6 @@
 /**
  * Step 3: the agent service end to end, offline. Real wallet-toolbox wallets on
- * the mock chain (every script validated), the BitFund server over HTTP, a
+ * the mock chain (every script validated), the CryptoPledgePot server over HTTP, a
  * separate paid data provider, human backers, and the agent with the mock brain.
  *
  *   agent launches → humans back it → deadline → agent releases M1 →
@@ -10,11 +10,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Server } from 'node:http'
 import { Transaction } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox'
-import { BitFund } from '../client/bitfund'
-import { BitFundApi } from '../client/bitfundApi'
-import { createBitFundApp } from '../server/app'
-import { BitFundDb } from '../server/db'
-import { BitFundAgent, type AgentConfig } from '../agent/agent'
+import { CryptoPledgePot } from '../client/cryptoPledgePot'
+import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
+import { createCryptoPledgePotApp } from '../server/app'
+import { CryptoPledgePotDb } from '../server/db'
+import { CryptoPledgePotAgent, type AgentConfig } from '../agent/agent'
 import { MockBrain, sanitizePlan, type Brain } from '../agent/brain'
 import { createDataProviderApp, serveDataProvider } from '../agent/dataProvider'
 import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../agent/ledger'
@@ -24,7 +24,7 @@ import { createMockChain, memoryKnex, type MockChain } from './helpers/mockchain
 const T0 = Math.floor(Date.now() / 1000) - 30 * 86_400
 let clock = T0
 let chain: MockChain
-let bitfundServer: Server, dataServer: Server, greedyServer: Server
+let cryptopledgepotServer: Server, dataServer: Server, greedyServer: Server
 let url: string, dataHost: string, greedyHost: string
 let provider: Wallet, greedyProvider: Wallet
 
@@ -33,7 +33,7 @@ const spendable = async (w: Wallet): Promise<number> =>
 const listen = async (app: any): Promise<[Server, string]> => await new Promise(resolve => {
   const s = app.listen(0, () => resolve([s, `127.0.0.1:${(s.address() as any).port}`]))
 })
-const as = (w: Wallet): BitFund => new BitFund(w, new BitFundApi(url, w))
+const as = (w: Wallet): CryptoPledgePot => new CryptoPledgePot(w, new CryptoPledgePotApi(url, w))
 
 function makeAgent (wallet: Wallet, overrides: Partial<AgentConfig> = {}, brain: Brain = new MockBrain()) {
   const ledger = new Ledger(memoryStore<SpendEntry[]>([]))
@@ -55,10 +55,10 @@ function makeAgent (wallet: Wallet, overrides: Partial<AgentConfig> = {}, brain:
     feeReserve: 1_000,
     ...overrides
   }
-  const agent = new BitFundAgent(config, {
+  const agent = new CryptoPledgePotAgent(config, {
     wallet,
-    bitfund: as(wallet),
-    api: new BitFundApi(url, wallet),
+    cryptopledgepot: as(wallet),
+    api: new CryptoPledgePotApi(url, wallet),
     brain,
     ledger,
     state,
@@ -73,9 +73,9 @@ beforeAll(async () => {
   const arbiter = await chain.makeWallet()
   provider = await chain.makeWallet()
   greedyProvider = await chain.makeWallet()
-  const db = new BitFundDb(memoryKnex())
+  const db = new CryptoPledgePotDb(memoryKnex())
   await db.migrate()
-  ;[bitfundServer, url] = await listen(createBitFundApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => clock }))
+  ;[cryptopledgepotServer, url] = await listen(createCryptoPledgePotApp({ wallet: arbiter, db, chainTracker: chain.chainTracker, now: () => clock }))
   url = `http://${url}`
   dataServer = await serveDataProvider(createDataProviderApp(provider, 50), 0, '127.0.0.1')
   dataHost = `127.0.0.1:${(dataServer.address() as any).port}`
@@ -84,11 +84,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  for (const s of [bitfundServer, dataServer, greedyServer]) await new Promise(r => s?.close(r))
+  for (const s of [cryptopledgepotServer, dataServer, greedyServer]) await new Promise(r => s?.close(r))
   await chain?.close()
 })
 
-describe('an AI agent service funded through BitFund', () => {
+describe('an AI agent service funded through CryptoPledgePot', () => {
   let agentWallet: Wallet, alice: Wallet, bob: Wallet
   let a: ReturnType<typeof makeAgent>
   let campaignId: string
@@ -104,12 +104,12 @@ describe('an AI agent service funded through BitFund', () => {
     expect(out.action).toBe('launched')
     campaignId = (out as any).campaignId
     expect(a.state.load().campaignId).toBe(campaignId)
-    const view = await new BitFundApi(url).campaign(campaignId)
+    const view = await new CryptoPledgePotApi(url).campaign(campaignId)
     expect(view.meta.creatorIdentityKey).toBe(agentWallet.identityKey)
   })
 
   it('waits while humans back it', async () => {
-    const { meta } = await new BitFundApi(url).campaign(campaignId)
+    const { meta } = await new CryptoPledgePotApi(url).campaign(campaignId)
     await as(alice).donate(meta, 15_000, { name: 'Alice', message: 'Open data, yes please' })
     await as(bob).donate(meta, 10_000, { name: 'Bob' })
     expect(await a.agent.step()).toMatchObject({ action: 'waiting' })
@@ -121,8 +121,8 @@ describe('an AI agent service funded through BitFund', () => {
     const out = await a.agent.step()
     expect(out).toMatchObject({ action: 'released', milestone: 1, sats: 10_000 }) // 40% of 25,000
     const txid = (out as any).txids[0]
-    const p = (await new BitFundApi(url).campaign(campaignId)).feed[0]
-    const tx = Transaction.fromAtomicBEEF(Array.from(Buffer.from((await new BitFundApi(url).pledge(p.id)).beef, 'hex')))
+    const p = (await new CryptoPledgePotApi(url).campaign(campaignId)).feed[0]
+    const tx = Transaction.fromAtomicBEEF(Array.from(Buffer.from((await new CryptoPledgePotApi(url).pledge(p.id)).beef, 'hex')))
     expect(tx.id('hex')).toBe(txid)
     expect((await a.agent.spendable()) - before).toBe(10_000 - tx.getFee())
   })
@@ -136,7 +136,7 @@ describe('an AI agent service funded through BitFund', () => {
     expect(entries).toHaveLength(3)
     expect(entries.every(e => /^[0-9a-f]{64}$/.test(e.txid ?? '') && e.sats === 50)).toBe(true)
     // Its report is now the progress update backers vote on.
-    const m2 = (await new BitFundApi(url).campaign(campaignId)).milestones[1]
+    const m2 = (await new CryptoPledgePotApi(url).campaign(campaignId)).milestones[1]
     expect(m2.update?.note).toMatch(/3 readings bought for 150 sats/)
     expect(m2.update?.note).toContain(`https://whatsonchain.com/tx/${entries[0].txid!}`)
   })
@@ -153,7 +153,7 @@ describe('an AI agent service funded through BitFund', () => {
     expect(worked).toMatchObject({ action: 'worked', milestone: 2, calls: 3, updatePosted: false })
     expect(new Set(a.ledger.all().map(e => e.topic)).size).toBe(6) // fresh cities each round
     expect(await a.agent.step()).toMatchObject({ action: 'stopped' })
-    expect((await new BitFundApi(url).campaign(campaignId)).status).toBe('completed')
+    expect((await new CryptoPledgePotApi(url).campaign(campaignId)).status).toBe('completed')
   })
 })
 
@@ -198,7 +198,7 @@ describe('an underfunded agent campaign', () => {
     clock = T0
     const { agent, state } = makeAgent(wallet, { campaign: { title: 'Underfunded agent', description: '', goal: 1_000_000, deadline: T0 + 3_600, refundAfter: T0 + 7_200, milestones: [{ title: 'All', percent: 100 }] } })
     await agent.step()
-    const { meta } = await new BitFundApi(url).campaign(state.load().campaignId!)
+    const { meta } = await new CryptoPledgePotApi(url).campaign(state.load().campaignId!)
     const p = await as(carol).donate(meta, 5_000)
     clock = T0 + 3_601
     const before = await agent.spendable()

@@ -1,4 +1,4 @@
-# BitFund — engineering log
+# CryptoPledgePot — engineering log
 
 A running record of what was built, why, how, and what broke along the way.
 Newest entries at the bottom. Commit hashes refer to this repository.
@@ -13,7 +13,7 @@ Baseline: `npm test` → 38/38 passing, `tsc` clean. The kit is kept as is; it
 is the reference for how the stack is used (wallet signing via
 `createSignature({ hashToDirectlySign })`, mock chain, AuthFetch servers).
 
-**Task** (from `cpp_prompt.md`): BitFund, a GoFundMe-style crowdfunding app on
+**Task** (from `cpp_prompt.md`): CryptoPledgePot, a GoFundMe-style crowdfunding app on
 BSV. sCrypt escrow, all-or-nothing goal, milestone releases approved by
 multisig or a donor vote, refunds via script, OP_RETURN audit trail, wallet
 donations, and a dashboard.
@@ -33,7 +33,7 @@ donations, and a dashboard.
 | Path | Who signs | When | Why |
 |---|---|---|---|
 | `release` | creator + arbiter | the arbiter's policy allows that milestone | milestone tranches; the covenant keeps the rest escrowed |
-| `refund` | donor alone | `nLockTime ≥ refundAfter` | the trustless backstop: works even if BitFund disappears |
+| `refund` | donor alone | `nLockTime ≥ refundAfter` | the trustless backstop: works even if CryptoPledgePot disappears |
 | `refundFailed` | donor + arbiter | any time | lets donors exit right away when a campaign misses its goal |
 
 ### Why an arbiter (vote oracle) at all
@@ -72,7 +72,7 @@ path reads `nLockTime` and `nSequence` from the sighash preimage
   TypeScript 7, and the sCrypt transformer needs TS 5. Keeping them apart
   means the app never loads the sCrypt runtime.
 - `npm run compile` (in `contracts/`) compiles and then exports a slim artifact
-  (`core/bitfundPledge.artifact.json`: hex template + ABI) for the app.
+  (`core/cryptoPledgePotEscrow.artifact.json`: hex template + ABI) for the app.
 - **What broke:** the first compile failed with
   `Public method release not ended with assert()`, because sCrypt requires every
   public method to end in an `assert`. Fixed by moving the covenant check into
@@ -147,10 +147,10 @@ decreases, so the contract finds the stage whose remaining equals
   - **The arbiter only signs sighashes it computes itself** from indexed escrow
     outputs, never a hash supplied by the client.
 
-### Client (`client/bitfund.ts`, `client/bitfundApi.ts`)
+### Client (`client/cryptoPledgePot.ts`, `client/cryptoPledgePotApi.ts`)
 - `launch`: OP_RETURN anchor of the canonical campaign JSON (its sha256 is the
   campaign id baked into every escrow), then register.
-- `donate`: escrow output (kept in the donor's `bitfund pledges` basket with its
+- `donate`: escrow output (kept in the donor's `cryptopledgepot pledges` basket with its
   keyID) plus an OP_RETURN memo, then register over AuthFetch.
 - `release`: createAction with the escrows as inputs and the remainders at the
   same indexes. Released sats become wallet change, so no extra output or
@@ -174,7 +174,7 @@ decreases, so the contract finds the stage whose remaining equals
   re-derives it and checks it equals the escrow's donor key before refunding.
 
 ### Verified
-`test/bitfund.e2e.test.ts` (14 tests, real wallet-toolbox wallets, the mock
+`test/cryptoPledgePot.e2e.test.ts` (14 tests, real wallet-toolbox wallets, the mock
 chain validates every script):
 - Funded campaign: launch → 3 pledges with memos → release refused while
   raising → milestone 1 after the deadline (exact fee accounting) → milestone 2
@@ -195,7 +195,7 @@ chain validates every script):
   It never holds funds; it derives the per-campaign arbiter keys, signs
   sighashes, and authenticates the API (BRC-103). SPV headers come from
   **Arcade chaintracks** (`ArcadeChainTracker`).
-- The root key comes from `BITFUND_ARBITER_KEY`, or is generated once into
+- The root key comes from `CRYPTOPLEDGEPOT_ARBITER_KEY`, or is generated once into
   `data/arbiter.key` (mode 600). That file is **git-ignored**, together with
   the arbiter wallet DB, because it is the oracle's signing key.
 
@@ -210,7 +210,7 @@ real wallet's transactions don't exist on the mock chain.
 ### Frontend (`app/`, `npm run app` → :5174)
 React 19 + Vite. The brief asked for Next.js/React; Vite keeps the repo light,
 and the components are plain React that drop into Next.js unchanged.
-- `wallet.tsx`: `WalletClient('auto')` → `waitForAuthentication` → BitFund
+- `wallet.tsx`: `WalletClient('auto')` → `waitForAuthentication` → CryptoPledgePot
   client + AuthFetch.
 - `components/DonateButton.tsx`: the donation component (presets, USD
   estimate, on-chain memo, explanation of escrow and refund).
@@ -242,7 +242,7 @@ and the components are plain React that drop into Next.js unchanged.
   scratch directory, outside the repo.
 
 ### Verified
-- `npm test`: **68/68** (38 kit + 16 contract + 14 BitFund e2e); `tsc` clean;
+- `npm test`: **68/68** (38 kit + 16 contract + 14 CryptoPledgePot e2e); `tsc` clean;
   `vite build app` OK.
 - `npm run server` starts on mainnet config and answers `/api/health`.
 - `npm run demo` + `npm run app`: all five pages render with **zero console
@@ -272,10 +272,10 @@ and the components are plain React that drop into Next.js unchanged.
 mentions agents. The developer pack's `TBC26_BSV_Track_Requirements.pdf`
 defines the track as "DeFi Rails for Agentic Payments". It requires an AI agent
 that makes a payment through the project, plus real on-chain transactions, a
-usage/value note and a demo video. BitFund had none of those yet.
+usage/value note and a demo video. CryptoPledgePot had none of those yet.
 
 **Decision:** of three options (an AI backer that donates; an agent service
-that raises its budget on BitFund and pays for APIs over HTTP 402; an LLM
+that raises its budget on CryptoPledgePot and pays for APIs over HTTP 402; an LLM
 milestone reviewer), the agent service fits the track best. It matches the
 PDF's thesis (agents paying for APIs) and its listed example ("a launchpad
 where agent-powered services raise funds"). The LLM reviewer makes no payment,
@@ -296,7 +296,7 @@ criterion rewards, is roadmap only.
 # Building the agent service (option 2), step by step
 
 We're following `docs/prompts/BUILD_AGENT_SERVICE.md`. The idea in one line:
-an AI agent raises its own budget on BitFund, gets paid as it delivers, and
+an AI agent raises its own budget on CryptoPledgePot, gets paid as it delivers, and
 spends that money on a pay-per-call data API.
 
 ## Step 0: housekeeping
@@ -577,3 +577,56 @@ us) need to understand it in a couple of minutes.
 
 The one open box needs a human with a funded wallet. Everything up to that
 point is ready.
+
+---
+
+## Renamed to CryptoPledgePot
+
+The app was called "BitFund", the working name from the original brief. It's
+now **CryptoPledgePot**, matching the repository, everywhere: code, UI, docs,
+package names and on-chain identifiers. (Earlier sections of this log were
+updated too; past commit messages still say BitFund, because rewriting git
+history isn't worth the risk.)
+
+**What changed:**
+- **Names in code:**
+  - `BitFund` → `CryptoPledgePot` (client class);
+  - `BitFundApi` → `CryptoPledgePotApi`;
+  - `BitFundDb` → `CryptoPledgePotDb`;
+  - `createBitFundApp` → `createCryptoPledgePotApp`;
+  - `BitFundAgent` → `CryptoPledgePotAgent`.
+
+  The contract `BitFundPledge` became **`CryptoPledgePotEscrow`**, because
+  "CryptoPledgePotPledge" read badly.
+- **Files:**
+  - `client/cryptoPledgePot.ts` and `client/cryptoPledgePotApi.ts`;
+  - `test/cryptoPledgePot.e2e.test.ts`;
+  - `contracts/src/contracts/cryptoPledgePotEscrow.ts`;
+  - `core/cryptoPledgePotEscrow.artifact.json`.
+- **Things that change behaviour, renamed now because nothing is on mainnet yet:**
+  - wallet protocol IDs (`'cryptopledgepot creator' / 'donor' / 'arbiter'`),
+    so derived keys differ from before;
+  - the `OP_RETURN` tag on campaign and donation records;
+  - the donor basket (`cryptopledgepot pledges`) and transaction labels;
+  - env vars: `CRYPTOPLEDGEPOT_ARBITER_KEY`, `CRYPTOPLEDGEPOT_DB`,
+    `CRYPTOPLEDGEPOT_URL`, `CRYPTOPLEDGEPOT_SERVER`;
+  - the default index file `data/cryptopledgepot.db`;
+  - npm packages `crypto-pledge-pot` and `crypto-pledge-pot-contracts`.
+
+  Campaigns made under the old name would no longer be recognised, but none
+  exist.
+- **UI:** the logo, page title and copy; all seven screenshots retaken.
+
+**How we made sure nothing broke:**
+- The renamed contract was recompiled with sCrypt. Its **script template is
+  byte-identical** to the old one (compared directly), and the cross-check
+  fixtures didn't change. The class name lives only in the artifact's metadata,
+  not in the script.
+- `git grep -i bitfund` finds nothing in tracked files. (`cpp_prompt.md`, the
+  untracked original brief, was left as it was.)
+- `tsc` is clean, and **88/88** tests pass.
+- The real server, data provider and agent all start under the new name with
+  the same identities. The keys in `data/` carry over, and the agent still
+  stops at "insufficient funds" until it's topped up.
+- Removed the leftover `data/bitfund.db` (an empty index from a smoke test,
+  0 campaigns).

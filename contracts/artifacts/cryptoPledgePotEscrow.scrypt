@@ -1,5 +1,5 @@
 
-contract BitFundPledge {
+contract CryptoPledgePotEscrow {
   bytes campaignId;
   PubKey creator;
   PubKey arbiter;

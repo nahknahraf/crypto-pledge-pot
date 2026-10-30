@@ -1,5 +1,5 @@
 /**
- * BitFund indexer + arbiter API.
+ * CryptoPledgePot indexer + arbiter API.
  *
  * Public (no auth):   campaign list/detail, live SSE feed, pledge state + BEEF.
  * Authenticated:      BRC-103/104 mutual auth (`AuthFetch` on the client), so
@@ -17,7 +17,7 @@ import {
   ARBITER_PROTOCOL,
   campaignIdOf,
   LIMITS,
-  parseBitfundRecord,
+  parseCryptoPledgePotRecord,
   pledgeScriptFor,
   pledgeTerms,
   validateCampaign,
@@ -25,13 +25,13 @@ import {
 } from '../core/campaign'
 import { ALL_SCOPE, cumulativeSchedule, escrowedAfter, METHOD, MIN_PLEDGE, scheduleIsStrict, parsePledgeScript, pledgeLockingScript, preimage } from '../core/pledge'
 import type { CampaignDetail, CampaignEvent, ReleasablePledges, SpendablePledge } from '../core/api'
-import { BitFundDb, type PledgeRow } from './db'
+import { CryptoPledgePotDb, type PledgeRow } from './db'
 import { campaignView, mayRefundEarly, mayRelease, pledgeView } from './policy'
 
-export interface BitFundServerOptions {
+export interface CryptoPledgePotServerOptions {
   /** Arbiter / server wallet: signs as the vote oracle and authenticates the API. */
   wallet: WalletInterface
-  db: BitFundDb
+  db: CryptoPledgePotDb
   /** SPV header source (ArcadeChainTracker in production, the mock chain in tests). */
   chainTracker: ChainTracker
   /** Clock in unix seconds (injectable for tests). */
@@ -60,7 +60,7 @@ function parseAtomic (hex: unknown): { tx: Transaction, bytes: number[] } {
 const outpointOf = (tx: Transaction, i: number): string =>
   `${tx.inputs[i].sourceTXID ?? tx.inputs[i].sourceTransaction!.id('hex')}.${tx.inputs[i].sourceOutputIndex}`
 
-export function createBitFundApp (opts: BitFundServerOptions): Express {
+export function createCryptoPledgePotApp (opts: CryptoPledgePotServerOptions): Express {
   const { wallet, db, chainTracker } = opts
   const now = opts.now ?? (() => Math.floor(Date.now() / 1000))
   const app = express()
@@ -190,7 +190,7 @@ export function createBitFundApp (opts: BitFundServerOptions): Express {
   /**
    * Record that a pledge escrow was spent (release or refund). Anyone may report
    * it: the transaction itself is the proof. Public so that a donor's refund is
-   * indexed even if they lost access to BitFund.
+   * indexed even if they lost access to CryptoPledgePot.
    */
   app.post('/api/spends', wrap(async (req) => {
     const { tx, bytes } = parseAtomic(req.body?.beef)
@@ -220,7 +220,7 @@ export function createBitFundApp (opts: BitFundServerOptions): Express {
       }
       touched.push(p.id)
     }
-    if (touched.length === 0) throw new HttpError(400, 'transaction spends no active BitFund pledge')
+    if (touched.length === 0) throw new HttpError(400, 'transaction spends no active CryptoPledgePot pledge')
     await db.putTx(txid, Utils.toHex(bytes))
     if (releaseCampaign !== undefined) {
       await db.insertRelease({ campaignId: releaseCampaign, milestone: releaseMilestone, txid, amount: releasedSats, createdAt: now() })
@@ -250,7 +250,7 @@ export function createBitFundApp (opts: BitFundServerOptions): Express {
     const id = campaignIdOf(meta)
     if (await db.campaign(id) !== undefined) throw new HttpError(409, 'campaign already registered')
     const { tx, bytes } = parseAtomic(req.body?.anchorBeef)
-    const anchored = tx.outputs.some(o => { const r = parseBitfundRecord(o.lockingScript); return r?.kind === 'campaign' && r.campaignId === id })
+    const anchored = tx.outputs.some(o => { const r = parseCryptoPledgePotRecord(o.lockingScript); return r?.kind === 'campaign' && r.campaignId === id })
     if (!anchored) throw new HttpError(400, 'anchor transaction does not carry this campaign\'s record')
     await spv(tx)
     const txid = tx.id('hex')
@@ -269,7 +269,7 @@ export function createBitFundApp (opts: BitFundServerOptions): Express {
     const out = tx.outputs[outputIndex]
     if (out === undefined) throw new HttpError(400, 'no such output')
     const terms = parsePledgeScript(out.lockingScript)
-    if (terms === undefined) throw new HttpError(400, 'output is not a BitFund pledge escrow')
+    if (terms === undefined) throw new HttpError(400, 'output is not a CryptoPledgePot pledge escrow')
     const c = await db.campaign(terms.campaignId)
     if (c === undefined) throw new HttpError(404, 'campaign not found')
     if (now() >= c.meta.deadline) throw new HttpError(400, 'campaign is closed for pledges')
@@ -282,7 +282,7 @@ export function createBitFundApp (opts: BitFundServerOptions): Express {
     const id = `${txid}.${outputIndex}`
     if (await db.pledge(id) !== undefined) throw new HttpError(409, 'pledge already registered')
     await spv(tx)
-    const memo = tx.outputs.map(o => parseBitfundRecord(o.lockingScript)).find(r => r?.kind === 'pledge' && r.campaignId === c.id)
+    const memo = tx.outputs.map(o => parseCryptoPledgePotRecord(o.lockingScript)).find(r => r?.kind === 'pledge' && r.campaignId === c.id)
     const pledge: PledgeRow = {
       id,
       campaignId: c.id,
@@ -361,7 +361,7 @@ export function createBitFundApp (opts: BitFundServerOptions): Express {
     if (p === undefined) throw new HttpError(404, 'pledge not found')
     if (identity !== p.donorIdentity) throw new HttpError(403, 'only the donor can request a refund')
     const { c, view } = await loadView(p.campaignId)
-    if (!mayRefundEarly(view, p)) throw new HttpError(403, `early refund needs a failed campaign (status: ${view.status}); after the refund date you can reclaim without BitFund`)
+    if (!mayRefundEarly(view, p)) throw new HttpError(403, `early refund needs a failed campaign (status: ${view.status}); after the refund date you can reclaim without CryptoPledgePot`)
     const { tx } = parseAtomic(req.body?.beef)
     const inputIndex = tx.inputs.findIndex((_, i) => outpointOf(tx, i) === p.outpoint)
     if (inputIndex < 0) throw new HttpError(400, 'transaction does not spend this pledge')
