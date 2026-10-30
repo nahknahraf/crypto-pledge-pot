@@ -1778,3 +1778,19 @@ Full suite: **149 passing** (23 files); both type-checks clean.
 **What broke:** nothing. While checking, I found that the old script's "milestone one: 40 %" was right for the mainnet agent (2 milestones). Only the offline AirWatch story uses 30/40/30. I corrected my superseded note accordingly.
 
 **Merge:** with 156 tests passing, both typechecks clean and the app build OK, `master` was fast-forwarded to `docs-plans`. `cross-chain-swap`, `donor-agent` and `judging-prep` were already contained in `master`. Nothing was pushed.
+
+## Step 8: hardening, the easiest open items first
+
+The work runs through the TODO list in order of ease, with one commit per item. The "before submission" items are skipped.
+
+**8.1 Swap secrets of the wrong length** (VERIFICATION §2). The BSV AtomicSwap refuses secrets of 0, 31 and 33 bytes. Only the 32-byte preimage claims, which matches the EVM contract's `bytes32`, so a secret that works on one chain always works on the other. Test only; no code change.
+
+**8.2 `validateCampaign` table** (§3). One valid campaign, then 20 refusals, one field broken at a time:
+- title or description too long; goal 0 or fractional;
+- a deadline given as a block height; refundAfter at the deadline or beyond the nLockTime range;
+- 0 or too many milestones; percentages that don't add up; an untitled milestone;
+- bad keys or nonce; an unknown kind;
+- a `javascript:` or spaced agent URL; an http image URL;
+- agent limits with a 0 price, or a milestone limit below one call.
+
+It also accepts unicode, a single 100 % milestone, and the maximum of 4 milestones. The "10 milestones" case in the plan is therefore a refusal: `MAX_MILESTONES` is 4. The code already did all of this; the gap was the proof.

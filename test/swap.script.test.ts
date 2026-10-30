@@ -74,6 +74,9 @@ describe('claim: the receiver, with the secret', () => {
     expect(run(claim(secret, outsider))).toBe(false)
     expect(run(claim(secret, sender))).toBe(false)
   })
+  it('fails with a secret of 0, 31 or 33 bytes (only the 32-byte preimage works, as on the EVM side)', () => {
+    for (const s of ['', secret.slice(0, 62), `${secret}00`]) expect(run(claim(s, receiver)), `${s.length / 2} bytes`).toBe(false)
+  })
 })
 
 describe('refund: the sender, after the timeout', () => {
