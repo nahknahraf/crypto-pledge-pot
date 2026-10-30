@@ -1438,3 +1438,56 @@ export script now writes both artifacts (the escrow's is unchanged), and
   sender's signature fail;
 - a refund by the sender at `refundAfter` passes; one second early, by the
   receiver, or with a final sequence fails.
+
+## Step 2: the swap engine, with a liquidity agent and the donor's side
+
+**What we built (`swap/`):**
+- **`usdcChain.ts`, the simulated other chain:** a USDC ledger with standard
+  HTLC rules. Lock; claim only by the receiver, only with the right secret,
+  only before the timeout; refund only by the sender, only after it. Every
+  action goes through an account handle, so you can only act as yourself.
+  Behind a `SourceChain` interface, ready for a real viem/Base adapter.
+- **`bsv.ts`:** lock, claim and refund an AtomicSwap through any BRC-100
+  wallet, with derived keys (`[1, 'cryptopledgepot swap']`). Claimed or
+  refunded sats land in the wallet as change.
+- **`liquidityAgent.ts`, the market maker:**
+  - quotes within its limits (maximum size; inventory minus open exposure
+    and a fee reserve);
+  - **before locking any sats it checks the donor's USDC lock on the other
+    chain:** that it pays the agent, the exact amount, an unexpired quote,
+    and a long enough timeout;
+  - then it locks sats that pay **the donor's key**, with
+    **T2 = T1 − 2 h**, so the donor always has time to claim first;
+  - it watches BSV for the donor's claim, **reads the secret from it**, and
+    collects the USDC. If the donor never claims, it refunds its sats after
+    T2.
+- **`donorSwap.ts`, the donor's side:**
+  - asks for a quote paying a fresh key in the donor's own wallet, makes the
+    secret, and locks USDC (refundable after T1);
+  - **checks the agent's BSV lock itself:** SPV, the same hashlock, pays the
+    donor's key, at least the quoted sats, a timeout safely before T1;
+  - only then claims, and otherwise refuses and refunds. Every step is
+    written down in plain language for the donor's memo.
+
+**What broke:** nothing. All 5 end-to-end tests passed on the first run.
+Recorded because those include the failure cases, which are the point.
+
+**How we checked it:** `test/swap.e2e.test.ts`, 5 tests. The BSV side is
+real wallets on the mock chain, with the contract validated by the chain.
+- **Happy path:** a donor with **0 sats** and 100 USDC gets a quote for
+  2,150,000 sats. The USDC is locked (their balance 0, but not given away),
+  the agent's lock verifies cleanly, and the claim lands the sats in their
+  own wallet. The fee comes out of the swapped sats, so **a newcomer needs no
+  BSV to start**. The agent reads the secret from BSV and collects exactly
+  100 USDC. Then the donor **pledges 1,000,000 of those sats to a campaign**.
+- **The LP refuses** (expired quote): the donor's refund is refused before
+  T1 and works after.
+- **The donor never claims:** the agent waits until T2, refunds its sats;
+  the donor refunds the USDC after T1; the secret never left the donor, so
+  the agent can't take the USDC.
+- **A cheating LP** locks 100,000 sats too few, or pays someone else's key:
+  the donor refuses to claim, with the reason.
+- **Unsafe or oversized:** the agent refuses 600 USDC (over its limit), a USDC
+  lock with only a 1-hour timeout, and swaps beyond its inventory.
+
+Full suite: **141 passing** (20 files); both type-checks clean.
