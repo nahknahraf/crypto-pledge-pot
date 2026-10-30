@@ -72,6 +72,8 @@ export interface LpSwap {
 export interface LiquidityProvider {
   quote: (usdc: number, donorBsvKey: string) => Promise<Quote>
   acceptSourceLock: (quoteId: string, sourceHtlcId: string) => Promise<BsvLock>
+  /** The BSV lock made for a quote, if any: for a donor whose acceptSourceLock reply was lost. */
+  lockFor?: (quoteId: string) => Promise<BsvLock | undefined>
 }
 
 export class LiquidityAgent implements LiquidityProvider {
@@ -200,6 +202,8 @@ export class LiquidityAgent implements LiquidityProvider {
       this.persist()
     }
   }
+
+  async lockFor (quoteId: string): Promise<BsvLock | undefined> { return structuredClone(this.swaps.get(quoteId)?.lock) }
 
   state (quoteId: string): LpSwap['state'] | undefined { return this.swaps.get(quoteId)?.state }
 }

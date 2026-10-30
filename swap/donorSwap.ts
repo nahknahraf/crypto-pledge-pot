@@ -74,7 +74,9 @@ export class DonorSwap {
     try {
       r.lock = await lp.acceptSourceLock(r.quote.id, r.sourceHtlcId!)
     } catch (e) {
-      r.steps.push(`the liquidity agent did not lock sats: ${(e as Error).message}`)
+      // Maybe it did lock, and only the reply was lost: ask for the lock. verifyLock checks it on chain anyway.
+      r.lock = await lp.lockFor?.(r.quote.id).catch(() => undefined)
+      if (r.lock === undefined) r.steps.push(`the liquidity agent did not lock sats: ${(e as Error).message}`)
     }
     return r
   }

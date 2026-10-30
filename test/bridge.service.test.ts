@@ -81,4 +81,20 @@ describe.skipIf(anvilBinary() === undefined)('the liquidity agent as an independ
     expect(await evm.account(lpEvm.address).balance()).toBe(100 * USDC)
     expect(startLp().state(r.quote.id)).toBe('settled') // and that is persisted too
   }, 120_000)
+
+  it('a donor whose reply was lost asks again and gets the lock that was made (no second lock)', async () => {
+    server = await new Promise(resolve => { const s = createLiquidityApp(startLp()).listen(0, '127.0.0.1', () => resolve(s)) })
+    client = new LiquidityClient(`http://127.0.0.1:${(server.address() as any).port}`)
+    await mintTestUsdc(node.rpcUrl, anvilChain, deployer, (evm.opts.token), donorEvm.address, 10 * USDC)
+    const swap = new DonorSwap(await chain.makeWallet(), evm, donorEvm.address, chain.chainTracker)
+    let r = await swap.requestQuote(client, 10 * USDC)
+    r = await swap.lockAndRequest(client, r)
+    const made = r.lock!
+    r.lock = undefined // the reply never arrived
+    r = await swap.requestLock(client, r)
+    expect(r.lock).toEqual(made)
+    expect(await swap.verifyLock(r)).toEqual([])
+    expect((await client.info() as any).swaps.filter((s: any) => s.state === 'locked')).toHaveLength(1)
+  }, 120_000)
 })
+

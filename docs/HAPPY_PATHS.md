@@ -37,7 +37,7 @@ The files are listed in the `test:happy` script in `package.json`. Some of them 
 
 **Works only with a limit:**
 
-- `npm run lp` has been started against a local EVM chain, but never against a public one. A crash between broadcasting the BSV lock and saving it is recovered from the wallet's swap basket (tested); the donor then needs the lock from the agent, which has no endpoint yet.
+- `npm run lp` has been started against a local EVM chain, but never against a public one. A crash between broadcasting the BSV lock and saving it is recovered from the wallet's swap basket (tested); the donor fetches the lock with `GET /api/lp/swaps/:quoteId` (DonorSwap does this automatically).
 - The LP does not wait for confirmations on the donor's source-chain lock before locking sats.
 - In `demo:bridge`, both EVM accounts are keys inside one process. A real donor would sign in their own EVM wallet in the browser, which is not built.
 - The donor agent's manipulation check is a phrase list plus the model's judgement. It catches the common wordings (tested), but a determined writer can rephrase. Treat it as a filter, not a guarantee.

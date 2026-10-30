@@ -5,6 +5,7 @@
  *   GET  /api/lp          who it is, which chain, its price and limits, its swaps
  *   POST /api/lp/quote    { usdc, donorBsvKey }      → Quote
  *   POST /api/lp/lock     { quoteId, sourceHtlcId }  → BsvLock (it checks the source lock first)
+ *   GET  /api/lp/swaps/:quoteId                      → { state, lock } (a lost reply, a recovered lock)
  *
  * The service holds no donor funds and asks for no keys. Everything it says,
  * the donor re-checks on chain (DonorSwap.verifyLock), so a lying service can
@@ -29,6 +30,10 @@ export function createLiquidityApp (lp: LiquidityAgent): express.Express {
     minSourceWindowSeconds: lp.config.minSourceWindow,
     swaps: lp.all().map(s => ({ id: s.quote.id, state: s.state, usdc: s.quote.usdc / USDC, sats: s.quote.sats, note: s.note }))
   })))
+  app.get('/api/lp/swaps/:quoteId', handle(async req => {
+    const lock = await lp.lockFor(String(req.params.quoteId))
+    return { state: lp.state(String(req.params.quoteId)) ?? 'unknown', lock: lock ?? null }
+  }))
   app.post('/api/lp/quote', handle(async req => await lp.quote(Number(req.body?.usdc), String(req.body?.donorBsvKey ?? ''))))
   app.post('/api/lp/lock', handle(async req => await lp.acceptSourceLock(String(req.body?.quoteId ?? ''), String(req.body?.sourceHtlcId ?? ''))))
   return app

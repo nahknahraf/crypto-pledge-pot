@@ -1925,3 +1925,8 @@ Test (`agent.e2e`): the anchor fails once. Nothing is posted, the milestone isn'
 - `locking` swaps now count against inventory.
 
 **Open:** a donor whose `acceptSourceLock` reply was lost in such a crash needs an endpoint to fetch the recovered lock.
+
+**8.18 A lost reply no longer strands a donor.**
+- `GET /api/lp/swaps/:quoteId` returns `{ state, lock }`, and `LiquidityProvider.lockFor` is implemented by the agent and the HTTP client.
+- When asking again fails ("no open quote", because the agent already locked), `DonorSwap.requestLock` fetches the lock that was made. `verifyLock` still checks it on chain.
+- Test (`bridge.service`, on Anvil): lock, drop the reply, ask again. The donor gets the identical lock, it verifies, and the agent has exactly one locked swap.
