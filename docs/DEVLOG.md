@@ -1794,3 +1794,12 @@ The work runs through the TODO list in order of ease, with one commit per item. 
 - agent limits with a 0 price, or a milestone limit below one call.
 
 It also accepts unicode, a single 100 % milestone, and the maximum of 4 milestones. The "10 milestones" case in the plan is therefore a refusal: `MAX_MILESTONES` is 4. The code already did all of this; the gap was the proof.
+
+**8.3 Votes and pledge registration** (§4), in `test/server.votes.test.ts`:
+- An exact 50 % YES does **not** release milestone 2; 50 % plus one sat does.
+- A refunded donor's vote and a stranger's vote weigh 0.
+- A changed vote replaces the earlier one (one ballot per donor, via the DB upsert).
+- The same pledge registered twice gets 409 "pledge already registered", and `raised` counts it once.
+- A pledge after the deadline is refused ("closed").
+
+The code already behaved this way. One of my test fixtures was wrong: after removing the refunded pledge, the campaign had missed its goal, so it was "failed" rather than "voting". I fixed the fixture, not the code.
