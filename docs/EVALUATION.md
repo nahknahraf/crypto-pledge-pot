@@ -117,3 +117,24 @@ big for this hackathon.
    well" and lets its pledge be refunded or released.
 6. **A refund tool** for any escrow, given its outpoint (terms can be read
    from chain). This covers the 10,000-sat test donation from 2027-01-28.
+
+---
+
+## 5. Follow-up: fixes made after this evaluation (same day)
+
+| Finding | Status |
+|---|---|
+| Offline demo could reach a real wallet (the incident) | ✅ Fixed: the server reports its network; in `mock` the app never contacts a wallet; mismatched networks are refused |
+| No in-app confirmation before payments | ✅ Fixed for donate, launch, withdraw, reclaim and agent top-up |
+| Mobile: 627 px on a 390 px phone | ✅ Fixed: every page measures 390 px |
+| 413 returned as HTML | ✅ JSON (plus JSON for malformed bodies) |
+| Index not rebuildable from chain | ✅ `POST /api/import` + `npm run import`; "Fund a well" restored from mainnet |
+| No legacy `bitfund` key path | ✅ Per-campaign protocol tag; legacy release and refund tested |
+| Orphaned escrow (10,000-sat test donation) | ✅ `reclaimEscrow(outpoint)` + Dashboard "Recover"; usable from 2027-01-28 |
+| Index goes stale unless spends are reported | ✅ Chain watcher (WhatsOnChain), every 5 min; a mainnet round ran cleanly |
+| Single arbiter key | ⏳ Unchanged (design limitation; M-of-N is roadmap) |
+| BRC-121 header size for third-party APIs | ⏳ Unchanged (documented; a protocol-level issue) |
+| Bundle size (729 KB) | ⏳ Unchanged |
+| Gate items: mainnet agent run, video, tx links | ⏳ Need the team's sats, so still open |
+
+Tests: 98 passing (60 CryptoPledgePot + 38 starter kit).

@@ -799,3 +799,38 @@ passed SPV via Arcade and named this server's arbiter key, so it's the same
 arbiter as before. The test donation `217be330…` couldn't be imported
 (WhatsOnChain has no BEEF for it yet, HTTP 422; it was still unconfirmed), and
 it would be skipped anyway because its campaign only lived in the demo.
+
+## Fix 3: a watcher, so the index can't quietly drift
+
+Until now the index only learned about a release or refund if someone told it
+(`POST /api/spends`). If a donor reclaimed with another tool, or a report got
+lost on a flaky connection, the index would keep showing money that had
+already left.
+
+**`server/watcher.ts`.** Every 5 minutes (`CRYPTOPLEDGEPOT_WATCH_S`, 0 turns it
+off) the server asks WhatsOnChain, for each active escrow, "has this output been
+spent?". For each spend it fetches the spending transaction with its proofs and
+passes it to `recordSpend()`, the same SPV-checked code that handles reports.
+Notes:
+- one release can spend dozens of escrows, so each spending transaction is
+  recorded once;
+- if the spend is still unconfirmed, WhatsOnChain has no BEEF for it yet, and
+  it's picked up in a later round;
+- rounds never overlap, and the watcher only logs when something happened.
+
+**How we checked it:**
+- `test/watcher.test.ts`: a client whose reports are deliberately "lost".
+  1. The creator releases milestone 1: the index still says nothing was
+     released.
+  2. One watcher round: the release is recorded once (it spent two escrows)
+     and the campaign shows 3,000 released / 3,000 escrowed.
+  3. A donor reclaims, report lost again: the next round marks the pledge
+     refunded.
+  4. A third round changes nothing.
+- One real round against **mainnet** on the restored index:
+  `{"checked":1,"recorded":[],"pending":[]}`. The "Fund a well" pledge is
+  correctly seen as unspent.
+
+Full suite: **98 passing**. `docs/EVALUATION.md` now has a follow-up table:
+eight findings fixed. Still open: the single arbiter key, BRC-121 header size,
+bundle size, and the gate items that need sats.

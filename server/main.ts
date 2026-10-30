@@ -9,6 +9,7 @@
  *   PORT                  8787
  *   CRYPTOPLEDGEPOT_DB            ./data/cryptopledgepot.db
  *   ARBITER_WALLET_DB     ./data/arbiter-wallet.sqlite
+ *   CRYPTOPLEDGEPOT_WATCH_S  300 (chain watcher interval; 0 disables it)
  *
  * The arbiter wallet is a full wallet-toolbox wallet. It never needs funds:
  * it only derives keys, signs sighashes and authenticates the API (BRC-103).
@@ -18,7 +19,8 @@ import path from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
 import { Setup } from '@bsv/wallet-toolbox'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
-import { createCryptoPledgePotApp } from './app'
+import { createCryptoPledgePotService } from './app'
+import { startWatcher, wocSpendSource } from './watcher'
 import { CryptoPledgePotDb, sqliteKnex } from './db'
 
 const chain = process.env.NETWORK === 'test' ? 'test' : 'main'
@@ -50,13 +52,17 @@ async function main (): Promise<void> {
   const db = new CryptoPledgePotDb(sqliteKnex(process.env.CRYPTOPLEDGEPOT_DB ?? path.join(dataDir, 'cryptopledgepot.db')))
   await db.migrate()
 
-  const app = createCryptoPledgePotApp({
+  const service = createCryptoPledgePotService({
     wallet: setup.wallet,
     db,
     network: chain,
     chainTracker: new ArcadeChainTracker(chain === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
   })
-  app.listen(port, () => {
+  // Index releases and refunds nobody reported (every CRYPTOPLEDGEPOT_WATCH_S seconds, default 300; 0 = off).
+  const watchS = Number(process.env.CRYPTOPLEDGEPOT_WATCH_S ?? 300)
+  if (watchS > 0) startWatcher(db, service, wocSpendSource(chain), watchS * 1000)
+
+  service.app.listen(port, () => {
     console.log(`CryptoPledgePot indexer + arbiter on http://localhost:${port} (${chain}net)`)
     console.log(`Arbiter identity key: ${setup.identityKey}`)
   })
