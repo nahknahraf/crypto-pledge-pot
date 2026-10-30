@@ -1,6 +1,6 @@
 # Plan: the donor agent
 
-*30 October 2026 · status: plan, nothing built yet · use cases:
+*30 October 2026 · status: **D1–D5 built on branch `donor-agent`** (co-pilot and autopilot; tested offline; not yet on mainnet) · use cases:
 [`USE_CASES.md`](USE_CASES.md) part B*
 
 **What it is:** an AI agent that gives on someone's behalf. The donor

@@ -1312,3 +1312,58 @@ with real wallets and the server.
   - autopilot refuses to start without a budget wallet.
 
 Full suite: **128 passing** (17 files); both type-checks clean.
+
+## Step 4: a page, a command, and the donor's own API
+
+**What we built:**
+- **`npm run donor` (`donor/main.ts`):** reads the donor's terms from
+  `data/donor-mandate.json` (template: `donor-mandate.example.json`).
+  - In co-pilot it needs no wallet at all.
+  - In autopilot it creates its own wallet-toolbox budget wallet, and it
+    refuses to run against the offline demo, so a real budget can never meet
+    simulated campaigns.
+- **The agent's own API (`donor/http.ts`):** status and budget (given /
+  proposed / left / reclaimed), memos, approve, decline, run a round, and a
+  BRC-29 budget top-up (autopilot only). It listens on **127.0.0.1 only**,
+  because a donor agent is personal. Only the *local* dev server proxies
+  `/donor` to it; the public share server never does.
+- **"My donor agent" page (`app/src/pages/Donor.tsx`):** the terms, a budget
+  bar, the proposals with memo, score, reasons and checks, and:
+  - **Approve & pay**: an in-app confirmation, then payment from the donor's
+    own BSV Desktop, then the pledge id goes to the agent, which verifies it;
+  - **Decline**.
+
+  It also shows what the agent did, and what it skipped and why. Without a
+  running agent, the page explains how to start one.
+
+**What broke:**
+- **A wrong refusal message.** In the offline demo, "Approve & pay" refused
+  correctly, but said "connect your wallet first" instead of the real reason:
+  the page read the wallet's error before React had updated it. Now it states
+  the reason directly.
+- **A half-applied edit.** My edit script replaced two identical lines in
+  one go, so its next step didn't find its target. The script aborted
+  *before writing*, which meant neither fix had landed while the tests still
+  passed. Caught by checking the result; re-applied.
+
+**How we checked it:**
+- `test/donor.http.test.ts` (2 tests, over HTTP):
+  - co-pilot: status → a round → 2 proposals reserving budget → a malformed
+    approval refused → approval with the donor's real pledge → decline frees
+    the budget → budget numbers add up → top-up refused in co-pilot;
+  - autopilot: a BRC-29 top-up lands in the agent's wallet (balance 7,000).
+- **Browser** (Playwright, read-only, offline demo, so no wallet can be
+  contacted):
+  - 2 proposals, with "10,000 sats proposed · 20,000 sats left";
+  - 2 skipped (the AI-agent manipulation attempt and the off-topic one);
+  - "Approve & pay" refused with the demo reason;
+  - no page errors and **no dialog**, so the wallet was never reached.
+
+  Screenshot: `docs/screenshots/donor-copilot.png`.
+- Full suite: **130 passing** (18 files); both type-checks clean; build OK.
+
+**Not done yet:**
+- a real run on mainnet (co-pilot with BSV Desktop; autopilot with a small
+  budget);
+- a screenshot of the autopilot view;
+- adding the donor agent to the "AirWatch live" story (D6).

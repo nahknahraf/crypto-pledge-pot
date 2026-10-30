@@ -143,3 +143,17 @@ blockquote, .description, .feed li p { overflow-wrap: anywhere; }
 .activity li { padding: 0.2rem 0; border-bottom: 1px dashed var(--line); overflow-wrap: anywhere; }
 .activity li.refused { color: var(--err); font-weight: 600; }
 .activity li.paid { color: var(--brand); }
+
+.budget-bar { display: flex; height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 0.5rem 0 0.3rem; }
+.budget-bar .pledged { background: var(--brand); }
+.budget-bar .reserved { background: #e0b25b; }
+.memo .score { font-size: 1.4rem; font-weight: 800; color: var(--brand); }
+.memo .reasons { margin: 0.3rem 0 0.6rem; padding-left: 1.1rem; }
+.checks { list-style: none; padding: 0; }
+.checks li.ok { color: var(--brand); }
+.checks li.err { color: var(--err); }
+.memo-list { list-style: none; padding: 0; margin: 0; }
+.memo-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 0.2rem 0.8rem; align-items: baseline; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.memo-list li > .muted, .memo-list li > a.small { grid-column: 2 / -1; }
+.memo-list .tag { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; background: var(--brand-soft); color: var(--brand); border-radius: 999px; padding: 0.1rem 0.5rem; }
+.memo-list li.declined .tag, .memo-list li.failed .tag { background: #f9e5e3; color: var(--err); }

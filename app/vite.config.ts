@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 // browser same-origin, including the BRC-103 handshake at /.well-known/auth.
 const target = process.env.CRYPTOPLEDGEPOT_SERVER ?? 'http://localhost:8787'
 const agent = process.env.AGENT_SERVER ?? 'http://localhost:8791'
+const donor = process.env.DONOR_SERVER ?? 'http://127.0.0.1:8792'
 
 // xfwd: pass the visitor's IP on (X-Forwarded-For), so the server's rate limits apply per visitor, not per tunnel.
 const proxy = {
@@ -22,7 +23,8 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
     fs: { allow: ['..'] },
-    proxy
+    // The donor agent is personal (one donor, on their machine): only the LOCAL dev server reaches it.
+    proxy: { ...proxy, '/donor': { target: donor, rewrite: (p: string) => p.replace(/^\/donor/, '') } }
   },
   // `npm run share`: serves ONLY the built app (dist/app) plus the proxies.
   // This is the one to put behind a tunnel. SHARE_HOST = the tunnel's hostname.

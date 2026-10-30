@@ -13,3 +13,7 @@ data/agent-state.json*
 .env.share
 data/logs/
 .env.docker
+data/donor.key
+data/donor-wallet.sqlite*
+data/donor-memos.json*
+data/donor-mandate.json

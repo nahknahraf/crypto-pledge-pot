@@ -1,0 +1,18 @@
+{
+  "name": "Water first",
+  "mode": "copilot",
+  "interests": "clean water wells, filters and sanitation, especially in East Africa",
+  "keywords": ["water", "well", "sanitation"],
+  "budget": { "totalSats": 50000, "perPledgeMaxSats": 10000, "perCreatorMaxPct": 40 },
+  "requirements": {
+    "minCreatorCompleted": 0,
+    "rejectMostlyFailedCreators": true,
+    "maxGoalSats": 10000000,
+    "minRefundWindowDays": 7,
+    "minMilestonePercent": 10,
+    "agentCampaigns": "allow"
+  },
+  "scoreThreshold": 60,
+  "memo": { "name": "Water-first donor" },
+  "donorIdentityKey": "PUT YOUR BSV DESKTOP IDENTITY KEY HERE (co-pilot), or remove this line"
+}

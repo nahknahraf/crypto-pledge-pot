@@ -288,6 +288,41 @@ behind the same middleware.
 
 Build log: `docs/DEVLOG.md` (agent steps 0–6).
 
+---
+
+## 6. The donor agent: an AI that gives for you
+
+The other half of the agentic idea: an agent that **gives**, within your
+terms (budget, interests, limits), and does the due diligence.
+
+- **Co-pilot:** it finds and checks campaigns and proposes pledges with a short
+  memo (score, reasons, every check). You approve and pay from **your own**
+  BSV Desktop on the **My donor agent** page; the agent then verifies that
+  pledge.
+- **Autopilot:** you move a budget into the agent's own wallet; it pledges,
+  verifies the payments linked in milestone reports and votes (or abstains
+  without evidence), and reclaims money from failed or expired campaigns.
+
+**Due diligence:**
+- **Hard rules in code:** on topic, goal limit, time to deliver, no 1%/99%
+  milestone traps, creator track record, budget, per-pledge and per-creator
+  caps.
+- **Independent checks:** the anchor is **SPV-verified by the agent itself**;
+  the arbiter must be the platform's; an AI-agent campaign's ledger must be
+  receipted.
+- **A 0–100 score with reasons.** Campaign text that tries to instruct AI
+  agents **disqualifies** the campaign.
+
+```bash
+cp donor-mandate.example.json data/donor-mandate.json   # your terms; "mode": "copilot" or "autopilot"
+npm run donor                                            # your agent, on 127.0.0.1:8792 (personal: never exposed)
+npm run app                                              # → My donor agent
+```
+
+![Donor agent, co-pilot](docs/screenshots/donor-copilot.png)
+
+Design: [`docs/DONOR_AGENT_PLAN.md`](docs/DONOR_AGENT_PLAN.md).
+
 ### Known limitations
 - Not yet exercised with a real BSV Desktop wallet on mainnet; the identical
   code runs end to end against wallet-toolbox wallets in the tests. The agent's

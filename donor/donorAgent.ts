@@ -116,7 +116,7 @@ export class DonorAgent {
     if (amount === 0) return skip(['no budget left under your limits'], checks, { score })
 
     const reasons = [`score ${score.total}/100`, ...score.parts.filter(p => p.points > 0).map(p => `${p.name}: ${p.why}`), ...assessment.riskFlags.map(f => `risk: ${f}`)]
-    const summary = `${assessment.summary} Score ${score.total}/100. ${this.mandate.mode === 'copilot' ? 'Proposed' : 'Pledged'} ${amount} sats.`
+    const summary = `${assessment.summary} Score ${score.total}/100. ${this.mandate.mode === 'copilot' ? 'Proposed' : 'Pledged'} ${amount.toLocaleString('en-US')} sats.`
     if (this.mandate.mode === 'copilot') {
       this.log(`propose ${amount} sats to "${c.meta.title}" (score ${score.total})`)
       return this.deps.memos.add({ ...base, kind: 'pledge', status: 'proposed', summary, checks, reasons, score, amount }, now)

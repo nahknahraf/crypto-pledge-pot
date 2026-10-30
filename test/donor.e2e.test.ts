@@ -143,7 +143,7 @@ describe('co-pilot: the agent proposes, the donor approves and pays', () => {
     const proposal = memos.all().find(m => m.campaignId === wellId)!
     expect(proposal).toMatchObject({ kind: 'pledge', status: 'proposed' })
     expect(proposal.amount).toBeGreaterThanOrEqual(100)
-    expect(proposal.summary).toMatch(/Proposed \d+ sats/)
+    expect(proposal.summary).toMatch(/Proposed [0-9,]+ sats/)
     expect(proposal.reasons[0]).toMatch(/^score \d+\/100$/)
     expect(await spendable(donor)).toBe(before) // nothing paid by the agent
     expect(agent.portfolio().total).toBe(memos.all().reduce((t, m) => t + (m.amount ?? 0), 0)) // proposals reserve budget
