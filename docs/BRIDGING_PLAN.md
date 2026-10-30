@@ -177,7 +177,7 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 
 - [ ] **The real BSV leg.** The demo's BSV side is the mock chain. Run the BSV half on mainnet with tiny amounts (needs team sats) and record the txids.
 - [ ] **Base Sepolia run.** Deploy with `npm run evm:deploy`, then run `npm run demo:bridge` with `BRIDGE_RPC_URL` and the other env vars. The public-chain code path exists but is **untested**: it needs funded testnet accounts. Check Circle's docs for the current test-USDC address.
-- [x] **Persisted LP state** (S4). The swaps are saved in a file store; `bridge.service` crashes and restarts the agent mid-swap, and it still collects. Remaining gap: a crash between broadcasting the BSV lock and saving it.
+- [x] **Persisted LP state** (S4). The swaps are saved in a file store; `bridge.service` crashes and restarts the agent mid-swap, and it still collects. A crash between broadcasting the BSV lock and saving it is recovered from the wallet's swap basket. Remaining: an endpoint for the donor to fetch a lock that the agent recovered.
 - [x] **The LP as its own service.** `npm run lp` (HTTP: status, quote, lock), with `LiquidityClient` for donors. Both implement `LiquidityProvider`.
 - [x] **One source lock, one swap** (S5). This was a real hole, now fixed (`swap.edges`).
 - [ ] **Confirmations before locking sats** (S10). `EvmUsdcChain` waits N confirmations for its *own* transactions. The LP should also check the *donor's* lock depth before locking sats.

@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Wallet } from '@bsv/wallet-toolbox'
 import { newSecret } from '../core/swap'
 import { newSwapKey } from '../swap/bsv'
-import { DEFAULT_LIQUIDITY, LiquidityAgent } from '../swap/liquidityAgent'
+import { memoryStore, type Store } from '../agent/ledger'
+import { DEFAULT_LIQUIDITY, LiquidityAgent, type LpSwap } from '../swap/liquidityAgent'
 import { SimulatedUsdcChain, USDC, type SourceChain } from '../swap/usdcChain'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
@@ -74,4 +75,41 @@ describe('accepting a source lock', () => {
     const results = [await Promise.allSettled([first]), second].flat()
     expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
   })
+
+  it('a crash right after broadcasting the BSV lock: the restarted agent finds the lock in its basket, then refunds it on time', async () => {
+    clock = T0 + 4 * 86_400
+    const disk = memoryStore<LpSwap[]>([])
+    // Simulate dying between the broadcast and saving 'locked': that save never reaches the disk.
+    const crashing: Store<LpSwap[]> = { load: disk.load, save: v => { if (v.some(x => x.state === 'locked')) throw new Error('process died'); disk.save(v) } }
+    const before = new LiquidityAgent(lpWallet, usdc, '0xLP', async () => undefined, async () => await spendable(lpWallet), DEFAULT_LIQUIDITY, crashing)
+    const q = await before.quote(5 * USDC, donorKey)
+    await expect(before.acceptSourceLock(q.id, await lockFor(5 * USDC, q.minSourceRefundAfter))).rejects.toThrow(/process died/)
+    expect(disk.load().map(x => x.state)).toEqual(['locking'])
+    const inventory = await spendable(lpWallet)
+
+    const after = new LiquidityAgent(lpWallet, usdc, '0xLP', async () => undefined, async () => await spendable(lpWallet), DEFAULT_LIQUIDITY, disk)
+    await after.step() // finds the broadcast lock
+    const swap = after.all().find(x => x.quote.id === q.id)!
+    expect(swap.state).toBe('locked')
+    expect(swap.lock?.satoshis).toBe(q.sats)
+    expect(after.log.join(' ')).toMatch(/recovered our lock/)
+
+    clock = swap.lock!.terms.refundAfter // the donor never claims
+    await after.step()
+    expect(after.state(q.id)).toBe('refunded')
+    expect(await spendable(lpWallet)).toBeGreaterThan(inventory + q.sats - 2_000) // the sats came back
+  })
+
+  it('a crash before anything was broadcast: the restarted agent closes the swap instead of guessing', async () => {
+    clock = T0 + 5 * 86_400
+    const disk = memoryStore<LpSwap[]>([])
+    const a = new LiquidityAgent(lpWallet, usdc, '0xLP', async () => undefined, async () => await spendable(lpWallet), DEFAULT_LIQUIDITY, disk)
+    const q = await a.quote(5 * USDC, donorKey)
+    const pending = { terms: { hashlock: newSecret().hashlock, receiver: donorKey, sender: donorKey, refundAfter: clock + 3600 }, satoshis: q.sats }
+    disk.save(disk.load().map(x => ({ ...x, state: 'locking' as const, senderKeyID: 'k', pending })))
+    const b = new LiquidityAgent(lpWallet, usdc, '0xLP', async () => undefined, async () => await spendable(lpWallet), DEFAULT_LIQUIDITY, disk)
+    await b.step()
+    expect(b.all()[0]).toMatchObject({ state: 'rejected', note: /never broadcast/ })
+  })
 })
+

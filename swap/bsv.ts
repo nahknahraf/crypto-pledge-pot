@@ -4,7 +4,7 @@
  * derived in the wallet (never the identity key); the app computes sighashes
  * and the wallet signs, exactly like the escrow flows.
  */
-import { Hash, Random, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
+import { Beef, Hash, Random, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
 import { ALL_SCOPE, preimage } from '../core/pledge'
 import { claimUnlock, swapLockingScript, swapRefundUnlock, swapUnlockLength, type SwapTerms } from '../core/swap'
 
@@ -41,6 +41,25 @@ export async function lockSats (wallet: WalletInterface, terms: SwapTerms, satos
   if (res.tx === undefined || res.txid === undefined) throw new Error('wallet did not lock the sats')
   const vout = Transaction.fromAtomicBEEF(res.tx).outputs.findIndex(o => o.lockingScript.toHex() === lockingScript)
   return { txid: res.txid, vout, satoshis, terms, beef: hex(res.tx) }
+}
+
+/**
+ * Find a lock we may have broadcast without recording it (a crash right after lockSats):
+ * the output with exactly these terms in our swap basket. Undefined if it was never made.
+ */
+export async function findLock (wallet: WalletInterface, terms: SwapTerms, satoshis: number): Promise<BsvLock | undefined> {
+  const lockingScript = swapLockingScript(terms).toHex()
+  const res = await wallet.listOutputs({ basket: SWAP_BASKET, include: 'entire transactions', limit: 1000 })
+  if (res.BEEF === undefined) return undefined
+  const beef = Beef.fromBinary(Array.from(res.BEEF))
+  for (const o of res.outputs) {
+    const [txid, vout] = o.outpoint.split('.')
+    const tx = beef.findAtomicTransaction(txid)
+    if (tx?.outputs[Number(vout)]?.lockingScript.toHex() === lockingScript && o.satoshis === satoshis) {
+      return { txid, vout: Number(vout), satoshis, terms, beef: hex(beef.toBinaryAtomic(txid)) }
+    }
+  }
+  return undefined
 }
 
 /** Spend a swap lock (claim with the secret, or refund after the timeout); the sats land in the wallet as change. */

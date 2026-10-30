@@ -1912,3 +1912,16 @@ Test (`agent.e2e`): the anchor fails once. Nothing is posted, the milestone isn'
 - Tests: refused while held, works after release; a stale lock is taken over.
 - Checked for real: two `npm run lp` against one Anvil, and the second is refused.
 - `data/*.lock` is now gitignored.
+
+**8.17 The liquidity agent's crash window, closed.** Before, a crash between broadcasting the BSV lock and saving it left sats locked in a swap the agent knew nothing about. It would never collect the USDC and never refund.
+- Now the agent saves a `locking` intent (exact terms and amount) **before** broadcasting.
+- On the next `step()`, any `locking` swap is resolved from the wallet's swap basket by `findLock`: the output with exactly those terms.
+  - Found: the swap is `locked`, so it collects as usual, or refunds after its timeout.
+  - Not found: the swap is closed as `rejected` ("never broadcast"), and the donor refunds their USDC after their timeout.
+- If `lockSats` itself throws, the agent checks the basket before giving up.
+- Tests (`swap.edges`):
+  - a store that "dies" exactly when `locked` would be saved; the restarted agent recovers the lock and later refunds the sats (the inventory comes back);
+  - a `locking` intent with nothing broadcast is closed, not guessed at.
+- `locking` swaps now count against inventory.
+
+**Open:** a donor whose `acceptSourceLock` reply was lost in such a crash needs an endpoint to fetch the recovered lock.

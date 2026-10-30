@@ -16,8 +16,8 @@
  */
 import type { WalletInterface } from '@bsv/sdk'
 import { memoryStore, type Store } from '../agent/ledger'
-import { secretFromClaim } from '../core/swap'
-import { lockSats, newSwapKey, refundSats, type BsvLock, type SpendFinder } from './bsv'
+import { secretFromClaim, type SwapTerms } from '../core/swap'
+import { findLock, lockSats, newSwapKey, refundSats, type BsvLock, type SpendFinder } from './bsv'
 import { formatUsdc, USDC, type SourceAccount, type SourceChain } from './usdcChain'
 
 export interface LiquidityConfig {
@@ -53,7 +53,16 @@ export interface Quote {
 }
 
 /** One swap as the liquidity agent records it. Plain JSON, so it can be persisted. */
-export interface LpSwap { quote: Quote, sourceHtlcId?: string, lock?: BsvLock, senderKeyID?: string, state: 'quoted' | 'locked' | 'settled' | 'refunded' | 'rejected', note?: string }
+export interface LpSwap {
+  quote: Quote
+  sourceHtlcId?: string
+  lock?: BsvLock
+  senderKeyID?: string
+  /** 'locking': we are about to broadcast (or did, then crashed) the BSV lock described by `pending`. */
+  state: 'quoted' | 'locking' | 'locked' | 'settled' | 'refunded' | 'rejected'
+  pending?: { terms: SwapTerms, satoshis: number }
+  note?: string
+}
 
 /**
  * What a donor needs from a liquidity provider. LiquidityAgent implements it
@@ -98,7 +107,7 @@ export class LiquidityAgent implements LiquidityProvider {
     if (usdc > this.config.maxUsdc) throw new Error(`above this agent's limit of ${formatUsdc(this.config.maxUsdc)}`)
     if (!/^0[23][0-9a-f]{64}$/.test(donorBsvKey)) throw new Error('donor key must be a compressed public key')
     const sats = Math.floor((usdc / USDC) * this.config.satsPerUsdc)
-    const openExposure = [...this.swaps.values()].filter(s => s.state === 'quoted' || s.state === 'locked').reduce((t, s) => t + s.quote.sats, 0)
+    const openExposure = [...this.swaps.values()].filter(s => s.state === 'quoted' || s.state === 'locking' || s.state === 'locked').reduce((t, s) => t + s.quote.sats, 0)
     if ((await this.spendable()) - openExposure - sats < this.config.feeReserve) throw new Error('not enough BSV inventory for this swap right now')
     const now = await this.source.now()
     const q: Quote = { id: `q${this.swaps.size + 1}`, usdc, sats, lpAddress: this.usdc.address, donorBsvKey, expiresAt: now + this.config.quoteValidity, minSourceRefundAfter: now + this.config.minSourceWindow }
@@ -132,8 +141,20 @@ export class LiquidityAgent implements LiquidityProvider {
     if (h!.refundAfter < s.quote.minSourceRefundAfter) reject('the USDC lock\'s timeout is too short to be safe')
     const refundAfter = h!.refundAfter - this.config.safetyMargin // T2 < T1: the donor can always claim first
     const key = await newSwapKey(this.wallet)
-    const lock = await lockSats(this.wallet, { hashlock: h!.hashlock, receiver: s.quote.donorBsvKey, sender: key.publicKey, refundAfter }, this.lockedAmount(s.quote), key.keyID)
-    Object.assign(s, { sourceHtlcId, lock, senderKeyID: key.keyID, state: 'locked' })
+    const pending = { terms: { hashlock: h!.hashlock, receiver: s.quote.donorBsvKey, sender: key.publicKey, refundAfter }, satoshis: this.lockedAmount(s.quote) }
+    // Write the intent BEFORE broadcasting: a crash in between leaves 'locking', which step() resolves
+    // from the wallet's swap basket, so the sats are never orphaned.
+    Object.assign(s, { senderKeyID: key.keyID, pending, state: 'locking' })
+    this.persist()
+    let lock: BsvLock
+    try {
+      lock = await lockSats(this.wallet, pending.terms, pending.satoshis, key.keyID)
+    } catch (e) {
+      const found = await findLock(this.wallet, pending.terms, pending.satoshis).catch(() => undefined)
+      if (found === undefined) reject(`could not lock sats: ${(e as Error).message}`)
+      lock = found!
+    }
+    Object.assign(s, { lock, state: 'locked', pending: undefined })
     this.persist() // from here on a restart must not lose this swap: it holds our sats
     this.say(`saw ${formatUsdc(h!.amount)} locked for us; locked ${lock.satoshis.toLocaleString('en-US')} sats for the donor (tx ${lock.txid.slice(0, 12)}…)`)
     return lock
@@ -144,6 +165,7 @@ export class LiquidityAgent implements LiquidityProvider {
 
   /** Watch open swaps: collect USDC once the donor's claim reveals the secret; refund sats after T2. */
   async step (): Promise<void> {
+    await this.recover()
     for (const s of this.swaps.values()) {
       if (s.state !== 'locked' || s.lock === undefined) continue
       const spend = await this.findSpend(s.lock.txid, s.lock.vout)
@@ -160,6 +182,22 @@ export class LiquidityAgent implements LiquidityProvider {
         this.persist()
         this.say(`donor never claimed; refunded our ${s.quote.sats.toLocaleString('en-US')} sats`)
       }
+    }
+  }
+
+  /** Resolve swaps a crash left in 'locking': the lock is in our basket (now 'locked') or was never made ('rejected'). */
+  private async recover (): Promise<void> {
+    for (const s of this.swaps.values()) {
+      if (s.state !== 'locking' || s.pending === undefined) continue
+      const found = await findLock(this.wallet, s.pending.terms, s.pending.satoshis)
+      if (found !== undefined) {
+        Object.assign(s, { lock: found, state: 'locked', pending: undefined })
+        this.say(`recovered our lock for ${s.quote.id} after a restart (tx ${found.txid.slice(0, 12)}…)`)
+      } else {
+        Object.assign(s, { state: 'rejected', note: 'our BSV lock was never broadcast', pending: undefined })
+        this.say(`${s.quote.id}: no lock was made before the restart; the donor refunds their USDC after the timeout`)
+      }
+      this.persist()
     }
   }
 
