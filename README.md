@@ -1,9 +1,16 @@
 # CryptoPledgePot: trustless milestone crowdfunding on BSV
 
+> **Fund an AI agent, or a person, without giving them a blank cheque.**
+> Money sits in on-chain escrow, is released one milestone at a time after a
+> report and a vote, and comes back to donors if the work stops.
+
 On CryptoPledgePot, donations go into **sCrypt escrow contracts**, not to the creator.
 Creators are paid **milestone by milestone**, as the goal is met and donors
 vote. If a campaign fails, donors **take their sats back from the script
 itself**. Fees are a fraction of a cent, so tiny donations are practical.
+Two AI agents use it: a **fundraising agent** that raises its own budget and
+pays for data per call, and a **donor agent** that gives on someone's behalf
+after doing the due diligence.
 
 ![Campaign page](docs/screenshots/funded.png)
 
@@ -13,13 +20,29 @@ itself**. Fees are a fraction of a cent, so tiny donations are practical.
 | Wallets | Any BRC-100 wallet (BSV Desktop). Keys never leave the wallet |
 | Release | Creator + arbiter signatures. A covenant keeps the unreleased part escrowed |
 | Refund | Donor alone after the refund date (nLockTime), or immediately if the campaign failed |
-| Audit | Campaign JSON and every donation memo written on chain (`OP_RETURN`) |
-| Stack | `@bsv/sdk`, `@bsv/wallet-toolbox`, BRC-29/42/43/46/62/95/100/103/104, Arcade, sCrypt |
+| Audit | Campaign terms, donation memos and agent reports recorded on chain (`OP_RETURN`) |
+
+### How we use the BSV stack
+
+| Feature | Standard / package | Where |
+|---|---|---|
+| Wallet connection, signing, transactions | BRC-100 (`WalletClient`, `createAction` / `signAction` / `createSignature`) | `app/src/wallet.tsx`, `client/cryptoPledgePot.ts` |
+| Keys that never leave the wallet | BRC-42/43 derived keys (protocol IDs per role) | `core/campaign.ts` (`protocolsFor`) |
+| Escrow and atomic-swap contracts | sCrypt (OP_PUSH_TX timelocks, covenant), cross-checked byte for byte | `contracts/`, `core/pledge.ts`, `core/swap.ts` |
+| Transactions with proofs | BEEF / AtomicBEEF (BRC-62/95), SPV verification | `server/app.ts`, `donor/diligence.ts`, `swap/donorSwap.ts` |
+| Block headers, transaction lookup | Arcade chaintracks; WhatsOnChain BEEF and spends | `client/arcadeChainTracker.ts`, `server/watcher.ts` |
+| Server, agent, donor and liquidity wallets | `@bsv/wallet-toolbox` (`Setup.createWalletSQLite`) in 5 roles | `server/main.ts`, `agent/wallet.ts`, `donor/main.ts`, `swap/` |
+| Accounts without passwords | BRC-103/104 mutual auth (`AuthFetch`, auth middleware) | `client/cryptoPledgePotApi.ts`, `server/app.ts` |
+| Agent pays per API call | BRC-121 HTTP 402 (`@bsv/402-pay`), capped payer | `agent/pay402.ts`, `agent/dataProvider.ts` |
+| Budget top-ups to agents | BRC-29 payments | `agent/http.ts`, `donor/http.ts` |
+| Donor's pledges tracked in their wallet | BRC-46 baskets with custom instructions | `client/cryptoPledgePot.ts` |
+| Public, rebuildable records | OP_RETURN (campaigns, memos, agent report hashes) | `core/campaign.ts` |
 
 Team: Farhan · Finja · Louisa
 
 **Usage and value note** (problem, users, value for BSV, status): [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md).
-**Use cases:** 20 scenarios for agents raising and giving: [`docs/USE_CASES.md`](docs/USE_CASES.md). Next build: the donor agent ([`docs/DONOR_AGENT_PLAN.md`](docs/DONOR_AGENT_PLAN.md)).
+**Use cases:** 20 scenarios for agents raising and giving: [`docs/USE_CASES.md`](docs/USE_CASES.md). The donor agent: [section 6](#6-the-donor-agent-an-ai-that-gives-for-you).
+**Self-assessment against the track criteria:** [`docs/JUDGING_REPORT.md`](docs/JUDGING_REPORT.md).
 **AI agent payments:** an autonomous agent raises its own budget on CryptoPledgePot and spends it on a pay-per-call API, one micropayment per call. See [section 5](#5-ai-agent-service-agentic-payments).
 
 ---

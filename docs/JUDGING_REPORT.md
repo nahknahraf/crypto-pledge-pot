@@ -47,8 +47,12 @@ a refreshed usage note add +1.
 
 1. **Mainnet run R1** (`docs/FUNDRAISING_AGENT_PLAN.md` §3): sats + an
    Anthropic key needed.
-2. A transaction-link table in `docs/USAGE_AND_VALUE.md`; refresh its test
-   count.
+2. Fill the transaction-link table in `docs/USAGE_AND_VALUE.md` from R1
+   (the table and the refreshed status are in place; 2 existing mainnet
+   links listed).
 3. **Video** (`docs/DEMO_SCRIPT.md`).
-4. README stack table and a one-line pitch.
-5. Point ngrok at port 8081 for the public URL.
+4. Point ngrok at port 8081 for the public URL.
+
+Done since this report was first written: the README pitch and the
+feature → BRC/package → code table; the usage note's status (both agents,
+swaps, real data, 149 tests).

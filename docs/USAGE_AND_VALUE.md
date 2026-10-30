@@ -64,9 +64,25 @@ operating budget.**
 | Wallet flows (`client/cryptoPledgePot.ts`) | ✅ | `createAction` / `signAction` with BRC-42 derived keys. The app computes sighashes and the wallet signs (`createSignature`), so keys never leave the wallet. Released sats land in the creator's wallet as change |
 | Indexer + arbiter (`server/`) | ✅ | Express + SQLite. SPV-verifies every transaction via Arcade, checks escrow terms, authenticates writes with BRC-103 (AuthFetch), and streams a live feed (SSE). The arbiter is a wallet-toolbox wallet that co-signs only when the rules hold: goal met by the deadline, or a creator update plus a majority vote |
 | Web app (`app/`, React) | ✅ | Campaign list, campaign page with live feed and Donate, create form, creator/donor dashboard. `npm run demo` serves seeded campaigns offline |
-| AI agent service (`agent/`) | ✅ offline · ⏳ mainnet | A wallet-toolbox agent launches its own campaign, withdraws milestones into its wallet, lets Claude choose which data to buy, and pays a BRC-121 API per call through a capped payer (allow-list, price cap, budget). It logs every payment and posts its report with WhatsOnChain links, which opens the backers' vote |
-| Tests | ✅ | 88 passing: contract matches the sCrypt compiler byte for byte and every spending path is run through the script interpreter; CryptoPledgePot and the agent end to end on wallet-toolbox's mock chain |
-| Mainnet transactions | ⏳ | Waiting for team sats. The agent's mainnet start-up is smoke-tested and needs about 3,000 sats of fee float. Links will be added here |
+| Fundraising agent (`agent/`) | ✅ offline · ⏳ mainnet | A wallet-toolbox agent launches its own campaign **with its spending limits published in the terms**, withdraws milestones into its wallet, lets Claude choose which data to buy, and pays a BRC-121 API per call through a capped payer (allow-list, price cap, budget). The data is **real** (Open-Meteo air quality, resold per call). It logs every payment, **records each report's hash on chain**, and posts the report with WhatsOnChain links, which opens the backers' vote. Survives restarts without spending twice |
+| Donor agent (`donor/`) | ✅ offline · ⏳ mainnet | Gives within the donor's terms. Co-pilot: proposes pledges with a memo; the donor approves and pays from their own wallet. Autopilot: pledges from a budget wallet, verifies reports before voting, reclaims from failed campaigns. Hard rules in code; anchors verified by SPV; agent ledgers audited against their published limits; manipulation attempts disqualified |
+| Cross-chain swap (`swap/`) | ✅ BSV side · ⚠️ USDC side simulated | sCrypt AtomicSwap + liquidity agent: a donor with only USDC ends up with sats in their own wallet with no custodian. The USDC chain is a simulated HTLC ledger in this version |
+| Tests | ✅ | **149 passing** (23 files): both contracts match the sCrypt compiler byte for byte and every spending path is run through the script interpreter; CryptoPledgePot, both agents, recovery and swaps end to end on wallet-toolbox's mock chain; app and test code type-checked |
+| Mainnet transactions | ⚠️ partial | A campaign anchor and pledges exist (below). The agent run (R1 in `FUNDRAISING_AGENT_PLAN.md`) waits for team sats and an Anthropic key |
+
+## Mainnet transactions
+
+| Step | Transaction | Status |
+|---|---|---|
+| Campaign anchor ("Fund a well", pre-rename) | [`c1309193…`](https://whatsonchain.com/tx/c13091938fe16b3949219ed04834efa99a19118dc4a49153a42393952eaaaa2c) | ✅ |
+| Donation into escrow (1,000 sats) | [`0e637517…`](https://whatsonchain.com/tx/0e6375174520819879585b8a2b68e8d0a7bb0ae6d04b2a23ea31930f1e69002d) | ✅ |
+| Agent campaign launch | – | ⏳ R1 |
+| Donations to the agent (BSV Desktop) | – | ⏳ R1 |
+| Milestone release to the agent | – | ⏳ R1 |
+| **Agent pays the data API per call** (≥2) | – | ⏳ R1 |
+| Agent report hash anchored | – | ⏳ R1 |
+| Backer vote → second release | – | ⏳ R1 |
+| Refund from a failed campaign | – | ⏳ R1 |
 
 **Trust model.** Neither CryptoPledgePot nor the creator can take donors' money alone.
 The arbiter can't spend anything by itself. A colluding creator and arbiter

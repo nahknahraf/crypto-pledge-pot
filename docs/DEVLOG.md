@@ -1619,3 +1619,20 @@ transaction for the milestone.
 - `agent.e2e` restart (1).
 
 Full suite: **149 passing** (23 files); both type-checks clean.
+
+## Step 2: submission docs
+
+- **README:** a one-line pitch at the top ("Fund an AI agent, or a person,
+  without giving them a blank cheque"); both agents introduced in the opening
+  paragraph; a **"How we use the BSV stack" table** mapping each feature to
+  its standard or package and the files that implement it (BRC-100, 42/43,
+  62/95, 103/104, 121, 29, 46, sCrypt, Arcade, wallet-toolbox in 5 roles,
+  OP_RETURN). The stale "Next build: the donor agent" line now links to its
+  section, plus a link to the judging report.
+- **Usage note:** status rows for the donor agent and the swap (USDC side
+  marked simulated), the fundraising agent's new guarantees (published limits,
+  anchored reports, real data, restart safety), the test count (149, was 88),
+  and a **mainnet transaction table**. The 2 existing mainnet links are in it;
+  the agent-run rows are marked ⏳ R1.
+- The judging report's open list is updated: what's left is the mainnet run,
+  the video and the ngrok port.
