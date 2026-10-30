@@ -71,6 +71,8 @@ describe('a funded campaign with three milestones', () => {
   it('donors pledge into escrow; every pledge carries an on-chain memo', async () => {
     const { meta } = await api().campaign(campaignId)
     const p = await as(alice).donate(meta, 6_000, { name: 'Alice', message: 'Go solar!' })
+    const donationTx = Transaction.fromAtomicBEEF(Array.from(Buffer.from((await api().pledge(p.id)).beef, 'hex')))
+    console.log(`donation: ${donationTx.toBinary().length} bytes, fee ${donationTx.getFee()} sats`)
     await as(bob).donate(meta, 3_000, { name: 'Bob' })
     await as(carol).donate(meta, 2_000)
     expect(p).toMatchObject({ amount: 6_000, stage: 0, status: 'active', name: 'Alice', message: 'Go solar!' })

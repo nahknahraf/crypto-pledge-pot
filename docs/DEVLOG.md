@@ -250,3 +250,16 @@ and the components are plain React that drop into Next.js unchanged.
 - **Not verified here:** clicking through with a real BSV Desktop wallet on
   mainnet. No wallet is available in this environment. The same client code
   runs end to end against wallet-toolbox wallets in the e2e tests.
+
+---
+
+## 6. README and cost measurements
+
+- The README now covers the brief's four deliverables: architecture and data
+  flow, the contract, the wallet/donation component, and a step-by-step guide.
+  It adds an explicit trust model and a list of known limitations.
+- **Corrected:** my first README draft estimated a donation at ~2.9 KB / ~290
+  sats. Measured in the e2e test it is **3,458 bytes / 346 sats**: the escrow
+  output plus the wallet's funding input and change. A release is **18,650
+  bytes / 1,866 sats for 3 escrows**. The test prints both figures so the
+  README can be re-checked.
