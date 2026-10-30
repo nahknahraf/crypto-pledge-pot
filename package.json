@@ -17,7 +17,9 @@
     "app:build": "vite build app",
     "contracts:compile": "cd contracts && npm install && npm run compile",
     "contracts:crosscheck": "cd contracts && npm run build && npm run crosscheck",
-    "demo": "vite-node --config vitest.config.ts server/demo.ts"
+    "demo": "vite-node --config vitest.config.ts server/demo.ts",
+    "agent": "vite-node --config vitest.config.ts agent/main.ts --",
+    "data-provider": "vite-node --config vitest.config.ts agent/providerMain.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

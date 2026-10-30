@@ -4,3 +4,9 @@ dist
 data/arbiter.key
 data/arbiter-wallet.sqlite*
 .env
+data/agent.key
+data/provider.key
+data/agent-wallet.sqlite*
+data/provider-wallet.sqlite*
+data/agent-ledger.json*
+data/agent-state.json*

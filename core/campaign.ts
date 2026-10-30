@@ -47,6 +47,10 @@ export interface CampaignMeta {
   /** 16 random bytes hex: keyID of the creator and arbiter keys. */
   nonce: string
   createdAt: number
+  /** 'agent' = the creator is an autonomous AI service raising its operating budget. */
+  kind?: 'agent'
+  /** Where the agent publishes its status and spend ledger (http(s) URL). */
+  agentUrl?: string
 }
 
 /** JSON with sorted keys, no whitespace: the form that is hashed and anchored. */
@@ -81,6 +85,8 @@ export function validateCampaign (meta: CampaignMeta): void {
   if (!isKey(meta.creatorIdentityKey) || !isKey(meta.creatorKey) || !isKey(meta.arbiterKey)) fail('keys must be compressed public keys')
   if (!/^[0-9a-f]{32}$/.test(meta.nonce)) fail('nonce must be 16 bytes hex')
   if (!Number.isSafeInteger(meta.createdAt)) fail('createdAt must be unix seconds')
+  if (meta.kind !== undefined && meta.kind !== 'agent') fail('kind must be "agent" when set')
+  if (meta.agentUrl !== undefined && (!/^https?:\/\/[^\s]+$/.test(meta.agentUrl) || meta.agentUrl.length > 200)) fail('agentUrl must be an http(s) URL')
 }
 
 /** Escrow terms for a pledge of `satoshis` from `donorKey` to this campaign. */

@@ -452,3 +452,47 @@ default is only 8 KB). That's worth telling the BSV team as feedback on BRC-121.
 - an underfunded agent campaign gets nothing, and the backer gets a refund.
 
 Full suite: **85 passing** (68 before + 3 payer + 5 brain + 9 agent).
+
+## Step 4: making it something you can actually run
+
+Until now the agent only existed inside tests. This step gives it a real
+wallet, a command to start it, and a window for humans to look through.
+
+**What we added:**
+- **`agent/wallet.ts`:** builds the agent's and the data shop's wallet-toolbox
+  wallets. Each gets its own root key, from an env var or a key file generated
+  once into `data/` with mode 600. All of those are git-ignored, alongside the
+  wallet databases, the ledger and the state file.
+- **`npm run agent` (`agent/main.ts`):** runs the loop every 20 seconds
+  (`--once` for a single step, `--dry-run` to plan without paying). It uses
+  Claude if an Anthropic key is set and the mock brain otherwise, and says
+  which one at start-up. Its campaign describes itself honestly: *"I am an
+  autonomous AI agent… you only fund the next milestone after you have seen
+  my report."*
+- **`npm run data-provider` (`agent/providerMain.ts`):** the paid air-quality
+  API as its own process with its own wallet, using the bigger header limit
+  from step 3.
+- **The agent's window (`agent/http.ts`):**
+  - `GET /api/agent`: identity, campaign, balance, totals, last action;
+  - `GET /api/agent/ledger`: every payment;
+  - `POST /api/agent/fund`: accepts a BRC-29 top-up for the agent's fee money.
+    It verifies the payment and internalizes it. It only ever adds money, so it
+    needs no login.
+- **Campaigns can say they're agents.** Two optional fields in the campaign
+  metadata: `kind: 'agent'` and `agentUrl` (where the ledger lives). We were
+  careful here: the campaign id is a hash of the metadata, and undefined fields
+  are left out of that hash, so every existing campaign keeps its id.
+
+**How we checked it:**
+- `test/agent.http.test.ts` (3 tests): status and ledger come back correctly;
+  an operator's 5,000-sat BRC-29 top-up is accepted and immediately spendable;
+  a payment meant for someone else is rejected ("not locked to our key").
+- Smoke test of the real processes with the **mainnet** configuration:
+  - the data shop answers an unpaid request with `402` and `x-bsv-sats: 50`;
+  - the agent starts, generates its key and reports "brain mock";
+  - with its empty wallet, the launch fails cleanly:
+    *"Insufficient funds… 98 more satoshis are needed"*.
+
+  So the whole thing is one small top-up away from its first real transaction.
+
+Nothing broke in this step. Full suite: **88 passing**.

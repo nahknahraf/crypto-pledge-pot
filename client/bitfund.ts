@@ -48,6 +48,8 @@ export interface LaunchInput {
   deadline: number
   refundAfter: number
   milestones: Milestone[]
+  kind?: 'agent'
+  agentUrl?: string
 }
 
 /** Release at most this many escrows per transaction. */
@@ -104,7 +106,9 @@ export class BitFund {
       creatorKey: await this.derivedKey(CREATOR_PROTOCOL, nonce),
       arbiterKey: await this.api.arbiterKey(nonce),
       nonce,
-      createdAt: Math.floor(Date.now() / 1000)
+      createdAt: Math.floor(Date.now() / 1000),
+      kind: input.kind,
+      agentUrl: input.agentUrl
     }
     validateCampaign(meta)
     const res = await this.wallet.createAction({
