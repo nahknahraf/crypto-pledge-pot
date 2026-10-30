@@ -17,3 +17,7 @@ data/donor.key
 data/donor-wallet.sqlite*
 data/donor-memos.json*
 data/donor-mandate.json
+# Circom and Groth16 outputs can be large and contain deployment-specific keys.
+# Keep generated witness calculators and proving keys out of source control.
+circuits/**/*.wasm
+circuits/**/*.zkey

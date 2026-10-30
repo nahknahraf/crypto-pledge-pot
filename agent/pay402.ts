@@ -11,6 +11,7 @@
 import { constructPaymentHeaders } from '@bsv/402-pay/client'
 import { Beef, Transaction, Utils, type WalletInterface } from '@bsv/sdk'
 import { withHostOriginator } from '../examples/payPerRequest'
+import { createAgentProofHeaders, type AgentProofOptions } from './zkAuth'
 
 export interface PaidResponse<T = unknown> {
   body: T
@@ -29,6 +30,8 @@ export interface Pay402Options {
   /** Highest price per call the agent accepts. */
   maxPricePerCall: number
   fetchImpl?: typeof fetch
+  /** When set, locally prove knowledge of the enrolled secret on each call. */
+  zkAuth?: AgentProofOptions
 }
 
 /** Txid of the payment carried in the x-bsv-beef header (base64 BEEF / AtomicBEEF). */
@@ -46,10 +49,16 @@ export function createCappedPayer (opts: Pay402Options) {
   const wallet = withHostOriginator(opts.wallet)
 
   return async function payAndGet<T = unknown> (url: string): Promise<PaidResponse<T>> {
+    // Keep the existing payment safety boundary: never disclose a proof or
+    // spend funds to a host the agent has not explicitly allow-listed.
     const host = new URL(url).host
     if (!opts.allowedHosts.includes(host)) throw new PaymentRefused(`host ${host} is not on the agent's allow-list`)
 
-    const first = await doFetch(url)
+    // Generate the proof locally before the first request. The same proof is
+    // attached to both attempts so the provider can authenticate the initial
+    // request that returns a 402 as well as the subsequent paid retry.
+    const zkHeaders = opts.zkAuth ? await createAgentProofHeaders(opts.zkAuth) : {}
+    const first = await doFetch(url, { headers: zkHeaders })
     if (first.ok) return { body: await first.json() as T, paid: 0 }
     if (first.status !== 402) throw new Error(`${url}: HTTP ${first.status}`)
 
@@ -59,8 +68,11 @@ export function createCappedPayer (opts: Pay402Options) {
     if (price > opts.maxPricePerCall) throw new PaymentRefused(`${url} asks ${price} sats; the agent's cap is ${opts.maxPricePerCall}`)
     if (!/^0[23][0-9a-f]{64}$/.test(server)) throw new PaymentRefused(`${url}: malformed server key`)
 
+    // The server's BRC-121 challenge remains authoritative for its requested
+    // price and payment key. Keep payment construction unchanged, then merge
+    // its x-bsv-* headers with the independent ZK authentication headers.
     const headers = await constructPaymentHeaders(wallet, url, price, server)
-    const paid = await doFetch(url, { headers: headers as unknown as Record<string, string> })
+    const paid = await doFetch(url, { headers: { ...zkHeaders, ...headers } })
     if (!paid.ok) throw new Error(`${url}: payment not accepted (HTTP ${paid.status}, payment header ${headers['x-bsv-beef'].length} bytes)`)
     return { body: await paid.json() as T, paid: price, txid: paymentTxid(headers['x-bsv-beef']) }
   }

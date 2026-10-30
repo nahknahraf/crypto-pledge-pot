@@ -45,6 +45,13 @@ async function main (): Promise<void> {
   const api = new CryptoPledgePotApi(env('CRYPTOPLEDGEPOT_URL', 'http://localhost:8787'), wallet)
   const dataUrl = env('DATA_URL', 'http://localhost:8790')
   const port = num('AGENT_PORT', 8791)
+  // Treat the three prover settings as one configuration unit. Partial setup
+  // would otherwise fail on the first purchase, possibly after the agent has
+  // already started its other work.
+  const zkValues = [process.env.AGENT_ZK_SECRET, process.env.AGENT_ZK_WASM, process.env.AGENT_ZK_ZKEY]
+  if (zkValues.some(Boolean) && !zkValues.every(Boolean)) {
+    throw new Error('AGENT_ZK_SECRET, AGENT_ZK_WASM, and AGENT_ZK_ZKEY must be configured together')
+  }
   const now = Math.floor(Date.now() / 1000)
   const deadline = now + num('AGENT_DEADLINE_MIN', 15) * 60
 
@@ -82,7 +89,17 @@ async function main (): Promise<void> {
     brain,
     ledger,
     state,
-    pay: createCappedPayer({ wallet, allowedHosts: [new URL(dataUrl).host], maxPricePerCall: config.pricePerCall })
+    pay: createCappedPayer({
+      wallet,
+      allowedHosts: [new URL(dataUrl).host],
+      maxPricePerCall: config.pricePerCall,
+      // Without all three values, ZK proof generation remains disabled. When
+      // enabled, only the agent process receives the secret and proving key;
+      // createCappedPayer passes them to fullProve and sends only proof data.
+      zkAuth: zkValues.every((value): value is string => Boolean(value))
+        ? { secret: zkValues[0]!, wasmPath: zkValues[1]!, zkeyPath: zkValues[2]! }
+        : undefined
+    })
   })
 
   let last: StepOutcome | undefined
