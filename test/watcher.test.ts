@@ -68,3 +68,27 @@ describe('chain watcher', () => {
     expect(r3).toMatchObject({ recorded: [], pending: [] })
   })
 })
+
+describe('when the spend lookup fails', () => {
+  const pledges = ['a', 'b', 'c'].map(t => ({ outpoint: `${t.repeat(64)}.0` }))
+  const db = { activePledges: async () => pledges } as unknown as CryptoPledgePotDb
+  const service = { recordSpend: async () => { throw new Error('not reached') } }
+  const failing = (fail: (txid: string) => Error | undefined): SpendSource => ({
+    spentBy: async (txid) => { const e = fail(txid); if (e !== undefined) throw e; return undefined },
+    beef: async () => { throw new Error('not reached') }
+  })
+
+  it('a server error on one escrow is noted, and the others are still checked', async () => {
+    const r = await checkSpends(db, service as any, failing(t => t.startsWith('a') ? new Error('WhatsOnChain spent lookup HTTP 500') : undefined))
+    expect(r).toMatchObject({ checked: 3, recorded: [] })
+    expect(r.pending).toEqual([`${'a'.repeat(64)}.0: WhatsOnChain spent lookup HTTP 500`])
+  })
+
+  it('a rate limit (429) ends the round instead of hammering, and changes nothing', async () => {
+    const r = await checkSpends(db, service as any, failing(t => t.startsWith('b') ? new Error('WhatsOnChain spent lookup HTTP 429') : undefined))
+    expect(r.checked).toBe(2)
+    expect(r.pending).toHaveLength(1)
+    expect(r.recorded).toEqual([])
+  })
+})
+

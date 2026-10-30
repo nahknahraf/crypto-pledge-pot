@@ -45,7 +45,17 @@ export async function checkSpends (db: CryptoPledgePotDb, service: Pick<CryptoPl
   for (const p of await db.activePledges()) {
     round.checked++
     const [txid, vout] = p.outpoint.split('.')
-    const spender = await source.spentBy(txid, Number(vout))
+    let spender: string | undefined
+    try {
+      spender = await source.spentBy(txid, Number(vout))
+    } catch (e) {
+      // One failing lookup must not starve the escrows after it. A rate limit ends the round
+      // (hammering would only extend it); anything else is noted and the round goes on.
+      const msg = (e as Error).message
+      round.pending.push(`${p.outpoint}: ${msg}`)
+      if (/\b429\b|rate.?limit/i.test(msg)) break
+      continue
+    }
     if (spender === undefined || seen.has(spender)) continue
     seen.add(spender) // one release can spend many escrows; record it once
     try {

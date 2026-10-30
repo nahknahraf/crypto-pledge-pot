@@ -1877,3 +1877,9 @@ The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 
   - there is an AI-agent campaign.
 
   It then kills the whole process group, and no processes are left behind (checked).
+
+**8.10 The watcher when WhatsOnChain fails** (§5). **A real weakness, fixed.**
+- A thrown spend lookup (HTTP 500, a timeout, a 429) aborted the whole round. Every escrow after it went unchecked, and a lookup that kept failing would starve the rest indefinitely.
+- Now one failing lookup is noted in `pending` and the round continues. A **rate limit (429) ends the round** instead of hammering the free API, and the next round starts again from the top.
+- Tests: a 500 on the first of 3 escrows still checks all 3; a 429 on the second stops after 2; nothing is recorded in either case. The tests fail on the old code (checked with a stash).
+- Reorgs (§5) stay open: the watcher records a spend once it has BEEF with a proof, and doesn't re-check it later.
