@@ -859,3 +859,33 @@ The plan also covers:
   watcher and the agent;
 - **one rule learned the hard way:** automated browser tests must never click
   payment buttons, and must check that no wallet is listening.
+
+## Sharing a local run over the internet, safely
+
+Question from the team: can we run it on a laptop and let others in over the
+internet? Yes, with a tunnel (Cloudflare Tunnel, ngrok, Tailscale Funnel). But
+**not by tunnelling `npm run app`.** We probed the dev server first (status
+codes and sizes only, nothing downloaded):
+- key files and the recovery phrase one folder up: blocked (403);
+- `data/cryptopledgepot.db`, both wallet databases and any repo file:
+  **served (200)** through Vite's `/@fs/` path, because the config allows the
+  whole repo folder (`fs.allow: ['..']`). Wallet databases don't hold root
+  keys, but they do hold transaction history.
+
+**Fix: `npm run share`.** It builds the app and runs `vite preview`, which
+serves only `dist/app` plus three proxies:
+- `/api` and `/.well-known` → the server;
+- `/agent` → the agent's status page, so one tunnel URL covers everything.
+
+`SHARE_HOST` pins the tunnel's hostname. Requests with any other `Host`
+header get 403.
+
+**How we checked it:** against `npm run share` with a fake tunnel hostname:
+- the app, the API, the agent status and the live feed all work;
+- an unknown `Host` is refused;
+- `/@fs/…/arbiter-wallet.sqlite`, `/@fs/…/cryptopledgepot.db`, `/src/…`,
+  `/../data/…` and `%2e%2e` traversal all return the app's `index.html`, never
+  the file. (Their 200 status is the single-page-app fallback; we checked the
+  first bytes of each response to be sure.)
+
+The dev server's config now says in a comment never to expose it.

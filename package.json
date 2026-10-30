@@ -20,7 +20,8 @@
     "demo": "vite-node --config vitest.config.ts server/demo.ts",
     "agent": "vite-node --config vitest.config.ts agent/main.ts --",
     "data-provider": "vite-node --config vitest.config.ts agent/providerMain.ts",
-    "import": "vite-node --config vitest.config.ts server/importTx.ts --"
+    "import": "vite-node --config vitest.config.ts server/importTx.ts --",
+    "share": "vite build app && vite preview app"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
