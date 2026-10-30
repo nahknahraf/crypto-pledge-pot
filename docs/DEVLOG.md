@@ -1160,3 +1160,40 @@ loudly instead of drifting.
 
 **Not run:** `SHARE_MODE=agent-demo` through `share.sh` itself. Its branch is
 the same as `demo` and passes a syntax check, but we didn't rehearse it.
+
+## Use cases, and a plan for the other half: the donor agent
+
+**`docs/USE_CASES.md`:** 20 concrete scenarios, written so a reader can see
+the mechanics at work in each:
+- **10 NGOs whose agent raises money for something specific**, e.g. river
+  microplastics testing, elephant tracking, tree survival. For each: the
+  milestones, what the agent pays per call, and why escrow matters to backers.
+  All of them run on today's code; each needs a real pay-per-call service for
+  its domain.
+- **10 donors whose agent does the giving**, e.g. "€20 a month to clean water
+  but only proven creators", "spread $50 across 25 micro-pledges", "ask me
+  before any NO vote over €5". For each: what it checks before pledging, what
+  it watches during the campaign, and when it votes no or reclaims.
+
+**`docs/DONOR_AGENT_PLAN.md`:** the agent that *gives*, mirroring the one that
+raises. Before writing it we mapped every proposed check to an existing
+endpoint or client method, which found three small gaps:
+- the arbiter-key check doesn't know the legacy `bitfund` tag;
+- there's no live stream across all campaigns, although the server already
+  emits to a `'*'` channel internally;
+- following links in campaign text needs safety rules (off by default,
+  allow-list, private IPs blocked).
+
+The plan covers:
+- principles (non-custodial; the LLM advises and code decides money; campaign
+  text is hostile input; never touch a wallet in demo mode);
+- autopilot and co-pilot modes;
+- the mandate schema;
+- the loop;
+- due diligence as hard rules plus a 0–100 score with reasons;
+- evidence and voting policy;
+- seven phases with exit criteria (about 2.5–3 days; a hackathon cut of about
+  1.5 days);
+- adversarial test fixtures, risks, and four decisions for the team.
+
+Nothing is built yet.

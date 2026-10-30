@@ -19,6 +19,7 @@ itself**. Fees are a fraction of a cent, so tiny donations are practical.
 Team: Farhan · Finja · Louisa
 
 **Usage and value note** (problem, users, value for BSV, status): [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md).
+**Use cases:** 20 scenarios for agents raising and giving: [`docs/USE_CASES.md`](docs/USE_CASES.md). Next build: the donor agent ([`docs/DONOR_AGENT_PLAN.md`](docs/DONOR_AGENT_PLAN.md)).
 **AI agent payments:** an autonomous agent raises its own budget on CryptoPledgePot and spends it on a pay-per-call API, one micropayment per call. See [section 5](#5-ai-agent-service-agentic-payments).
 
 ---
