@@ -3,10 +3,11 @@
  *  Creator: per campaign, post milestone progress updates and withdraw
  *           (release) approved milestones into the wallet.
  *  Donor:   every pledge with its escrow state; reclaim it when the campaign
- *           failed (arbiter co-signed) or after the refund date (no one else needed).
+ *           failed (arbiter co-signed) or after the refund date (no one else needed),
+ *           and collect repayments from NGOs that broke their payment plan.
  */
 import { useCallback, useEffect, useState } from 'react'
-import type { CampaignView, PledgeView } from '../../../core/api'
+import type { CampaignView, PledgeView, RepaymentView } from '../../../core/api'
 import { Notice, Progress, StatusBadge } from '../components/ui'
 import { dateTime, formatSats, WOC_TX } from '../format'
 import { api, confirmSpend, useWallet } from '../wallet'
@@ -18,6 +19,7 @@ export function Dashboard () {
   const [campaigns, setCampaigns] = useState<CampaignView[]>([])
   const [pledges, setPledges] = useState<Array<PledgeView & { campaignTitle: string }>>([])
   const [views, setViews] = useState<Record<string, CampaignView>>({})
+  const [repayments, setRepayments] = useState<RepaymentView[]>([])
 
   const load = useCallback(async () => {
     if (identityKey === undefined) return
@@ -25,6 +27,7 @@ export function Dashboard () {
     setCampaigns(all.filter(c => c.meta.creatorIdentityKey === identityKey))
     setViews(Object.fromEntries(all.map(c => [c.id, c])))
     setPledges(await api.donorPledges(identityKey))
+    setRepayments(await api.donorRepayments(identityKey))
   }, [identityKey])
 
   useEffect(() => { void load() }, [load])
@@ -47,6 +50,7 @@ export function Dashboard () {
       {campaigns.map(c => <CreatorPanel key={c.id} c={c} onChange={() => { void load() }} />)}
 
       <h1>Your pledges</h1>
+      {repayments.length > 0 && <RepaymentsPanel repayments={repayments} onChange={() => { void load() }} />}
       {pledges.length === 0 && <p className="muted">No pledges yet.</p>}
       <div className="table">
         {pledges.map(p => <PledgeRow key={p.id} p={p} view={views[p.campaignId]} onChange={() => { void load() }} />)}
@@ -54,6 +58,38 @@ export function Dashboard () {
 
       <RecoverPanel onChange={() => { void load() }} />
     </>
+  )
+}
+
+/** Money an NGO paid back to this wallet's pledges (a milestone that broke its payment plan). */
+function RepaymentsPanel ({ repayments, onChange }: { repayments: RepaymentView[], onChange: () => void }) {
+  const { cryptopledgepot } = useWallet()
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<Msg>()
+  const total = repayments.reduce((s, r) => s + r.sats, 0)
+
+  async function collect () {
+    if (!confirmSpend(`Collect ${formatSats(total)} of repayments into your wallet?`)) return
+    setBusy(true); setMsg(undefined)
+    try {
+      const r = await cryptopledgepot!.claimRepayments()
+      setMsg(r === undefined ? { ok: true, text: 'Nothing left to collect.' } : { ok: true, text: `Collected ${formatSats(r.satoshis)}.`, txid: r.txid })
+      onChange()
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="card">
+      <h2>Repayments for you</h2>
+      <p className="small muted">These campaigns did not account for a milestone's spending and paid the money back to their donors, pro rata.</p>
+      <ul className="ledger">
+        {repayments.map(r => (
+          <li key={r.outpoint}><a href={`#/c/${r.campaignId}`}>{r.campaignTitle}</a><span className="muted">milestone {r.milestone}</span><strong>{formatSats(r.sats)}</strong></li>
+        ))}
+      </ul>
+      <button className="primary" disabled={busy || cryptopledgepot === undefined} onClick={() => { void collect() }}>{busy ? 'Approve in your wallet…' : `Collect repayments (${formatSats(total)})`}</button>
+      {msg !== undefined && <Notice kind={msg.ok ? 'ok' : 'err'}>{msg.text} {msg.txid !== undefined && <a href={WOC_TX + msg.txid} target="_blank" rel="noreferrer">View</a>}</Notice>}
+    </div>
   )
 }
 
