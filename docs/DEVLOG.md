@@ -834,3 +834,28 @@ Notes:
 Full suite: **98 passing**. `docs/EVALUATION.md` now has a follow-up table:
 eight findings fixed. Still open: the single arbiter key, BRC-121 header size,
 bundle size, and the gate items that need sats.
+
+## Planning the move to the internet
+
+With the fixes in, we wrote `docs/DEPLOYMENT_PLAN.md`. Short version:
+- **One small VPS with Docker Compose behind Caddy.** The server, watcher and
+  agent are long-running and keep SQLite and wallet databases on disk, which
+  rules out serverless.
+- **Caddy rather than nginx,** because Go's 1 MB header limit already fits the
+  35 KB BRC-121 payment headers that would trip nginx's 8 KB default.
+- **App and API on the same origin,** so neither the app nor BRC-103 auth
+  needs changes.
+
+Checking the code for internet-readiness: every URL is already an env
+variable (the `localhost` strings are only defaults). Three small gaps before
+deploying, listed as C1–C3 in the plan:
+- CORS is hard-wired to `*`;
+- there's no `trust proxy` setting;
+- there's no rate limiting on the public endpoints that do SPV work.
+
+The plan also covers:
+- **keeping the existing arbiter key,** so "Fund a well" keeps working;
+- **a 12-row end-to-end test plan** for two people on mainnet, including the
+  watcher and the agent;
+- **one rule learned the hard way:** automated browser tests must never click
+  payment buttons, and must check that no wallet is listening.
