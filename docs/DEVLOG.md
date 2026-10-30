@@ -1528,3 +1528,30 @@ balances on both chains printed as it goes.
 **What's simulated, and what's next:** the USDC side. Next steps: a viem
 adapter against a local Anvil chain, then Base Sepolia; the NGO's "accept
 USDC into escrow" and "pay out in USDC"; the quote board; UI.
+
+## Plan: making the fundraising agent count with the judges
+
+`docs/FUNDRAISING_AGENT_PLAN.md` measures the fundraising agent ("AirWatch")
+against the track's qualification gate and its five weighted criteria. It
+starts from an honest status check:
+- it works offline, safely and visibly;
+- but it has **never run on mainnet**, its **Claude brain has never made a
+  live call**, its data is synthetic, the public URL still pointed at the
+  wrong port, two finished branches aren't merged into `master`, the usage
+  note's numbers are stale, and there's no video or transaction links.
+
+**The key finding:** one mainnet run ("R1", 2–3 hours with two people)
+satisfies both "real transactions" and "an AI agent makes a payment". The
+plan scripts it step by step, with pre-flight checks and an exit criterion.
+Beyond the gate it lists actions per criterion:
+- **adoption:** real public data, a "launch your own agent" template,
+  donors from other chains, agents funding agents;
+- **stack:** a feature-to-BRC table, reports anchored on chain;
+- **technical:** published spending limits that anyone can audit, restart
+  resilience, a merged `master`;
+- **agentic payments:** live Claude, a refusal on mainnet;
+- **presentation:** the video, a sharp pitch.
+
+It also adds metrics to show judges (100% of spend receipted, 0 overspend,
+fees under 1% per call) and an order of work. **The minimum to qualify is
+about 6–7 hours.**
