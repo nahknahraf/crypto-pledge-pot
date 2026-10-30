@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { CampaignDetail, CampaignEvent, PledgeView } from '../../../core/api'
+import { AgentPanel } from '../components/AgentPanel'
 import { DonateButton } from '../components/DonateButton'
 import { Notice, Progress, StatusBadge } from '../components/ui'
 import { dateTime, formatSats, formatUsd, short, timeLeft, useBsvPrice, WOC_TX } from '../format'
@@ -52,7 +53,7 @@ export function Campaign ({ id }: { id: string }) {
     <div className="campaign">
       <div className="main">
         {c.meta.imageUrl !== undefined && <img className="cover" src={c.meta.imageUrl} alt="" />}
-        <div className="row between"><StatusBadge status={c.status} /><span className="muted small">{c.status === 'active' ? timeLeft(c.meta.deadline) : `deadline ${dateTime(c.meta.deadline)}`}</span></div>
+        <div className="row between"><span className="row"><StatusBadge status={c.status} />{c.meta.kind === 'agent' && <span className="badge agent">AI agent</span>}</span><span className="muted small">{c.status === 'active' ? timeLeft(c.meta.deadline) : `deadline ${dateTime(c.meta.deadline)}`}</span></div>
         <h1>{c.meta.title}</h1>
         <p className="muted small">
           by <code title={c.meta.creatorIdentityKey}>{short(c.meta.creatorIdentityKey)}</code> · anchored on chain in{' '}
@@ -106,6 +107,8 @@ export function Campaign ({ id }: { id: string }) {
             : <Notice kind="info">This campaign is no longer accepting pledges.</Notice>}
           {myPledges.length > 0 && <p className="small">You have {myPledges.length} pledge(s) here. <a href="#/dashboard">Manage or refund</a></p>}
         </div>
+
+        {c.meta.kind === 'agent' && c.meta.agentUrl !== undefined && <AgentPanel agentUrl={c.meta.agentUrl} />}
 
         <div className="card feed">
           <h3>Live donor feed {flash !== undefined && <span className="flash">{flash}</span>}</h3>

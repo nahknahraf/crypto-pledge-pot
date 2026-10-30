@@ -114,3 +114,12 @@ blockquote { margin: 0.5rem 0; padding: 0.5rem 0.8rem; background: var(--bg); bo
 .pledge-row .notice { grid-column: 1 / -1; }
 .pledge-row p { margin: 0; }
 .right { text-align: right; }
+
+.badge.agent { background: #e8e3fb; color: #5b3fc4; }
+.card.agent h4 { margin: 0.8rem 0 0.3rem; font-size: 0.95rem; }
+.ledger { list-style: none; padding: 0; margin: 0 0 0.6rem; max-height: 260px; overflow: auto; font-size: 0.85rem; }
+.ledger li { display: grid; grid-template-columns: 1fr auto auto; gap: 0.6rem; padding: 0.3rem 0; border-bottom: 1px solid var(--line); }
+/* Long unbroken strings (txid links in agent reports) must wrap, not widen the page. */
+blockquote, .description, .feed li p { overflow-wrap: anywhere; }
+.campaign { grid-template-columns: minmax(0, 1fr) 360px; }
+@media (max-width: 860px) { .campaign { grid-template-columns: minmax(0, 1fr); } }

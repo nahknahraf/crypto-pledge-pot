@@ -496,3 +496,52 @@ wallet, a command to start it, and a window for humans to look through.
   So the whole thing is one small top-up away from its first real transaction.
 
 Nothing broke in this step. Full suite: **88 passing**.
+
+## Step 5: letting backers see the agent at work
+
+A backer shouldn't have to read JSON to trust an AI with their money, so the
+agent now shows up properly in the web app.
+
+**What we added:**
+- **An "AI agent" badge** on agent-run campaigns, in the list and on the page.
+- **An agent panel** on the campaign page (`app/src/components/AgentPanel.tsx`).
+  It reads the agent's public endpoint and shows:
+  - its mission and current balance;
+  - how many paid calls it has made and what it spent;
+  - its last action;
+  - **every payment it ever made**, each linked to WhatsOnChain.
+
+  It refreshes every 10 seconds.
+- **"Top up agent fees":** anyone can send the agent a small BRC-29 payment
+  from their BSV Desktop wallet for its transaction fees. It runs the same
+  `createBrc29Payment` → `/api/agent/fund` path the step 4 tests cover.
+- **The offline demo now includes the agent.** `npm run demo` runs the real
+  agent code, the paid data shop and the agent's endpoint on the mock chain.
+  The agent launches "AirWatch", three people back it, it withdraws
+  milestone 1, buys five cities' readings at 50 sats each, and posts its
+  report. The vote on milestone 2 is left open. So the UI and the video can
+  show the whole agent story without spending mainnet sats. The demo log reads
+  like a narration:
+
+  ```
+  [agent] released milestone 1: 18000 sats → agent wallet (5517…a834)
+  [agent] milestone 1 "First readings: 5 cities": balance 36004 sats, budget 250 sats → up to 5 calls
+  [agent] paid 50 sats for munich (AQI 67) tx acee…f0c3
+  …
+  [agent] posted progress report; backers can now vote on milestone 2
+  ```
+
+**What broke:**
+- **Port 8790 already in use (`EADDRINUSE`).** The first demo run crashed
+  because the data provider from step 4's smoke test was still running. Our
+  `pkill` pattern hadn't matched the `vite-node` child process. We killed it by
+  PID; worth remembering when stopping services.
+- **Layout overflow.** In the first screenshot the page was 1,356 px wide in a
+  1,280 px window: the agent's report contains long WhatsOnChain URLs that
+  wouldn't wrap. Fixed with `overflow-wrap: anywhere` on reports and
+  descriptions, and `minmax(0, 1fr)` on the grid column. Measured afterwards:
+  exactly 1,280 px.
+
+**How we checked it:** Playwright screenshots of the agent campaign page and
+the home page with zero console errors (`docs/screenshots/agent-campaign.png`,
+`home-funded.png`); `vite build` OK; `tsc` clean; 88 tests passing.

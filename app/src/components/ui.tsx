@@ -22,7 +22,7 @@ export function CampaignCard ({ c }: { c: CampaignView }) {
   return (
     <a className="card campaign-card" href={`#/c/${c.id}`}>
       {c.meta.imageUrl !== undefined && <img src={c.meta.imageUrl} alt="" loading="lazy" />}
-      <div className="row between"><StatusBadge status={c.status} /><span className="muted small">{c.status === 'active' ? timeLeft(c.meta.deadline) : `${c.milestonesReleased}/${c.meta.milestones.length} milestones`}</span></div>
+      <div className="row between"><span className="row"><StatusBadge status={c.status} />{c.meta.kind === 'agent' && <span className="badge agent">AI agent</span>}</span><span className="muted small">{c.status === 'active' ? timeLeft(c.meta.deadline) : `${c.milestonesReleased}/${c.meta.milestones.length} milestones`}</span></div>
       <h3>{c.meta.title}</h3>
       <p className="muted clamp">{c.meta.description}</p>
       <Progress value={c.raised} goal={c.meta.goal} />

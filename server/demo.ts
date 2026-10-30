@@ -10,6 +10,12 @@
 import { BitFund } from '../client/bitfund'
 import { BitFundApi } from '../client/bitfundApi'
 import { createMockChain, memoryKnex } from '../test/helpers/mockchain'
+import { BitFundAgent, type StepOutcome } from '../agent/agent'
+import { MockBrain } from '../agent/brain'
+import { createDataProviderApp, serveDataProvider } from '../agent/dataProvider'
+import { createAgentApp } from '../agent/http'
+import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../agent/ledger'
+import { createCappedPayer } from '../agent/pay402'
 import { createBitFundApp } from './app'
 import { BitFundDb } from './db'
 
@@ -104,6 +110,53 @@ async function main (): Promise<void> {
     await ana.donate(meta, 20_000)
     offset = 0
     await fay.refund(p.id, 'failed')
+  }
+
+  // 5. An AI agent service: funded, milestone 1 released and spent on paid API
+  //    calls, its report posted; the backers' vote on milestone 2 is open.
+  {
+    const dataPort = Number(process.env.DATA_PORT ?? 8790)
+    const agentPort = Number(process.env.AGENT_PORT ?? 8791)
+    const providerWallet = await chain.makeWallet()
+    const agentWallet = await chain.makeWallet()
+    await chain.fund(agentWallet, 20_000)
+    await serveDataProvider(createDataProviderApp(providerWallet, 50), dataPort)
+    const dataHost = `localhost:${dataPort}`
+    const ledger = new Ledger(memoryStore<SpendEntry[]>([]))
+    const state = memoryStore<AgentState>({ worked: [] })
+    const agentApi = new BitFundApi(url, agentWallet)
+    let last: StepOutcome | undefined
+    const mission = 'Map urban air quality across European cities and publish open reports for anyone to use.'
+    const agent = new BitFundAgent({
+      mission,
+      campaign: {
+        title: 'AirWatch: an AI agent buying open air-quality data',
+        description: 'I am an autonomous AI agent. Back me and I will buy air-quality readings from a pay-per-call data API, one BSV micropayment per reading, and publish a report for each milestone with a link to every payment. You only fund the next milestone after you have seen my report.',
+        goal: 40_000,
+        deadline: now - DAY,
+        refundAfter: now + 14 * DAY,
+        milestones: [{ title: 'First readings: 5 cities', percent: 40 }, { title: 'Full coverage: 10 cities', percent: 60 }],
+        kind: 'agent',
+        agentUrl: `http://localhost:${agentPort}`
+      },
+      dataUrl: `http://${dataHost}`,
+      pricePerCall: 50,
+      maxSpendPerMilestone: 250,
+      feeReserve: 1_000
+    }, { wallet: agentWallet, bitfund: new BitFund(agentWallet, agentApi), api: agentApi, brain: new MockBrain(), ledger, state, pay: createCappedPayer({ wallet: agentWallet, allowedHosts: [dataHost], maxPricePerCall: 50 }) })
+    createAgentApp({ wallet: agentWallet, ledger, state, chainTracker: chain.chainTracker, mission, spendable: async () => await agent.spendable(), lastOutcome: () => last })
+      .listen(agentPort)
+
+    offset = -2 * DAY
+    last = await agent.step() // launch
+    const { meta } = await new BitFundApi(url).campaign(state.load().campaignId!)
+    await ana.donate(meta, 20_000, { name: 'Ana', message: 'Curious to see what an agent does with this.' })
+    await eli.donate(meta, 15_000, { name: 'Eli' })
+    await fay.donate(meta, 10_000, { name: 'Fay', message: 'Open data FTW' })
+    offset = 0
+    last = await agent.step() // release milestone 1
+    last = await agent.step() // buy data, post report → vote on milestone 2 opens
+    await fay.vote(state.load().campaignId!, 2, true)
   }
 
   console.log(`BitFund demo API on ${url} (mock chain, seeded). Run \`npm run app\` and open http://localhost:5174`)
