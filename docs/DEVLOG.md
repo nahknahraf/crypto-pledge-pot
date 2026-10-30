@@ -1064,3 +1064,28 @@ ran the same files through it. Everything below carries over to Docker.
 
 **Not verified yet:** the ngrok `tunnel` profile, Let's Encrypt on a real
 domain, and Docker Engine itself.
+
+## "The page isn't redirecting properly": ngrok pointed at port 80
+
+A teammate ran the Compose stack with Docker and started ngrok separately
+(`docker run --net=host … ngrok http 80 --url https://<domain>`). Firefox
+reported a redirect loop. **Reproduced:** on port 80 Caddy answers
+`308 → https://<the ngrok domain>/`, which goes back through ngrok to port 80
+again, forever. ngrok already terminates HTTPS, so it must hit Caddy's
+plain-HTTP entrance (container port 8080). The `tunnel` profile does that
+internally, but a separately run ngrok couldn't reach it, because the port
+wasn't published.
+
+**Fix:**
+- Compose publishes it on **localhost only**: `127.0.0.1:${TUNNEL_PORT:-8081}:8080`.
+  An external ngrok uses `ngrok http 8081`.
+- Explained in `DOCKER_README.md` and `.env.docker.example`.
+- The teammate's `.env.docker` still had the template placeholders. We changed
+  just two lines: `DOMAIN=localhost`, and `PUBLIC_URL` set to the ngrok URL,
+  because the agent writes that address into its campaign.
+
+**Checked with Podman on spare ports, with the ngrok Host header:**
+- the port-80 equivalent → `308` (the loop);
+- the tunnel port → `200` with the app;
+- `/agent/…` → `502` with no backend running, but no redirect;
+- the port is bound to `127.0.0.1` only.
