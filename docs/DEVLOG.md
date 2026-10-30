@@ -1400,3 +1400,41 @@ wrapped stablecoins come second, and the first version swaps into native sats.
   hackathon cut), adversarial tests, risks, and five decisions.
 
 Nothing is built yet.
+
+---
+
+# Cross-chain swaps: the simplest demoable version (branch `cross-chain-swap`)
+
+Goal: a donor who holds only USDC can end up with sats in **their own** BSV
+wallet, and back a campaign, without anyone ever holding their funds.
+
+**One honest compromise:** the BSV side is real (sCrypt contract, mock chain,
+real wallets, every script validated), but the USDC side is a **simulated
+ledger** with the exact rules of a standard swap contract, behind an
+interface a real Base adapter can replace. There's no local EVM here, and
+fetching one needs downloads the permission system has blocked before.
+
+## Step 1: the BSV half, an sCrypt AtomicSwap contract
+
+`contracts/src/contracts/atomicSwap.ts`:
+- **claim:** the receiver reveals a 32-byte secret matching the hashlock,
+  *and signs*. The signature means someone who copies the revealed secret
+  from the mempool can't redirect the payment.
+- **refund:** after `refundAfter`, the sender takes the money back. It's
+  checked through the sighash preimage, like the escrow's refund.
+
+It compiles to **859 bytes**: only the refund path carries the preimage check.
+
+`core/swap.ts` is the @bsv/sdk runtime: filling the template, canonical
+parsing, unlocking scripts, and `secretFromClaim()`, which reads the secret
+out of a claim. That last one is how the other side learns the secret. The
+export script now writes both artifacts (the escrow's is unchanged), and
+`npm run crosscheck` in `contracts/` regenerates both sets of fixtures.
+
+**How we checked it:** `test/swap.script.test.ts`, 6 tests:
+- byte-for-byte match with scrypt-ts on 3 fixtures, and parsing back;
+- a claim with the right secret and signature passes and reveals the
+  secret; a wrong secret, a 31-byte secret, an outsider's signature or the
+  sender's signature fail;
+- a refund by the sender at `refundAfter` passes; one second early, by the
+  receiver, or with a final sequence fails.

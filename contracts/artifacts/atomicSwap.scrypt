@@ -1,0 +1,28 @@
+
+contract AtomicSwap {
+  Sha256 hashlock;
+  PubKey receiver;
+  PubKey sender;
+  int refundAfter;
+  int __scrypt_ts_ctx_locktime;
+  int __scrypt_ts_ctx_sequence;
+  constructor(Sha256 hashlock, PubKey receiver, PubKey sender, int refundAfter) {
+    this.hashlock = hashlock;
+    this.receiver = receiver;
+    this.sender = sender;
+    this.refundAfter = refundAfter;
+  }
+  public function claim(bytes secret, Sig receiverSig) {
+    require(len(secret) == 32);
+    require(sha256(secret) == this.hashlock);
+    require(checkSig(receiverSig, this.receiver));
+  }
+  public function refund(Sig senderSig, SigHashPreimage __scrypt_ts_txPreimage) {
+    require(Tx.checkPreimageSigHashType(__scrypt_ts_txPreimage, SigHashType(b'41')));
+    this.__scrypt_ts_ctx_locktime = SigHash.nLocktime(__scrypt_ts_txPreimage);
+    this.__scrypt_ts_ctx_sequence = SigHash.nSequence(__scrypt_ts_txPreimage);
+    require(this.timeLock(this.refundAfter));
+    require(checkSig(senderSig, this.sender));
+  }
+  function timeLock(int locktime): bool {  bool res = true;  res = this.__scrypt_ts_ctx_sequence < 0xffffffff;  if (    locktime < 500000000  ) {    res = res && this.__scrypt_ts_ctx_locktime < 500000000;  }  return res && this.__scrypt_ts_ctx_locktime >= locktime;}
+}

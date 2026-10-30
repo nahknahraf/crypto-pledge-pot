@@ -1,17 +1,11 @@
-// Copy the parts of the compiled artifact the app needs into ../core, so the
+// Copy the parts of each compiled artifact the app needs into ../core, so the
 // app (browser + server) never depends on the sCrypt toolchain at runtime.
 const fs = require('fs')
 const path = require('path')
-const a = require('../artifacts/cryptoPledgePotEscrow.json')
-const slim = {
-  contract: a.contract,
-  version: a.version,
-  compilerVersion: a.compilerVersion,
-  md5: a.md5,
-  abi: a.abi,
-  stateProps: a.stateProps,
-  hex: a.hex
+for (const name of ['cryptoPledgePotEscrow', 'atomicSwap']) {
+  const a = require(`../artifacts/${name}.json`)
+  const slim = { contract: a.contract, version: a.version, compilerVersion: a.compilerVersion, md5: a.md5, abi: a.abi, stateProps: a.stateProps, hex: a.hex }
+  const out = path.join(__dirname, '..', '..', 'core', `${name}.artifact.json`)
+  fs.writeFileSync(out, JSON.stringify(slim, null, 2) + '\n')
+  console.log('wrote', out, `(${a.hex.length / 2 | 0} byte template)`)
 }
-const out = path.join(__dirname, '..', '..', 'core', 'cryptoPledgePotEscrow.artifact.json')
-fs.writeFileSync(out, JSON.stringify(slim, null, 2) + '\n')
-console.log('wrote', out, `(${a.hex.length / 2 | 0} byte template)`)

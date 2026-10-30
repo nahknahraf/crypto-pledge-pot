@@ -1,0 +1,61 @@
+{
+  "contract": "AtomicSwap",
+  "version": 9,
+  "compilerVersion": "1.20.0+commit.693498a",
+  "md5": "40260b4323e6d2d537230b437bfc0ee7",
+  "abi": [
+    {
+      "type": "function",
+      "name": "claim",
+      "index": 0,
+      "params": [
+        {
+          "name": "secret",
+          "type": "bytes"
+        },
+        {
+          "name": "receiverSig",
+          "type": "Sig"
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "refund",
+      "index": 1,
+      "params": [
+        {
+          "name": "senderSig",
+          "type": "Sig"
+        },
+        {
+          "name": "__scrypt_ts_txPreimage",
+          "type": "SigHashPreimage"
+        }
+      ]
+    },
+    {
+      "type": "constructor",
+      "params": [
+        {
+          "name": "hashlock",
+          "type": "Sha256"
+        },
+        {
+          "name": "receiver",
+          "type": "PubKey"
+        },
+        {
+          "name": "sender",
+          "type": "PubKey"
+        },
+        {
+          "name": "refundAfter",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "stateProps": [],
+  "hex": "2097dfd76851bf465e8f715593b217714858bbe9570ff3bd5e33840a34e20ff0262102ba79df5f8ae7604a9830f03c7933028186aede0675a16f025dc4f8be8eec0382201008ce7480da41702918d1ec8e6849ba32b4d65b1e40dc669c31a1e6306b266c000000000000<hashlock><receiver><sender><refundAfter>53795a7a75597a597a597a597a597a597a597a597a597a5279597a75587a587a587a587a587a587a587a587a78587a75577a577a577a577a577a577a577a76577a75567a567a567a567a567a567a6d6d59790087635b79827701209d5b79a85679885a795579ac6b6d6d6d6d6d6d6c6759795187635a790141785b795b79210ac407f0e4bd44bfc207355a778b046225a7068fc59ee7eda43ad905aadbffc800206c266b30e6a1319c66dc401e5bd6b432ba49688eecd118297041da8074ce08105d7956795679aa7676517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01007e817757795679567956795679537956795479577995939521414136d08c5ed2bf3ba048afe6dcaebafeffffffffffffffffffffffffffffff006e6e9776009f636e936776687777777b757c6e5296a0636e7c947b757c6853798277527982775379012080517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f517f7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e7c7e01205279947f77545379935279930130787e527e54797e58797e527e53797e52797e57797e6b6d6d6d6d6d6d6c765779ac6b6d6d6d6d6d6c77695a79767682776e54947f757858947f7777777601007e8177777b757c5a79767682776e0128947f7578012c947f7777777601007e81777777527951527905ffffffff009f7778040065cd1d9f6376635379040065cd1d9f6700687768766353795279a26700687777695b795479ac6b6d6d6d6d6d6d6c67006868"
+}

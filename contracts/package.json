@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "compile": "npx scrypt-cli compile && node scripts/export.cjs",
-    "crosscheck": "node scripts/crosscheck.cjs"
+    "crosscheck": "node scripts/crosscheck.cjs && node scripts/crosscheckSwap.cjs"
   },
   "dependencies": {
     "scrypt-ts": "1.4.5"
