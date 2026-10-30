@@ -6,6 +6,7 @@
 import { AuthFetch, type WalletInterface } from '@bsv/sdk'
 import type { CampaignMeta } from '../core/campaign'
 import type { CampaignDetail, CampaignView, PledgeView, ReleasablePledges, SpendablePledge } from '../core/api'
+import type { ParseResult, Routine, RoutineDraft, RoutineStatus } from '../core/routines'
 
 export class CryptoPledgePotApi {
   private auth?: AuthFetch
@@ -20,6 +21,12 @@ export class CryptoPledgePotApi {
   private async get<T> (path: string): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`)
     return await this.unwrap<T>(res)
+  }
+
+  /** Authenticated GET (for the caller's own, private data such as giving routines). */
+  private async authGet<T> (path: string): Promise<T> {
+    if (this.auth === undefined) throw new Error('connect a wallet first')
+    return await this.unwrap<T>(await this.auth.fetch(`${this.baseUrl}${path}`, { method: 'GET' }) as unknown as Response)
   }
 
   private async post<T> (path: string, body: unknown, authenticated = true): Promise<T> {
@@ -76,6 +83,18 @@ export class CryptoPledgePotApi {
   claimPledge = async (pledgeId: string, keyID: string, signature: string): Promise<void> => {
     await this.post(`/api/pledges/${encodeURIComponent(pledgeId)}/claim`, { keyID, signature })
   }
+
+  // ── giving routines (server/routines.ts) ──
+  // Authenticated with BRC-103 today. The ZK branch only has to change how these
+  // requests are authenticated (an x-zk-proof header); paths and bodies stay the same.
+
+  /** Let the server read a chat message (Claude if configured there, else the rule parser). */
+  interpretRoutine = async (text: string): Promise<{ result: ParseResult, interpreter: string }> => await this.post('/api/routines/interpret', { text })
+  routines = async (): Promise<Routine[]> => await this.authGet('/api/routines')
+  createRoutine = async (draft: RoutineDraft): Promise<Routine> => await this.post('/api/routines', { draft })
+  setRoutineStatus = async (id: string, status: RoutineStatus): Promise<Routine> => await this.post(`/api/routines/${id}/status`, { status })
+  /** Report that a pledge (already registered via registerPledge) executed this routine. */
+  recordRoutineRun = async (id: string, pledgeId: string): Promise<Routine> => await this.post(`/api/routines/${id}/runs`, { pledgeId })
 
   /** Live feed (browser): EventSource on the campaign's SSE stream. */
   eventsUrl = (campaignId: string): string => `${this.baseUrl}/api/campaigns/${campaignId}/events`

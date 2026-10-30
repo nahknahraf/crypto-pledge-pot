@@ -6,6 +6,7 @@
  */
 import knexPkg, { type Knex } from 'knex'
 import type { CampaignMeta, ProtocolTag } from '../core/campaign'
+import { ownerKey, type Routine } from '../core/routines'
 
 export interface CampaignRow { id: string, meta: CampaignMeta, creatorIdentity: string, anchorTxid: string, createdAt: number, protocolTag: ProtocolTag }
 
@@ -111,6 +112,17 @@ export class CryptoPledgePotDb {
         t.primary(['campaign_id', 'milestone', 'voter'])
       })
     }
+    if (!(await k.schema.hasTable('routines'))) {
+      // Giving routines (core/routines.ts). The routine is stored as JSON: it is
+      // only ever read whole, by its owner. `owner` is ownerKey(owner), e.g.
+      // "brc103:<identity key>" today and "zk:<commitment>" once ZK auth lands.
+      await k.schema.createTable('routines', t => {
+        t.string('id', 32).primary()
+        t.string('owner', 140).notNullable().index()
+        t.text('data').notNullable()
+        t.integer('created_at').notNullable()
+      })
+    }
   }
 
   // ── campaigns ──
@@ -205,6 +217,21 @@ export class CryptoPledgePotDb {
   async votes (campaignId: string): Promise<VoteRow[]> {
     return (await this.knex('votes').where({ campaign_id: campaignId }))
       .map(r => ({ campaignId: r.campaign_id, milestone: r.milestone, voter: r.voter, approve: Boolean(r.approve), createdAt: r.created_at }))
+  }
+
+  // ── giving routines ──
+  async putRoutine (r: Routine): Promise<void> {
+    await this.knex('routines').insert({ id: r.id, owner: ownerKey(r.owner), data: JSON.stringify(r), created_at: r.createdAt })
+      .onConflict('id').merge(['data'])
+  }
+
+  async routine (id: string): Promise<Routine | undefined> {
+    const r = await this.knex('routines').where({ id }).first()
+    return r === undefined ? undefined : JSON.parse(r.data)
+  }
+
+  async routinesOf (owner: string): Promise<Routine[]> {
+    return (await this.knex('routines').where({ owner }).orderBy('created_at', 'desc')).map(r => JSON.parse(r.data))
   }
 
   async transaction<T> (fn: (db: CryptoPledgePotDb) => Promise<T>): Promise<T> {

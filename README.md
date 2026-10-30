@@ -203,6 +203,7 @@ server); the share command serves only the built app.
 | `client/cryptoPledgePot.ts` · `client/cryptoPledgePotApi.ts` | wallet flows · HTTP/AuthFetch API client |
 | `server/` | indexer + arbiter (`app.ts`, `policy.ts`, `db.ts`), `main.ts`, `demo.ts` |
 | `app/` | React frontend |
+| `core/routines.ts` · `server/routines.ts` · `app/src/pages/Routines.tsx` | giving routines: rules · API · chat page ([notes](docs/AGENT_ROUTINES_NOTES.md)) |
 | `agent/` | AI agent service: loop (`agent.ts`), Claude brain (`brain.ts`), capped 402 payer (`pay402.ts`), spend ledger, paid data API, status endpoint |
 | `test/pledge.script.test.ts` · `test/cryptoPledgePot.e2e.test.ts` | contract tests · end-to-end flows |
 | `docs/DEVLOG.md` | engineering log: decisions, what broke, fixes |
@@ -322,6 +323,24 @@ npm run app                                              # → My donor agent
 ![Donor agent, co-pilot](docs/screenshots/donor-copilot.png)
 
 Design: [`docs/DONOR_AGENT_PLAN.md`](docs/DONOR_AGENT_PLAN.md).
+
+### Giving routines: "donate 10 € a month to an animal shelter"
+
+The lightest way to give regularly, on the **Giving routines** page
+(`#/routines`).
+- **Chat:** type a sentence in German or English. The app reads it (Claude on
+  the server if configured, otherwise a rule parser) and shows what it
+  understood. You set a **hard cap per run in sats** and save.
+- **When a routine is due:** the page proposes the best matching open campaign
+  and the amount in sats. You approve it, and **your own wallet** makes a
+  normal escrow pledge.
+- **The server:** records the run only if it is your pledge, on target and
+  within the limits.
+
+The agent never holds keys or money. Runs need you to be present to approve
+them. The API is ready for ZK identities (`x-zk-proof`).
+
+Team notes: [`docs/AGENT_ROUTINES_NOTES.md`](docs/AGENT_ROUTINES_NOTES.md).
 
 ---
 

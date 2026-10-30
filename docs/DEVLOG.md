@@ -1555,3 +1555,43 @@ Beyond the gate it lists actions per criterion:
 It also adds metrics to show judges (100% of spend receipted, 0 overspend,
 fees under 1% per call) and an order of work. **The minimum to qualify is
 about 6–7 hours.**
+
+## Giving routines: a chat that sets up recurring gifts
+
+**What:** a new page, **Giving routines** (`#/routines`). A user types
+"Spende jeden Monat 10 Euro an einen Tierschutzverein" and gets a routine:
+- amount, interval and cause are read from the sentence;
+- the user sets a hard cap per run in sats;
+- whenever the routine is due, the page proposes a pledge into the best
+  matching open campaign, and the user approves it in their own wallet.
+
+**How:**
+- `core/routines.ts` holds the shared, pure rules: parser, `validateDraft`,
+  schedule, `checkRun` / `applyRun`, campaign matching.
+- `server/routines.ts` adds the authenticated API: interpret, list, create,
+  status, runs. Routines are stored in a new `routines` table as JSON.
+- `server/routineInterpreter.ts` uses Claude when a key is set and the rule
+  parser otherwise. The model never sets limits.
+- `app/src/routines.ts` provides a server store, a browser store for the
+  offline demo, exchange rates and `executeRoutine` (which reuses
+  `CryptoPledgePot.donate`).
+
+**Decisions:**
+- **Approval by the user, not autonomy.** The cost is that the user must be
+  present when a routine is due; the gain is that nothing new can move money.
+  Unattended giving stays with the donor agent's autopilot.
+- **The server checks every reported run:** it must be the caller's
+  SPV-indexed pledge, made after the routine, on target, within the limits,
+  and counted once. So the routine history is an audit trail, not a claim.
+- **Fiat stays fiat, the cap stays sats.** A price crash cannot turn "10 €"
+  into an unbounded sats amount; the run is refused instead.
+- **Owners are `OwnerRef`s, with one resolver.** The ZK branch plugs in a
+  `zk` scheme without changing storage or handlers. Requests with
+  `x-zk-proof` get a 501 until then.
+
+**Tests:** 21 unit tests (`test/routines.test.ts`) and 9 end-to-end tests
+(`test/routines.e2e.test.ts`, real wallets on the mock chain). The full suite
+passes except `test/keys.test.ts`'s file-mode check, which fails on Windows
+with or without this change (Windows has no Unix file permissions).
+
+**Notes:** [`docs/AGENT_ROUTINES_NOTES.md`](AGENT_ROUTINES_NOTES.md).

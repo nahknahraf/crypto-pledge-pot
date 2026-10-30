@@ -25,6 +25,7 @@ import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/ar
 import { createCryptoPledgePotService } from './app'
 import { startWatcher, wocSpendSource } from './watcher'
 import { CryptoPledgePotDb, sqliteKnex } from './db'
+import { defaultRoutineInterpreter } from './routineInterpreter'
 
 const chain = process.env.NETWORK === 'test' ? 'test' : 'main'
 const port = Number(process.env.PORT ?? 8787)
@@ -53,7 +54,8 @@ async function main (): Promise<void> {
     network: chain,
     corsOrigin: process.env.CRYPTOPLEDGEPOT_CORS_ORIGIN, // e.g. https://<your-domain>.ngrok-free.app (default: any)
     trustProxy: process.env.CRYPTOPLEDGEPOT_TRUST_PROXY, // 'loopback, uniquelocal' behind Caddy in Docker
-    chainTracker: new ArcadeChainTracker(chain === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
+    chainTracker: new ArcadeChainTracker(chain === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET),
+    routineInterpreter: defaultRoutineInterpreter() // Claude when ANTHROPIC_API_KEY is set, else the rule parser
   })
   // Index releases and refunds nobody reported (every CRYPTOPLEDGEPOT_WATCH_S seconds, default 300; 0 = off).
   const watchS = Number(process.env.CRYPTOPLEDGEPOT_WATCH_S ?? 300)

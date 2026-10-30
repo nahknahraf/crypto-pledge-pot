@@ -5,6 +5,7 @@ import { Create } from './pages/Create'
 import { Dashboard } from './pages/Dashboard'
 import { Donor } from './pages/Donor'
 import { Home } from './pages/Home'
+import { Routines } from './pages/Routines'
 import { short } from './format'
 import { useWallet, WalletProvider } from './wallet'
 import './style.css'
@@ -29,6 +30,7 @@ function Header () {
         <a href="#/create">Start a campaign</a>
         <a href="#/dashboard">Dashboard</a>
         <a href="#/donor">My donor agent</a>
+        <a href="#/routines">Giving routines</a>
       </nav>
       {identityKey !== undefined
         ? <span className="chip" title={identityKey}>● {network === 'testnet' ? 'testnet · ' : ''}{short(identityKey)}</span>
@@ -73,7 +75,7 @@ function App () {
       <Header />
       <DemoBanner />
       <main className="page">
-        {campaign !== null ? <Campaign id={campaign[1]} /> : route === '/create' ? <Create /> : route === '/dashboard' ? <Dashboard /> : route === '/donor' ? <Donor /> : <Home />}
+        {campaign !== null ? <Campaign id={campaign[1]} /> : route === '/create' ? <Create /> : route === '/dashboard' ? <Dashboard /> : route === '/donor' ? <Donor /> : route === '/routines' ? <Routines /> : <Home />}
       </main>
       <footer className="muted small">
         Donations sit in sCrypt escrow contracts on the BSV blockchain, and your keys stay in your wallet.{' '}

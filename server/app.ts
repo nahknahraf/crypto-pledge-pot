@@ -32,6 +32,8 @@ import type { CampaignDetail, CampaignEvent, ReleasablePledges, SpendablePledge 
 import { CryptoPledgePotDb, type PledgeRow } from './db'
 import { connectionCap, rateLimit } from './rateLimit'
 import { campaignView, mayRefundEarly, mayRelease, pledgeView } from './policy'
+import { brc103OwnerResolver, registerRoutineRoutes } from './routines'
+import type { RoutineInterpreter } from './routineInterpreter'
 
 export interface CryptoPledgePotServerOptions {
   /** Arbiter / server wallet: signs as the vote oracle and authenticates the API. */
@@ -63,6 +65,8 @@ export interface CryptoPledgePotServerOptions {
   trustProxy?: string
   /** Live demo only: the story's progress, served at GET /api/demo for the banner. */
   demoStatus?: () => unknown
+  /** Reads giving-routine instructions typed in the chat (default: the offline rule parser). */
+  routineInterpreter?: RoutineInterpreter
 }
 
 class HttpError extends Error {
@@ -536,6 +540,17 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
     if (inputIndex < 0) throw new HttpError(400, 'transaction does not spend this pledge')
     return { inputIndex, signature: await arbiterSign(c.meta, preimage(tx, inputIndex, ALL_SCOPE, escrowSource(c.meta, p)), c.protocolTag) }
   }))
+
+  // Giving routines ("donate 10 € a month to an animal shelter"): stored instructions and an audit
+  // trail of the pledges that executed them. The server never pays; see server/routines.ts.
+  registerRoutineRoutes(app, {
+    db,
+    now,
+    wrap,
+    fail: (status, message) => { throw new HttpError(status, message) },
+    owner: brc103OwnerResolver(caller),
+    interpreter: opts.routineInterpreter
+  })
 
   return { app, recordSpend, importTx }
 }
