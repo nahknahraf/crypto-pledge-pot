@@ -10,6 +10,7 @@ import {
   ALL_SCOPE,
   cumulativeSchedule,
   escrowedAfter,
+  MIN_PLEDGE,
   parsePledgeScript,
   pledgeLockingScript,
   preimage,
@@ -199,3 +200,25 @@ describe('refundFailed (donor + arbiter, any time)', () => {
     expect(run(tx(creatorKey, arbiterKey))).toBe(false)
   })
 })
+
+describe('schedule maths at the extremes', () => {
+  it('every pledge of at least MIN_PLEDGE gives a strict schedule, even with 1 % milestones; 99 sats does not', () => {
+    for (const pct of [[100], [1, 99], [1, 1, 1, 97], [25, 25, 25, 25], [33, 33, 34]]) {
+      const cumulativeBps = cumulativeSchedule(pct)
+      for (let pledged = MIN_PLEDGE; pledged < MIN_PLEDGE + 300; pledged++) expect(scheduleIsStrict({ pledged, cumulativeBps }), `${pledged} ${pct}`).toBe(true)
+    }
+    expect(scheduleIsStrict({ pledged: MIN_PLEDGE - 1, cumulativeBps: cumulativeSchedule([1, 99]) })).toBe(false)
+  })
+  it('matches the contract\'s exact integer maths up to the whole BSV supply (no float rounding)', () => {
+    for (const pct of [[1, 99], [33, 33, 34], [7, 13, 29, 51]]) {
+      const cumulativeBps = cumulativeSchedule(pct)
+      for (const pledged of [526_984_070_948_504, 2_100_000_000_000_000, 900_719_925_475, 1_999_999_999_999_999]) {
+        for (let s = 1; s <= pct.length; s++) {
+          const exact = BigInt(pledged) - (BigInt(pledged) * BigInt(cumulativeBps[s - 1])) / 10_000n
+          expect(BigInt(escrowedAfter({ pledged, cumulativeBps }, s))).toBe(exact)
+        }
+      }
+    }
+  })
+})
+

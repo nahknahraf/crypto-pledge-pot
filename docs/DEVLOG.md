@@ -1803,3 +1803,17 @@ It also accepts unicode, a single 100 % milestone, and the maximum of 4 mileston
 - A pledge after the deadline is refused ("closed").
 
 The code already behaved this way. One of my test fixtures was wrong: after removing the refunded pledge, the campaign had missed its goal, so it was "failed" rather than "voting". I fixed the fixture, not the code.
+
+**8.4 Schedule maths at the extremes** (§1). **A real bug**, fixed.
+- `escrowedAfter` (how many sats stay escrowed after k milestones) used float maths: `pledged - Math.floor(pledged * bps / 10000)`.
+- Once `pledged × bps` passes 2^53, which is above about 9,000 BSV in one pledge, the result can be one sat off from the contract's exact integer maths.
+- A random probe found 6,179 mismatches in 60,000 large pledges.
+- Effect: the server and client would build a release that the contract refuses. Funds are not lost, because the refund paths don't use this number, but such a pledge could never be released.
+
+**Fix:** BigInt arithmetic. **Tests:**
+- every pledge from 100 to 399 sats under 5 schedules (including 1 % milestones) is strict, and 99 sats is not;
+- exact agreement with the integer maths up to the whole BSV supply.
+
+The new test fails on the old code (checked with a stash).
+
+The two-pledge release (ANYONECANPAY|SINGLE pairing) was already covered by the 3-escrow release in `cryptoPledgePot.e2e`.

@@ -183,7 +183,9 @@ export function stageOf (t: Pick<PledgeTerms, 'pledged' | 'cumulativeBps'>, valu
 export function escrowedAfter (t: Pick<PledgeTerms, 'pledged' | 'cumulativeBps'>, stage: number): number {
   if (stage === 0) return t.pledged
   const bps = t.cumulativeBps[Math.min(stage, MAX_MILESTONES) - 1]
-  return t.pledged - Math.floor((t.pledged * bps) / BPS)
+  // BigInt: pledged × bps passes 2^53 above ~9,000 BSV, where float maths would differ from the contract's.
+  const pledged = BigInt(t.pledged)
+  return Number(pledged - (pledged * BigInt(bps)) / BigInt(BPS))
 }
 
 // ── Preimages and unlocking scripts ────────────────────────────────────────
