@@ -60,10 +60,19 @@ export async function checkAgent (c: CampaignView, d: DiligenceDeps): Promise<Ch
     const f = d.fetchImpl ?? fetch
     const [s, l] = await Promise.all([f(`${url}/api/agent`), f(`${url}/api/agent/ledger`)])
     if (!s.ok || !l.ok) return { name, ok: false, detail: 'status page not reachable' }
-    const ledger = await l.json() as Array<{ sats: number, txid?: string }>
+    const ledger = await l.json() as Array<{ sats: number, txid?: string, milestone?: number }>
     const unreceipted = ledger.filter(e => e.sats > 0 && (e.txid === undefined || !/^[0-9a-f]{64}$/.test(e.txid)))
     if (unreceipted.length > 0) return { name, ok: false, detail: `${unreceipted.length} payment(s) without a transaction id` }
-    return { name, ok: true, detail: `status page live; ${ledger.length} receipted payment(s)` }
+    // Audit against the limits the agent published in its anchored campaign terms.
+    const limits = c.meta.agentLimits
+    if (limits === undefined) return { name, ok: false, detail: 'publishes no spending limits, so its ledger can\'t be audited' }
+    const overCap = ledger.filter(e => e.sats > limits.pricePerCallSats)
+    if (overCap.length > 0) return { name, ok: false, detail: `${overCap.length} payment(s) above its published cap of ${limits.pricePerCallSats} sats` }
+    const perMilestone = new Map<number, number>()
+    for (const e of ledger) perMilestone.set(e.milestone ?? 0, (perMilestone.get(e.milestone ?? 0) ?? 0) + e.sats)
+    const over = [...perMilestone].filter(([, s]) => s > limits.maxSpendPerMilestoneSats)
+    if (over.length > 0) return { name, ok: false, detail: `spent above its published ${limits.maxSpendPerMilestoneSats}-sat limit in milestone ${over.map(([m]) => m).join(', ')}` }
+    return { name, ok: true, detail: `status page live; ${ledger.length} receipted payment(s), all within its published limits` }
   } catch {
     return { name, ok: false, detail: 'status page not reachable' }
   }

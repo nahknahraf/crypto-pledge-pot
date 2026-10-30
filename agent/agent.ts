@@ -18,6 +18,7 @@ import type { WalletInterface } from '@bsv/sdk'
 import type { CryptoPledgePot, LaunchInput } from '../client/cryptoPledgePot'
 import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import type { CampaignView } from '../core/api'
+import { reportRecordScript } from '../core/campaign'
 import type { Brain } from './brain'
 import type { AirQualityReport, City } from './dataProvider'
 import { Ledger, type AgentState, type Store } from './ledger'
@@ -83,7 +84,11 @@ export class CryptoPledgePotAgent {
     const state = this.deps.state.load()
 
     if (state.campaignId === undefined) {
-      const { campaignId } = await this.deps.cryptopledgepot.launch(this.config.campaign)
+      // Publish our own limits in the anchored terms, so anyone can audit our ledger against them.
+      const { campaignId } = await this.deps.cryptopledgepot.launch({
+        ...this.config.campaign,
+        agentLimits: { pricePerCallSats: this.config.pricePerCall, maxSpendPerMilestoneSats: this.config.maxSpendPerMilestone }
+      })
       this.deps.state.save({ ...state, campaignId })
       this.log(`launched campaign ${campaignId} — "${this.config.campaign.title}", goal ${this.config.campaign.goal} sats`)
       return { action: 'launched', campaignId }
@@ -152,9 +157,17 @@ export class CryptoPledgePotAgent {
     let updatePosted = false
     if (this.config.dryRun !== true && nextIndex <= view.meta.milestones.length) {
       const links = txids.map(t => `https://whatsonchain.com/tx/${t}`).join('\n')
-      await this.deps.cryptopledgepot.postUpdate(view.id, nextIndex, `${report}\n\nPayments (${spent} sats):\n${links}`.slice(0, 4000))
+      const text = `${report}\n\nPayments (${spent} sats):\n${links}`.slice(0, 3800)
+      // Anchor the report's hash on chain before backers vote on it, so it can't be rewritten later.
+      const anchor = await this.deps.wallet.createAction({
+        description: 'Anchor agent milestone report',
+        labels: ['cryptopledgepot', 'report'],
+        outputs: [{ lockingScript: reportRecordScript(view.id, nextIndex, text, view.protocolTag).toHex(), satoshis: 0, outputDescription: 'report hash' }],
+        options: { acceptDelayedBroadcast: false }
+      }, this.deps.originator)
+      await this.deps.cryptopledgepot.postUpdate(view.id, nextIndex, `${text}\n\nReport anchored on chain: https://whatsonchain.com/tx/${anchor.txid ?? ''}`)
       updatePosted = true
-      this.log(`posted progress report; backers can now vote on milestone ${nextIndex}`)
+      this.log(`posted progress report (hash anchored in ${anchor.txid?.slice(0, 12) ?? '?'}…); backers can now vote on milestone ${nextIndex}`)
     }
     if (this.config.dryRun !== true) {
       const s = this.deps.state.load()

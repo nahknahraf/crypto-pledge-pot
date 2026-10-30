@@ -69,6 +69,11 @@ export interface CampaignMeta {
   kind?: 'agent'
   /** Where the agent publishes its status and spend ledger (http(s) URL). */
   agentUrl?: string
+  /**
+   * An agent's published spending limits, part of the anchored terms, so
+   * anyone (including donor agents) can audit its ledger against them.
+   */
+  agentLimits?: { pricePerCallSats: number, maxSpendPerMilestoneSats: number }
 }
 
 /** JSON with sorted keys, no whitespace: the form that is hashed and anchored. */
@@ -104,6 +109,10 @@ export function validateCampaign (meta: CampaignMeta): void {
   if (!/^[0-9a-f]{32}$/.test(meta.nonce)) fail('nonce must be 16 bytes hex')
   if (!Number.isSafeInteger(meta.createdAt)) fail('createdAt must be unix seconds')
   if (meta.kind !== undefined && meta.kind !== 'agent') fail('kind must be "agent" when set')
+  if (meta.agentLimits !== undefined) {
+    const l = meta.agentLimits
+    if (!Number.isSafeInteger(l.pricePerCallSats) || l.pricePerCallSats < 1 || !Number.isSafeInteger(l.maxSpendPerMilestoneSats) || l.maxSpendPerMilestoneSats < l.pricePerCallSats) fail('agentLimits must be positive whole sats, with the milestone limit at least one call')
+  }
   if (meta.agentUrl !== undefined && (!/^https?:\/\/[^\s]+$/.test(meta.agentUrl) || meta.agentUrl.length > 200)) fail('agentUrl must be an http(s) URL')
 }
 
@@ -149,6 +158,7 @@ export function pledgeMemoScript (campaignId: string, memo: PledgeMemo, tag: Pro
 export type CryptoPledgePotRecord =
   | { kind: 'campaign', tag: ProtocolTag, campaignId: string, meta: CampaignMeta }
   | { kind: 'pledge', tag: ProtocolTag, campaignId: string, memo: PledgeMemo }
+  | { kind: 'report', tag: ProtocolTag, campaignId: string, milestone: number, sha256: string }
 
 /** Decode a CryptoPledgePot OP_RETURN output, or undefined if it is not one. */
 export function parseCryptoPledgePotRecord (script: Script | string): CryptoPledgePotRecord | undefined {
@@ -167,6 +177,9 @@ export function parseCryptoPledgePotRecord (script: Script | string): CryptoPled
     if (text(1) === 'campaign') {
       if (campaignIdOf(payload) !== campaignId) return undefined
       return { kind: 'campaign', tag, campaignId, meta: payload }
+    }
+    if (text(1) === 'report' && Number.isInteger(payload.milestone) && typeof payload.sha256 === 'string' && /^[0-9a-f]{64}$/.test(payload.sha256)) {
+      return { kind: 'report', tag, campaignId, milestone: payload.milestone, sha256: payload.sha256 }
     }
     if (text(1) === 'pledge') {
       return { kind: 'pledge', tag, campaignId, memo: { name: typeof payload.name === 'string' ? payload.name : undefined, message: typeof payload.message === 'string' ? payload.message : undefined } }
@@ -187,3 +200,26 @@ export function campaignStatus (meta: CampaignMeta, raised: number, milestonesRe
 
 /** Message a donor signs (with the escrow's donor key) to claim an imported pledge for their identity. */
 export const claimMessage = (pledgeId: string, identityKey: string): string => `cryptopledgepot claim ${pledgeId} for ${identityKey}`
+
+/**
+ * On-chain record of an agent's milestone report: its sha256, so the report
+ * can't be rewritten after backers vote on it.
+ *   OP_FALSE OP_RETURN 'cryptopledgepot' 'report' <campaignId> <JSON {milestone, sha256}>
+ */
+export const reportRecordScript = (campaignId: string, milestone: number, reportText: string, tag: ProtocolTag = CRYPTOPLEDGEPOT): Script =>
+  opReturn([utf8(tag), utf8('report'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson({ milestone, sha256: Utils.toHex(Hash.sha256(reportText, 'utf8')) }))])
+
+const ANCHOR_LINE = /\n\nReport anchored on chain: https:\/\/whatsonchain\.com\/tx\/([0-9a-f]{64})$/
+
+/** Split a posted update into the anchored text and the anchor txid (if it has one). */
+export function splitAnchoredReport (note: string): { text: string, anchorTxid?: string } {
+  const m = ANCHOR_LINE.exec(note)
+  return m === null ? { text: note } : { text: note.slice(0, m.index), anchorTxid: m[1] }
+}
+
+/** Does this record (from the anchor transaction) match the posted report? */
+export function reportMatchesRecord (note: string, record: CryptoPledgePotRecord | undefined, campaignId: string, milestone: number): boolean {
+  const { text } = splitAnchoredReport(note)
+  return record?.kind === 'report' && record.campaignId === campaignId && record.milestone === milestone &&
+    record.sha256 === Utils.toHex(Hash.sha256(text, 'utf8'))
+}

@@ -208,3 +208,28 @@ describe('an underfunded agent campaign', () => {
     expect(r.satoshis).toBe(5_000)
   })
 })
+
+describe('restart safety', () => {
+  it('a restarted agent picks up mid-milestone without withdrawing or spending twice', async () => {
+    const wallet = await chain.makeWallet()
+    const backer = await chain.makeWallet()
+    for (const w of [wallet, backer]) await chain.fund(w, 100_000)
+    clock = T0
+    const first = makeAgent(wallet, { campaign: { title: 'Restart check agent', description: 'Agent that gets restarted.', goal: 5_000, deadline: T0 + 3_600, refundAfter: T0 + 30 * 3_600, milestones: [{ title: 'Readings', percent: 50 }, { title: 'More readings', percent: 50 }] } })
+    await first.agent.step() // launch
+    const { meta } = await new CryptoPledgePotApi(url).campaign(first.state.load().campaignId!)
+    await as(backer).donate(meta, 6_000)
+    clock = T0 + 3_601
+    expect(await first.agent.step()).toMatchObject({ action: 'released', milestone: 1 })
+
+    // The process dies here. A new one starts with the same saved state and ledger.
+    const restarted = new CryptoPledgePotAgent(first.config, { ...first.agent.deps })
+    expect(await restarted.step()).toMatchObject({ action: 'worked', milestone: 1 }) // continues: spends, does not withdraw again
+    const spent = first.ledger.all().length
+    expect(spent).toBeGreaterThan(0)
+    const again = new CryptoPledgePotAgent(first.config, { ...first.agent.deps })
+    expect(await again.step()).toMatchObject({ action: 'waiting' }) // milestone 1 already worked
+    expect(first.ledger.all().length).toBe(spent)
+    expect((await new CryptoPledgePotApi(url).campaign(first.state.load().campaignId!)).milestones[0].releaseTxids).toHaveLength(1)
+  })
+})

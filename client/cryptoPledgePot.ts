@@ -55,6 +55,7 @@ export interface LaunchInput {
   milestones: Milestone[]
   kind?: 'agent'
   agentUrl?: string
+  agentLimits?: { pricePerCallSats: number, maxSpendPerMilestoneSats: number }
 }
 
 /** Release at most this many escrows per transaction. */
@@ -113,7 +114,8 @@ export class CryptoPledgePot {
       nonce,
       createdAt: Math.floor(Date.now() / 1000),
       kind: input.kind,
-      agentUrl: input.agentUrl
+      agentUrl: input.agentUrl,
+      agentLimits: input.agentLimits
     }
     validateCampaign(meta)
     const res = await this.wallet.createAction({

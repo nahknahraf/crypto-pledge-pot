@@ -1555,3 +1555,67 @@ Beyond the gate it lists actions per criterion:
 It also adds metrics to show judges (100% of spend receipted, 0 overspend,
 fees under 1% per call) and an order of work. **The minimum to qualify is
 about 6–7 hours.**
+
+---
+
+# Implementing the judging plan (branch `judging-prep`)
+
+## Step 0: one codebase
+
+`donor-agent` and `cross-chain-swap` were merged into `master` (a clean
+fast-forward, since `master` hadn't moved): 142 tests and both type-checks
+green on the merged `master`. Work continues on `judging-prep`.
+
+**Two gate items can't be done from here, and the final report says so:**
+- **the mainnet run:** the agent's wallet is empty, and we don't spend from
+  the user's BSV Desktop;
+- **a live Claude call:** no Anthropic credentials on this machine (no
+  `ANTHROPIC_API_KEY`, no `ant` CLI).
+
+## Step 1: real data, published limits, on-chain reports, restart safety
+
+**Real data (adoption).** The data provider can now resell **real current
+readings from Open-Meteo's free air-quality API** (CAMS data, no key), still
+one BRC-121 payment per call. This is the production default
+(`DATA_SOURCE=open-meteo`); tests and offline demos stay on deterministic
+synthetic data. Every reading states its `source` and `observedAt`. If the
+live source fails or returns an incomplete reading, the fallback is labelled
+`synthetic (live source unavailable: …)`. Reports now name their sources
+instead of always saying "synthetic". Checked live: Munich PM2.5 13 / AQI 42,
+Zurich PM2.5 14 / AQI 38 (30 Oct, 18:00 UTC).
+
+**Published limits (technical).** At launch, the agent writes its price cap and
+per-milestone spending limit into its **anchored campaign terms**
+(`agentLimits`, validated). The donor agent's audit of AI-agent campaigns now
+checks the ledger against them (each payment ≤ cap, each milestone ≤ limit),
+and flags agents that publish no limits. This closes the "payments ≤ stated
+cap" gap noted when the donor agent was built.
+
+**Reports anchored on chain (stack, technical).** Before posting a milestone
+report, the agent records `sha256(report)` in an OP_RETURN
+(`'cryptopledgepot' 'report' <campaign> {milestone, sha256}`) and appends the
+WhatsOnChain link. `reportMatchesRecord()` verifies a posted report against its
+record: change one word, or claim another milestone, and it fails. Backers
+vote on a report that can't be rewritten afterwards.
+
+**Restart safety (technical).** Tested that a freshly started agent, given the
+saved state and ledger, continues mid-milestone: it spends instead of
+withdrawing again, and a third start just waits. Exactly one release
+transaction for the milestone.
+
+**What broke:**
+- My new restart test used the pre-rename `BitFundApi` name. The mock-chain
+  type-check (added earlier) would have caught it; fixed before running.
+- The trust test needed the demo's chain to read anchor transactions;
+  `runAgentDemo` now exposes it.
+
+**How we checked it:** 7 new tests:
+- `agent.dataSource` (3): a live reading parsed and labelled; incomplete and
+  failed answers refused; source notes;
+- `agent.trust` (3): both reports in the AirWatch story match their on-chain
+  records and tampering fails; the real ledger passes the audit
+  ("13 receipted payment(s), all within its published limits"); over-cap,
+  overspent and limit-less agents are flagged;
+- `agent.e2e` restart (1).
+
+Full suite: **149 passing** (23 files); both type-checks clean.

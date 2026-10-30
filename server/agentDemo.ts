@@ -14,7 +14,7 @@
 import type { Server } from 'node:http'
 import { CryptoPledgePot } from '../client/cryptoPledgePot'
 import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
-import { createMockChain, memoryKnex } from '../test/helpers/mockchain'
+import { createMockChain, memoryKnex, type MockChain } from '../test/helpers/mockchain'
 import { CryptoPledgePotAgent, type StepOutcome } from '../agent/agent'
 import { createActivityLog } from '../agent/activity'
 import { MockBrain, type Brain } from '../agent/brain'
@@ -53,6 +53,8 @@ export interface AgentDemo {
   /** Resolves when the story is complete (rejects if a beat goes wrong). */
   done: Promise<void>
   ledger: Ledger
+  /** The offline chain, for tests that inspect transactions. */
+  chain: MockChain
   close: () => Promise<void>
 }
 
@@ -178,6 +180,7 @@ export async function runAgentDemo (opts: AgentDemoOptions = {}): Promise<AgentD
     status: () => status,
     done,
     ledger,
+    chain,
     close: async () => {
       for (const s of [server, dataServer, agentServer]) await new Promise(resolve => s.close(resolve))
       await chain.close()

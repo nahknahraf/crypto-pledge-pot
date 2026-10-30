@@ -3,7 +3,7 @@
  *
  *   npm run data-provider
  *
- * Env: NETWORK=main|test, DATA_PORT=8790, DATA_PRICE_SATS=50,
+ * Env: NETWORK=main|test, DATA_PORT=8790, DATA_PRICE_SATS=50, DATA_SOURCE=open-meteo|synthetic (default open-meteo),
  *      DATA_PROVIDER_KEY (else data/provider.key, generated once).
  * Payments land in this provider's own wallet-toolbox wallet.
  */
@@ -21,8 +21,9 @@ async function main (): Promise<void> {
     dbFile: path.resolve('data', 'provider-wallet.sqlite'),
     dbName: 'cryptopledgepot_provider'
   })
-  await serveDataProvider(createDataProviderApp(setup.wallet, price), port)
-  console.log(`[data] paid air-quality API on http://localhost:${port} · ${price} sats per call · merchant ${setup.identityKey}`)
+  const source = process.env.DATA_SOURCE === 'synthetic' ? 'synthetic' : 'open-meteo'
+  await serveDataProvider(createDataProviderApp(setup.wallet, price, {}, { source }), port)
+  console.log(`[data] paid air-quality API on http://localhost:${port} · ${price} sats per call · source ${source} · merchant ${setup.identityKey}`)
 }
 
 main().catch(e => { console.error(e); process.exit(1) })
