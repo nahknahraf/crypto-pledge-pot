@@ -1660,3 +1660,18 @@ Full suite: **149 passing** (23 files); both type-checks clean.
 **What broke:** nothing in code. The old README had a stale test count (88) and links that broke when it moved into `docs/`. Both were fixed.
 
 **Token use:** I also looked for GitHub tools that cut an AI coding agent's token use (e.g. `agusrdz/chop`, RTK, Context Gateway). They are not part of this repo. The pointers are in the chat answer.
+
+## Step 4: a one-page video script and one TODO list
+
+**What:**
+- `docs/VIDEO_SCRIPT.md`: 2.5 minutes in 7 timed rows (show / say). It covers the happy path of each agent:
+  - the fundraising agent through the AirWatch story;
+  - the donor agent in co-pilot;
+  - the liquidity agent's swap into a pledge.
+
+  It ends with a list of what the video may and may not claim.
+- `docs/TODO.md`: every open edge case and task in one checklist, pointing back to the plan ids (§, F, D, S).
+
+**Why:** the old `DEMO_SCRIPT.md` is longer, mainnet-first, and predates the donor agent and the swap. It still says "88 tests" and "milestone one: 40 %". The AirWatch campaign is actually 30/40/30, and the script uses the real numbers from `server/agentDemo.ts` and the real `demo:swap` output.
+
+**What broke / still missing:** the script calls `npm run demo:donor` and `npm run demo:bridge`, which don't exist yet. They are the next two steps.
