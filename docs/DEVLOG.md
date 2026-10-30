@@ -1248,3 +1248,67 @@ the default milestone "Publish *water* tests", so it did match "water".
 - **100 eager candidates never exceed the budget or the per-creator cap**;
 - manipulation disqualifies, and model output is range-checked;
 - reports judged by evidence (and rejected when they address the agent).
+
+## Step 2–3: due diligence, and the loop with both modes
+
+**Due diligence (`donor/diligence.ts`).** The agent doesn't take the server's
+word for anything that matters:
+- **Anchored on chain:** it fetches the campaign's anchor transaction (new
+  `GET /api/txs/:txid`), checks that it carries exactly this campaign's
+  terms, and **verifies it by SPV against a header source the agent chooses**
+  (Arcade on mainnet).
+- **The arbiter is the platform's:** checked via `/api/arbiter-key`, which now
+  accepts the campaign's protocol tag, so legacy `bitfund` campaigns check
+  correctly.
+- **AI-agent campaigns:** the status page answers and every payment in its
+  ledger has a transaction id. Problems become a risk flag rather than a hard
+  stop.
+- **Evidence in reports:** WhatsOnChain transaction links are checked for
+  existence; no other link is ever fetched.
+
+**The loop (`donor/donorAgent.ts`) and memos (`donor/memo.ts`).** Every
+decision is a memo with checks, score, reasons and a summary.
+- **Autopilot:** evaluate every new active campaign once (hard rules →
+  diligence → judgement → score → amount), pledge from its own budget wallet,
+  then follow the campaigns it backed:
+  - **Votes:** verifies the payments linked in each milestone report and
+    votes YES or NO, or abstains when there's no evidence instead of
+    guessing.
+  - **Recovery:** reclaims money from failed campaigns (arbiter-assisted),
+    and from escrows past their refund date.
+- **Co-pilot:** the same evaluation ends in a **proposal**. It reserves
+  budget but pays nothing. `approve(memo, pledgeId)` checks the donor's real
+  pledge in the index (right campaign, not more than proposed, made by the
+  donor's identity) before marking it done; `decline()` frees the budget, and
+  the campaign isn't proposed again.
+
+**What broke:**
+- Our own test setup had an `await` inside a non-async callback (transform
+  error).
+- Three tests failed for one reason worth recording: the agent scored the
+  "good" well **68** and, correctly, pledged half its per-pledge maximum (4,000
+  sats), which was below that campaign's 5,000-sat goal. So the campaign
+  failed instead of being funded, and nothing could be released. The agent
+  was right; the scenario was wrong. The goal is now 3,000.
+
+**How we checked it:** `test/donor.e2e.test.ts`, 9 tests on the mock chain
+with real wallets and the server.
+- **Autopilot:**
+  - of six campaigns it backs exactly the two good ones;
+  - it skips the off-topic one ("mentions none of: water"), the AI-agent
+    manipulation ("score 0", disqualified), the 1%/99% trap, and the creator
+    whose previous campaign failed;
+  - anchors are SPV-verified and arbiters checked;
+  - it stays within the budget and the per-pledge cap, and a second run does
+    nothing;
+  - it votes **YES** after verifying 1/1 linked payments on chain, **reclaims**
+    its pledge from the failed campaign exactly once, and **abstains** on a
+    report that just says "Done.".
+- **Co-pilot:**
+  - two proposals with memos, and the donor's balance untouched;
+  - approval refused for a pledge to the wrong campaign, from a stranger, or
+    larger than proposed; accepted for the real one; not accepted twice;
+  - a declined proposal frees its budget and is never proposed again;
+  - autopilot refuses to start without a budget wallet.
+
+Full suite: **128 passing** (17 files); both type-checks clean.

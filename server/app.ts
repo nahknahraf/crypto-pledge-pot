@@ -16,6 +16,7 @@ import { Beef, Hash, OP, PublicKey, Signature, Transaction, TransactionSignature
 import {
   claimMessage,
   CRYPTOPLEDGEPOT,
+  isProtocolTag,
   protocolsFor,
   campaignIdOf,
   LIMITS,
@@ -204,7 +205,18 @@ export function createCryptoPledgePotService (opts: CryptoPledgePotServerOptions
   app.get('/api/arbiter-key', wrap(async (req) => {
     const nonce = String(req.query.nonce ?? '')
     if (!isHex(nonce, 16)) throw new HttpError(400, 'nonce must be 16 bytes hex')
-    return { arbiterKey: await arbiterKey(nonce.toLowerCase()) }
+    const tag = String(req.query.tag ?? CRYPTOPLEDGEPOT)
+    if (!isProtocolTag(tag)) throw new HttpError(400, 'unknown protocol tag')
+    return { arbiterKey: await arbiterKey(nonce.toLowerCase(), tag) }
+  }))
+
+  /** A transaction the index holds (AtomicBEEF hex), e.g. a campaign anchor, so anyone can verify it by SPV. */
+  app.get('/api/txs/:txid', wrap(async (req) => {
+    const txid = String(req.params.txid).toLowerCase()
+    if (!isHex(txid, 32)) throw new HttpError(400, 'txid must be 32 bytes hex')
+    const beef = await db.tx(txid)
+    if (beef === undefined) throw new HttpError(404, 'transaction not indexed')
+    return { txid, beef }
   }))
 
   app.get('/api/campaigns', wrap(async () => {
