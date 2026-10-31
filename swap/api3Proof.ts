@@ -189,7 +189,9 @@ export async function runTamperTest (client: PublicClient, htlc: Address, token:
     honest = fair - (fair * (opts.spreadBps ?? 50n)) / 10_000n
     const priced = `BSV = $${(Number(price) / 1e18).toFixed(4)}; ${Number(amount) / 1e6} USDC = ${fair} sats fair, quote ${honest}`
     if (wallet === undefined) {
-      add({ name: 'Valid, timely response', expected: 'locked', got: 'locked', detail: `${priced} (read-only check: pass a locker key to send the lock)` })
+      // No key: the same checks lockWithPrice makes, as views. Reported as 'accepted', never as 'locked'.
+      const ok = await view<boolean>('withinTolerance', [honest, fair])
+      add({ name: 'Valid, timely response', expected: 'accepted', got: ok ? 'accepted' : 'RateOutsideTolerance', detail: `${priced} (read-only: pass a locker key to send the lock)` })
     } else {
       await client.waitForTransactionReceipt({ hash: await wallet.writeContract({ address: token, abi: TOKEN_ABI, functionName: 'approve', args: [htlc, amount * 10n], chain: opts.chain, account: opts.locker! }) })
       const tx = await wallet.writeContract({ address: htlc, abi: GUARDED_HTLC_ABI, functionName: 'lockWithPrice', args: lockArgs(honest, inputs.valid), chain: opts.chain, account: opts.locker! })
@@ -231,12 +233,13 @@ export async function runTamperTest (client: PublicClient, htlc: Address, token:
 /** The cases as a table for a terminal (and the video). */
 export function formatTamperTest (cases: TamperCase[], explorerTx?: string): string {
   const rows = cases.map((c, i) => {
-    const mark = c.pass ? (c.expected === 'locked' ? '✅' : '🛑') : '❌'
+    const mark = c.pass ? (['locked', 'accepted'].includes(c.expected) ? '✅' : '🛑') : '❌'
     const tx = c.tx !== undefined ? `\n      tx ${explorerTx !== undefined ? explorerTx + c.tx : c.tx}` : ''
     return `${mark} ${i + 1}. ${c.name.padEnd(42)} ${c.got.padEnd(20)} ${c.detail}${c.pass ? '' : `   (expected ${c.expected})`}${tx}`
   })
   const allPass = cases.every(c => c.pass)
+  const action = cases[0]?.got === 'accepted' ? 'accepted (read-only, nothing locked)' : 'locked'
   return [...rows, '', allPass
-    ? 'PASS: 1 valid response locked, 4 tampered responses rejected before the lock.'
+    ? `PASS: 1 valid response ${action}, 4 tampered responses rejected before the lock.`
     : `FAIL: ${cases.filter(c => !c.pass).length} case(s) differ from the expected result.`].join('\n')
 }

@@ -60,7 +60,7 @@ swaps, real data, 149 tests).
 ## Added since (31 October 2026, branch `finja-and-louisas-branches`)
 
 The scores above are not re-rated; this is what was built after them.
-**241 tests** pass now, both type-checks clean.
+**242 tests** pass now, both type-checks clean.
 
 - **NGO payment plans and the compliance agent:** a signed plan per
   milestone, releases gated on SPV-checked spending, grace period, pro-rata
@@ -70,7 +70,8 @@ The scores above are not re-rated; this is what was built after them.
 - **Real EVM side of the swap** on a local chain (Solidity HTLC + viem), and
   the **API3 price guard**: the contract checks the rate against signed
   BSV/USD data; judges can re-run a tamper test with their own response
-  (13 tests). Base Sepolia is still to do.
+  (15 tests). Deployed on Base Sepolia, source verified on Sourcify, and
+  the tamper test passes live with CoinPaprika's signed responses.
 - **zk-SNARK agent authorization** at the paid data API (Groth16, checked
   before payment; 5 tests with snarkjs mocked, no real proof generated yet).
 

@@ -56,7 +56,7 @@ On top of that:
 | API3 price guard (swap) | ✅ the Solidity HTLC checks the quoted rate against a BSV/USD price signed by an Airnode on API3 AirnodeHub (±2%, fresh data) and refuses unfair or stale quotes; verified with a real API3 signature; the API3 tamper test (a valid response locks; edited, too-old, other-request and wrong-signer responses are refused), which judges can run with their own responses; **deployed on Base Sepolia** at [`0x4d83…6673`](https://sepolia.basescan.org/address/0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673) (source verified), the tamper test passing live with CoinPaprika's signed responses | 15 tests; every API3 proof listed in §0 of [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](docs/API3_CROSSCHAIN_SWAP_GUARD.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **241 tests**, all passing (`npm test`), and both typechecks are clean.
+In total there are **242 tests**, all passing (`npm test`), and both typechecks are clean.
 
 ## Try it
 

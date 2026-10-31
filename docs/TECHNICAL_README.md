@@ -533,8 +533,9 @@ and the judges' guide: [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](API3_CROSSCHAIN_SW
   reached 35 KB, so paid APIs (and any proxy in front) need a raised header
   limit (`serveDataProvider` uses 1 MB).
 - The arbiter is a single key; an M-of-N guardian set is the next step.
-- `PriceGuardedHTLC` is not deployed on Base Sepolia yet, and no paid live
-  AirnodeHub fetch has run (both need testnet keys).
+- `PriceGuardedHTLC` runs on Base Sepolia, but the full USDC → BSV swap
+  has only run on a local EVM chain; on Base Sepolia it locks the
+  project's TestUSDC, not Circle's.
 - zk-SNARK proofs are not bound to a request, so one can be replayed while
   the commitment is enrolled; the circuit needs its own trusted setup.
 - Money an NGO has already been paid cannot be pulled back by a script; a

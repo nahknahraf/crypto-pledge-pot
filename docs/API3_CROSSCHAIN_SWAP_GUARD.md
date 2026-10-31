@@ -131,6 +131,23 @@ Cases 2–5 are refused before any token moves. Case 4 gives
 into the signature check: a response to any other request recovers a different
 signer. The tool prints `PASS` and exits with 0 only if all five answers match.
 
+**Live on Base Sepolia** (31 October 2026, 13:02, CoinPaprika's own signed
+responses, every case a transaction you can open):
+
+| # | Submission | Result | Transaction |
+|---|---|---|---|
+| 1 | Valid, timely BSV/USD response ($17.0229) | ✅ locked 1 TestUSDC | [`0x234e89…3cbe4`](https://sepolia.basescan.org/tx/0x234e893fc85397ad830ff2da3c1a74f05665522cece78d5b123e0799a653cbe4) |
+| 2 | Same response, `"price"` halved after signing | 🛑 `NotSignedByAirnode` | [`0x2054ca…4519f`](https://sepolia.basescan.org/tx/0x2054ca9b1e2471fee1a6a93c9f4c4ddbde5020135a05d625d7f028978494519f) |
+| 3 | Real BSV/USD response signed 6 min earlier | 🛑 `ResponseTooOld` | [`0xffa89f…a5c49`](https://sepolia.basescan.org/tx/0xffa89fdbcebb0b7ef47991f4824a207bf30caa796887ce5a9f8dac6587ba5c49) |
+| 4 | Real BTC/USD response from the same Airnode | 🛑 `NotSignedByAirnode` | [`0xab22f2…d7065`](https://sepolia.basescan.org/tx/0xab22f2e389c42e36ff639883a9dc60721c4a1508942ac1a673b386ae4cad7065) |
+| 5 | The valid payload signed by another key | 🛑 `NotSignedByAirnode` | [`0x762955…c7854`](https://sepolia.basescan.org/tx/0x7629551d39c9a7229038c8b5a66bbe9843048385d752d5ead705d4a6aecc7854) |
+
+```
+PASS: 1 valid response locked, 4 tampered responses rejected before the lock.
+```
+
+The signed responses are in `deployments/api3-responses/`.
+
 Offline, the same five cases run on a local chain whose guard trusts a test
 key, with a real lock and the rejections sent as transactions:
 

@@ -88,6 +88,14 @@ describe.skipIf(anvilBinary() === undefined)('API3 proof: deployment record and 
     for (const c of cases.slice(1)) expect((await client.getTransactionReceipt({ hash: c.tx! })).status).toBe('reverted')
   }, 60_000)
 
+  it('without a key, the valid case is a read-only check and never claims a lock', async () => {
+    const cases = await runTamperTest(client, record.address, token, await inputs())
+    expect(cases[0]).toMatchObject({ got: 'accepted', pass: true })
+    expect(cases[0].tx).toBeUndefined()
+    expect(cases.slice(1).every(c => c.pass)).toBe(true)
+    expect(formatTamperTest(cases)).toMatch(/PASS: 1 valid response accepted \(read-only, nothing locked\)/)
+  }, 60_000)
+
   it('reports honestly when a response is missing or the judge\'s own response is stale', async () => {
     const { stale } = await inputs()
     const cases = await runTamperTest(client, record.address, token, { valid: stale })
