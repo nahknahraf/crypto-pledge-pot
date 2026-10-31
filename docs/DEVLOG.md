@@ -2324,3 +2324,5 @@ Suite: 249 passed, 3 skipped.
   - `agentDemo.e2e` updated on purpose: 1 refusal instead of 2, and 14 calls for 700 sats instead of 13 for 650. `agent.trust` follows: the donor agent audits 14 receipted payments, all within limits. The first commit of this change left that count at 13, and a follow-up commit fixed it.
 - **Real Claude, re-run:** milestone 3 now plans five refresh readings instead of `zurich`, and the agent buys 700 sats of data instead of 450.
 - **Suite:** 278 passed, 3 skipped.
+
+**9.19 Decision: keep the risk-flag penalty.** The owner chose to keep it: each flag costs 10 points (capped at −30), and the threshold stays at 60. TODO and the eval results record the decision. The code is unchanged.

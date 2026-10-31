@@ -36,7 +36,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [x] Donor agent D1–D13. Done: D1, D3, D4, D6, D8–D13 (D4, D11 and D12 were real gaps, fixed). **Accepted limits:** D2 (one creator under two identity keys looks like two creators); D5 (a creator's track record comes from the server's statuses, while terms, anchors and reports are checked on chain, and in this design the server is also the arbiter, a trust assumption that refunds never depend on).
 - [x] Liquidity agent S1–S11: all done (S5 and the crash window were real holes, fixed); see DEVLOG 8.5–8.25.
 - [x] A live-model eval: run with real Claude (Opus 5.5) through the Claude Code CLI, 3 runs, results in [`AGENT_EVAL_RESULTS.md`](AGENT_EVAL_RESULTS.md). Every invariant held. The run found two bugs, now fixed: goal units in the donor prompt, and a wrong milestone in the eval fixture.
-- [ ] **Decide:** should each donor-agent risk flag cost 10 points (capped at −30)? With real Claude, honest but sparse campaigns land at 50–58, against a threshold of 60.
+- [x] **Decided (owner, 2026-10-31): keep the risk-flag penalty.** Each flag costs 10 points (capped at −30), and the threshold stays at 60. The donor agent stays cautious: with real Claude, honest but sparse campaigns (50–58) need more detail before it funds them.
 
 ## Bridging (real money in)
 
