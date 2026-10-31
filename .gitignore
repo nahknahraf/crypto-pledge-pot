@@ -21,3 +21,6 @@ data/donor-mandate.json
 # Keep generated witness calculators and proving keys out of source control.
 circuits/**/*.wasm
 circuits/**/*.zkey
+
+# Base Sepolia TESTNET key for the API3 deployment and tamper test (never a mainnet key)
+data/api3-team.key

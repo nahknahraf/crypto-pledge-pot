@@ -50,14 +50,15 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 
 A separate clip for the API3 submission. It is **not mainnet**: say which chain is on screen. Record it against the Base Sepolia deployment if `deployments/api3-price-guard.json` exists; otherwise use `--local` and say "a local EVM chain".
 
-**Before recording:** a Base Sepolia key with aUSD from the AirnodeHub faucet in `API3_PAYER_KEY`; the contract open on the block explorer; a terminal with a large font.
+**Before recording:** the team key (`data/api3-team.key`) funded with Base Sepolia ETH, aUSD and test USDC; run `npm run api3:judge` once at least 5 minutes before recording, so a genuinely old response is saved for case 3; the contract open on the block explorer; a terminal with a large font. The API3 judges score the tamper test as pass or fail: all five rows must show.
 
 | Time | Show | Say |
 |---|---|---|
 | **0:00–0:08** | The explorer page of `PriceGuardedHTLC` (address, network, verified source) | "This is the swap contract on Base Sepolia. Before it locks a donor's USDC, it checks the quoted rate against a BSV/USD price signed by CoinPaprika's Airnode on API3 AirnodeHub." |
-| **0:08–0:15** | `API3_PAYER_KEY=… npm run api3:judge`: the deployment block, then *read back from the chain* | "The tool reads the Airnode and request hash back from the contract, then pays 0.001 aUSD for a fresh signed price." |
-| **0:15–0:32** | The five rows appearing, then *1 accepted, 4 rejected* | "The response as signed is accepted. Halve the price, move the timestamp, or bring a real API3 signature from another Airnode: the contract refuses all three. And a valid price with a quote 5% too low is refused too." |
-| **0:32–0:40** | `docs/API3_CROSSCHAIN_SWAP_GUARD.md`, section 0 | "Judges can run the same check with their own response, or paste it into checkedPrice on the explorer." |
+| **0:08–0:14** | `API3_PAYER_KEY=… API3_LOCKER_KEY=… npm run api3:judge -- --send-rejections`: the deployment block, *read back from the chain* | "The tool reads the Airnode and request hash back from the contract and fetches a fresh signed BSV/USD price from AirnodeHub." |
+| **0:14–0:20** | Row 1 ✅ *locked*; click its tx → the explorer shows the lock and the `PriceChecked` event | "A valid, timely response: the contract checks signer, request and age, and locks the donor's USDC." |
+| **0:20–0:34** | Rows 2–5 🛑, then *PASS*; click one reverted tx on the explorer | "Now four that must fail: a real response with the price edited, a real response that is too old, a real response to a different request, BTC instead of BSV, and one signed by a key that isn't CoinPaprika's Airnode. All four are refused before anything is locked." |
+| **0:34–0:40** | `docs/API3_CROSSCHAIN_SWAP_GUARD.md`, section 0 | "Judges can run the same test with their own responses: every proof is listed here." |
 
 **Must not claim:** a Base Sepolia run if the clip shows `--local`, or that any of it is mainnet.
 

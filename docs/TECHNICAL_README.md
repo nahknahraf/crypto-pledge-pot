@@ -52,7 +52,7 @@ prove with a **zk-SNARK** that they are enrolled.
 |---|---|---|
 | The other chain's half of a swap | Solidity HTLC (`HashedTimelockERC20`), viem, Foundry's Anvil locally | `evm/contracts/`, `swap/evmChain.ts` |
 | Fair swap rate, checked on chain | API3 AirnodeHub, Airnode v2 signed responses (CoinPaprika BSV/USD), verified in `PriceGuardedHTLC` | `evm/contracts/PriceGuardedHTLC.sol`, `swap/api3Price.ts` |
-| Proof for judges | deployment record, Sourcify verification, tamper test as `eth_call`s | `swap/api3Proof.ts`, `npm run api3:judge` |
+| Proof for judges | deployment record, Sourcify verification, the API3 tamper test (a real lock, then four refusals) | `swap/api3Proof.ts`, `npm run api3:judge` |
 | Only enrolled agents at a paid API | zk-SNARK (Groth16), circom circuit with a Poseidon commitment, snarkjs | `circuits/agentSecret.circom`, `agent/zkAuth.ts` |
 
 Team: Farhan · Finja · Louisa
@@ -512,12 +512,14 @@ AirnodeHub** signed moments ago.
   it, so an honest quote always passes; a greedy one never locks the donor's
   money.
 - A real Nodary-signed API3 response passes the same verification code.
-- **Proof for judges:** `npm run api3:judge` sends a judge's own signed
-  response and four manipulations to the deployed contract as free
-  `eth_call`s: 1 accepted, 4 rejected (`NotSignedByAirnode` ×3,
-  `RateOutsideTolerance`). `--local` runs it offline on Anvil.
+- **Tamper test for judges:** `npm run api3:judge` runs the API3 track's
+  test against the deployed contract with the judge's own responses: a valid,
+  timely response locks USDC (a transaction), then a response with one value
+  edited, one that is too old, one to a different request and one signed by
+  another key are each refused before the lock. `--local` runs it on Anvil.
+- One swap's hashlock can lock only once (`HashlockAlreadyUsed`).
 
-**Tests:** 13 (`api3.guard.evm`, `api3.proof.evm`). Details, design decisions
+**Tests:** 15 (`api3.guard.evm`, `api3.proof.evm`). Details, design decisions
 and the judges' guide: [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](API3_CROSSCHAIN_SWAP_GUARD.md).
 
 ### Known limitations

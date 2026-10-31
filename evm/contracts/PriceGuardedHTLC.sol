@@ -61,6 +61,9 @@ contract PriceGuardedHTLC is HashedTimelockERC20 {
 
     mapping(bytes32 => PriceCheck) public priceChecks;
 
+    /// @notice Hashlocks already used: one swap (one secret) can lock the donor's tokens only once
+    mapping(bytes32 => bool) public hashlockUsed;
+
     event PriceChecked(bytes32 indexed id, uint256 quotedSats, uint256 fairSats, uint256 priceUsd18, uint64 priceTimestamp);
 
     error UseLockWithPrice();
@@ -69,6 +72,7 @@ contract PriceGuardedHTLC is HashedTimelockERC20 {
     error PriceFromTheFuture(uint256 priceTimestamp);
     error ZeroPrice();
     error RateOutsideTolerance(uint256 quotedSats, uint256 fairSats, uint256 maxDeviationBps);
+    error HashlockAlreadyUsed(bytes32 hashlock);
 
     /// @dev Small clock differences between the data source, the Airnode and the chain are normal.
     uint256 private constant CLOCK_SKEW = 5 minutes;
@@ -122,6 +126,10 @@ contract PriceGuardedHTLC is HashedTimelockERC20 {
         (uint256 priceUsd18, uint256 priceTimestamp) = checkedPrice(timestamp, data, signature);
         uint256 fair = fairSats(amount, priceUsd18);
         if (!withinTolerance(quotedSats, fair)) revert RateOutsideTolerance(quotedSats, fair, maxDeviationBps);
+        // Duplicate execution: replaying the same lock (same hashlock) is refused, so one quote and one signed
+        // response cannot lock a swap twice. Reusing a fresh price for a different swap is fine and intended.
+        if (hashlockUsed[hashlock]) revert HashlockAlreadyUsed(hashlock);
+        hashlockUsed[hashlock] = true;
 
         id = _lock(receiver, token, amount, hashlock, refundAfter);
         priceChecks[id] = PriceCheck(quotedSats, fair, priceUsd18, uint64(priceTimestamp));
