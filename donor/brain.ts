@@ -78,6 +78,18 @@ export const addressesAgents = (text: string): boolean => INJECTION.test(text)
 const URGENCY = /(only \d+ (hours|minutes) left|act now|last chance|urgent!|send (directly|to my address))/i
 const MEASURABLE = /\d|report|audit|test|measure|publish|deliver|install|photo|link|data|survey|sample|map|count/i
 
+/**
+ * The brain's judgement of a campaign with the code rules on top: range-checked, and text that
+ * addresses AI agents is flagged (which disqualifies, score.ts) whatever the brain said.
+ * Used by DonorAgent and by the eval (eval/agentEval.ts), so both judge the same way.
+ */
+export async function assessWithRules (brain: DonorBrain, m: Mandate, c: CampaignView): Promise<CampaignAssessment> {
+  const a = sanitizeAssessment(await brain.assessCampaign(m, c))
+  const fields = [c.meta.title, c.meta.description, ...c.meta.milestones.map(x => x.title)].join(' \n ')
+  if (addressesAgents(fields) && !a.riskFlags.some(f => f.startsWith(MANIPULATION))) a.riskFlags.push(`${MANIPULATION}text addressed to AI agents`)
+  return a
+}
+
 /** Deterministic, offline brain for tests, demos and runs without Anthropic credentials. */
 export class MockDonorBrain implements DonorBrain {
   readonly name = 'mock'

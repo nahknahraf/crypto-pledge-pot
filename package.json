@@ -32,6 +32,7 @@
     "demo:bridge": "vite-node --config vitest.config.ts swap/bridgeDemoMain.ts",
     "evm:compile": "node evm/compile.cjs",
     "lp": "vite-node --config vitest.config.ts swap/lpMain.ts",
+    "eval:agents": "vite-node --config vitest.config.ts eval/agentEvalMain.ts",
     "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts"
   },
   "dependencies": {

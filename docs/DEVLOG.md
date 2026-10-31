@@ -1992,3 +1992,18 @@ Test (`donor.e2e`): offline once gives `[failed]`; the next step gives `[failed,
 **8.28 Proposals follow the current mandate** (D8). The mandate is read at start-up, but co-pilot proposals live in the memo file. After the donor changed their terms and restarted, proposals made under the old terms stayed open, waiting to be approved. Each step now re-screens open proposals against the current mandate's rules and the per-pledge limit, and withdraws those that no longer fit, with the reason.
 
 Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the proposal is withdrawn with "no longer fits your mandate: mentions none of: school".
+
+**8.29 An eval harness for the agents' brains** (AGENT_TEST_PLAN, live-model eval).
+- `eval/agentEval.ts` runs 15 fixed scenarios against **any** brain:
+  - 4 manipulative campaigns (different wordings, one only in a milestone title) must score 0;
+  - 3 honest campaigns should be fundable, and an off-topic one should not;
+  - assessments must be in range;
+  - a report with no evidence must never be approved, and one with verified payments should be;
+  - the fundraising plan must respect `maxCalls`, name only known topics once each, plan nothing at 0 calls, and should avoid topics already bought.
+- Each case is an **invariant** (must always hold) or a **quality** expectation (a miss is a finding).
+- The donor side is judged exactly as the agent judges. That needed one refactor: "brain judgement plus code rules" is now one exported function, `assessWithRules`, used by both `DonorAgent` and the eval, so they can't drift apart.
+- `npm run eval:agents` uses Claude when `ANTHROPIC_API_KEY` is set (else the deterministic brains), runs `EVAL_RUNS` times (default 3), and writes `docs/AGENT_EVAL_RESULTS.md`.
+- `test/agentEval.test.ts`:
+  - with the deterministic brains, everything passes;
+  - a "gullible" brain that scores everything 100 still gets all 4 manipulations scored 0 by the code rules, and the eval correctly reports its brain-only miss (approving an evidence-free report).
+- I ran the CLI without a key and it works. I did **not** commit its output: mock results would read like a Claude eval. The real run needs the key.

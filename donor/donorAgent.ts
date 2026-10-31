@@ -16,7 +16,7 @@
 import type { CampaignView } from '../core/api'
 import type { CryptoPledgePot } from '../client/cryptoPledgePot'
 import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
-import { addressesAgents, MANIPULATION, type DonorBrain } from './brain'
+import { addressesAgents, assessWithRules, type DonorBrain } from './brain'
 import { checkAgent, checkAnchor, checkArbiter, checkReportAnchor, verifiedPaymentsIn, type Check, type DiligenceDeps } from './diligence'
 import type { Mandate } from './mandate'
 import type { Memo, MemoBook } from './memo'
@@ -128,14 +128,11 @@ export class DonorAgent {
 
     let assessment
     try {
-      assessment = await this.deps.brain.assessCampaign(this.mandate, c)
+      assessment = await assessWithRules(this.deps.brain, this.mandate, c)
     } catch (e) {
       return skip([`could not assess it (${(e as Error).message})`], checks)
     }
     if (agent !== undefined && !agent.ok) assessment.riskFlags.push(`AI agent: ${agent.detail}`)
-    // A hard rule, whatever the brain said: text that addresses AI agents disqualifies (score.ts).
-    const fields = [c.meta.title, c.meta.description, ...c.meta.milestones.map(m => m.title)].join(' \n ')
-    if (addressesAgents(fields) && !assessment.riskFlags.some(f => f.startsWith(MANIPULATION))) assessment.riskFlags.push(`${MANIPULATION}text addressed to AI agents`)
     const score = scoreCampaign(c, assessment, record, now)
     if (score.total < this.mandate.scoreThreshold) {
       return skip([`score ${score.total} is below your threshold of ${this.mandate.scoreThreshold}`], checks, { score, summary: `Not funded (score ${score.total}): ${assessment.summary}` })
