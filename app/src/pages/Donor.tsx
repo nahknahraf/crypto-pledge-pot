@@ -270,7 +270,7 @@ export function Donor () {
         {done.map(m => (
           <li key={m.id} className={m.status}>
             <span className="tag">{m.kind === 'pledge' ? (m.status === 'declined' ? 'declined' : 'pledge') : m.kind === 'vote' ? `vote ${m.vote ?? ''}` : m.kind}</span>
-            <a href={`#/c/${m.campaignId}`}>{m.campaignTitle}</a>
+            {m.campaignId !== '' ? <a href={`#/c/${m.campaignId}`}>{m.campaignTitle}</a> : <span>{m.campaignTitle}</span>}
             <span>{m.amount !== undefined ? formatSats(m.amount) : ''}</span>
             <span className="muted small">{m.summary}{m.error !== undefined ? ` (${m.error})` : ''}</span>
             {m.txid !== undefined && <a className="small" href={WOC_TX + m.txid} target="_blank" rel="noreferrer">{short(m.txid)}</a>}
