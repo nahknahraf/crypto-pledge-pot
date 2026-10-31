@@ -15,6 +15,7 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 3. Donor agent: copy `donor-mandate.example.json` to `data/donor-mandate.json`, put in backer 1's identity key, and keep it in `copilot` mode. Then run `npm run donor`.
 4. Launch a second, tiny campaign from the app (goal 1,000 sats, deadline 10 minutes) and pledge 600 sats to it, so it fails during the recording.
 5. Have two BSV Desktop wallets ready (backer 1 and backer 2), with about 4,000 sats each. Keep a WhatsOnChain tab and the agent's terminal visible.
+6. **For the closing shot:** record `DEMO_PACE_S=1 npm run demo:bridge:ln` in a terminal beforehand (about 20 s, fully local; needs bitcoind and lnd in `~/opt`, see `docs/BRIDGING_PLAN.md` §4), and caption it **"local test network"** on screen.
 
 | Time | Show (mainnet) | Say |
 |---|---|---|
@@ -25,7 +26,7 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 | **1:15–1:35** · Backers stay in control | The milestone 2 report and its on-chain anchor (WhatsOnChain); backer 1 clicks **Approve** and confirms in BSV Desktop; *(cut)* terminal: milestone 2 released | "Its report is hashed on chain before it's posted, so it can't be edited later. Backers vote, weighted by what they pledged. Only a majority releases the next milestone." |
 | **1:35–1:55** · Donor agent (co-pilot) | **My donor agent** page: memos with their checks (SPV anchor, arbiter, the agent's spending against its published limits); a proposal → **Approve & pay** → BSV Desktop → the pledge on WhatsOnChain | "My donor agent screens campaigns for me: on-chain proofs, whether an AI agent kept to its own limits, and text that tries to manipulate AI agents. It writes a memo and waits. I approve and pay from my own wallet; the agent never holds my money." |
 | **1:55–2:12** · Refund | The tiny campaign that missed its goal → **Reclaim (campaign failed)** → BSV Desktop → the refund on WhatsOnChain | "If a campaign fails, donors take back what's in escrow right away, and after the refund date they can even do it without our server." |
-| **2:12–2:30** · Why BSV, what's next | The README's "What works" table, then the mainnet txid table in `USAGE_AND_VALUE.md` | "Every donation, release, API call, vote and refund you saw is a mainnet transaction costing a fraction of a cent. It's built on BRC-100 wallets, sCrypt, SPV, BRC-121 pay-per-call and wallet-toolbox. Next: atomic swaps that bring USDC from other chains; they already work offline." |
+| **2:12–2:30** · Why BSV, and money from other chains | The mainnet txid table in `USAGE_AND_VALUE.md`, then the pre-recorded `demo:bridge:ln` terminal (captioned **local test network**): *hold invoice → held → sats locked → claimed → settled* | "Every donation, release, payment, vote and refund you saw is a mainnet transaction. Donors don't even need BSV: a liquidity agent atomically swaps USDC, Bitcoin or Lightning into sats in their own wallet. Here it is on real Bitcoin and Lightning nodes, on a local test network." |
 
 **Capture while recording** (into `docs/USAGE_AND_VALUE.md`):
 
@@ -41,7 +42,13 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 
 **Must not claim:**
 
-- that the swap or bridge ran on mainnet (it is offline: a simulated ledger or a local EVM chain);
+- that a swap ran on mainnet or on a public testnet. So far the swaps have run only on local test networks:
+  - USDC: Anvil, and a local fork of Base with the real USDC and Uniswap contracts;
+  - Bitcoin and Lightning: Bitcoin Core and LND in regtest;
+  - the BSV side: the offline mock chain.
+
+  Say "local test network", and keep the caption on screen;
+- that the Bring USDC or Bring BTC page was used with real wallets (it hasn't been clicked through yet);
 - that the brain was Claude, if the start-up line said `brain mock`.
 
 **Before you start:** check that no browser automation is running while BSV Desktop is open. Every payment in the video is clicked and approved by a person.

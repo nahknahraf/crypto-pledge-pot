@@ -2247,3 +2247,10 @@ Suite: 249 passed, 3 skipped.
 - **Unverified:** Changelly's direct BSV card purchases (its page returns 403 to automated access).
 - **Recommendation:** fiat → USDC on Base → the existing Bring USDC swap. Building it waits on the user choosing a provider, plus its account and key.
 - **Nothing was added to the UI.**
+
+**9.13 Video script updated** for the bridging work.
+- **The closing row (2:12–2:30)** now shows a pre-recorded `npm run demo:bridge:ln`, captioned "local test network". The narration was cut to about 45 words so it fits 18 seconds.
+- **The prep list** gains step 6. I re-ran the demo with `DEMO_PACE_S=1`: it took 19 s and printed all six steps.
+- **"Must not claim" is now precise:**
+  - no swap has run on mainnet or on a public testnet (only Anvil, the Base fork, and regtest Bitcoin Core and LND, with the BSV side on the mock chain);
+  - the Bring pages haven't been clicked through with real wallets.
