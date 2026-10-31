@@ -33,7 +33,7 @@ How to run each thing: [`DEMO_RUNBOOK.md`](DEMO_RUNBOOK.md).
 | What | Status |
 |---|---|
 | `npm run rehearse:agents`: the whole story with only agents, offline | **live** with Claude: completed with 3/3 milestones, 15 real Open-Meteo purchases, 0 human actions |
-| `npm run agents:mainnet`: server, data provider, fundraising agent, 3 autopilot donor agents, team treasury | **mainnet** run 1 (2026-10-31): one deposit was claimed by SPV and all 4 agents were funded by themselves; the agent launched its campaign. 2 donor agents pledged (score 61) and 1 declined (55), so 1,000 of the 1,200-sat goal was raised; outcome in `DEVLOG.md` |
+| `npm run agents:mainnet`: server, data provider, fundraising agent, 3 autopilot donor agents, team treasury | **mainnet** run 1 (2026-10-31): one deposit was claimed by SPV and all 4 agents were funded by themselves; the agent launched its campaign. 2 donor agents pledged (score 61) and 1 declined (55), so 1,000 of the 1,200-sat goal was raised. The campaign failed, and both donor agents reclaimed their pledges by themselves. Txids in `SUBMISSION.md` §3 |
 | Donor budgets now let any 2 of the 3 donors reach the goal | **tested** (fixed after run 1); not yet run |
 
 ## Safety and operations
