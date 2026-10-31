@@ -2102,3 +2102,5 @@ Full suite: **241 passing**, plus 3 opt-in fork tests that pass with `FORK_URL`.
   2. a P2WSH HTLC with the same sha256 hashlock;
   3. a `SourceChain` adapter;
   4. the same swap tests as on EVM.
+
+**8.38 One server per index** (§4). `npm run server` now takes `<db file>.lock`, with the same `acquireLock` as the agents. Two servers on one index would both act as arbiter on the same data. Checked for real with a scratch DB and a throwaway arbiter key (none of the real `data/` files touched): the first serves `/api/health`, and the second stops with "another process … is already running".

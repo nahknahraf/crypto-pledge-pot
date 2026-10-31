@@ -20,6 +20,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
 import { Setup } from '@bsv/wallet-toolbox'
+import { acquireLock } from '../agent/lock'
 import { loadOrCreateKey } from '../agent/wallet'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
 import { createCryptoPledgePotService } from './app'
@@ -44,7 +45,9 @@ async function main (): Promise<void> {
     databaseName: 'cryptopledgepot_arbiter'
   })
 
-  const db = new CryptoPledgePotDb(sqliteKnex(process.env.CRYPTOPLEDGEPOT_DB ?? path.join(dataDir, 'cryptopledgepot.db')))
+  const dbFile = process.env.CRYPTOPLEDGEPOT_DB ?? path.join(dataDir, 'cryptopledgepot.db')
+  acquireLock(`${dbFile}.lock`) // one server per index: two would both act as arbiter on the same data
+  const db = new CryptoPledgePotDb(sqliteKnex(dbFile))
   await db.migrate()
 
   const service = createCryptoPledgePotService({
