@@ -250,6 +250,22 @@ describe('co-pilot: the agent proposes, the donor approves and pays', () => {
     expect(book.all().filter(m => m.campaignId === id2).map(m => m.status)).toEqual(['failed', 'failed', 'failed'])
   })
 
+  it('after the donor changes the mandate, open proposals that no longer fit are withdrawn (D8)', async () => {
+    clock = T0 + 18 * DAY
+    const fresh = await chain.makeWallet(); await chain.fund(fresh, 50_000)
+    const id = (await as(fresh).launch(campaign({ title: 'Water filters for a clinic', description: 'Ceramic filters; we publish the lab test.' }))).campaignId
+    const book = new MemoBook(memoryStore<Memo[]>([]))
+    const deps = { api: new CryptoPledgePotApi(url), brain: new MockDonorBrain(), memos: book, chainTracker: chain.chainTracker, txExists, now: () => clock, log: () => {} }
+    const budget = { totalSats: 12_000, perPledgeMaxSats: 6_000, perCreatorMaxPct: 100 }
+    await new DonorAgent(parseMandate({ name: 'x', mode: 'copilot', keywords: ['water'], donorIdentityKey: donor.identityKey, budget }), deps).step()
+    const p = book.all().find(m => m.campaignId === id)!
+    expect(p.status).toBe('proposed')
+    // Same memos, new terms: the donor now only funds education.
+    await new DonorAgent(parseMandate({ name: 'x', mode: 'copilot', keywords: ['school'], donorIdentityKey: donor.identityKey, budget }), deps).step()
+    expect(book.get(p.id)).toMatchObject({ status: 'declined' })
+    expect(book.get(p.id)!.reasons.at(-1)).toMatch(/no longer fits your mandate: mentions none of: school/)
+  })
+
   it('refuses autopilot without a budget wallet', () => {
     expect(() => new DonorAgent(parseMandate({ name: 'x', mode: 'autopilot', keywords: ['water'] }), { api: new CryptoPledgePotApi(url), brain: new MockDonorBrain(), memos, chainTracker: chain.chainTracker, txExists })).toThrow(/needs a wallet client/)
   })

@@ -1988,3 +1988,7 @@ No jsdom or Testing Library dependency was needed. The app build is unchanged.
 **8.27 A failed pledge is retried** (D12). **A real gap, fixed.** In autopilot, a pledge that failed (wallet offline, broadcast error) got a `failed` memo, and the step marked the campaign as decided. It was **never tried again**, although nothing had been spent. Now a failed pledge is retried on later steps, up to 3 attempts in all. Failed memos never counted against the budget, so the retry can't overspend.
 
 Test (`donor.e2e`): offline once gives `[failed]`; the next step gives `[failed, executed]`; a third step adds nothing. A campaign whose pledge keeps failing stops at 3 attempts.
+
+**8.28 Proposals follow the current mandate** (D8). The mandate is read at start-up, but co-pilot proposals live in the memo file. After the donor changed their terms and restarted, proposals made under the old terms stayed open, waiting to be approved. Each step now re-screens open proposals against the current mandate's rules and the per-pledge limit, and withdraws those that no longer fit, with the reason.
+
+Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the proposal is withdrawn with "no longer fits your mandate: mentions none of: school".

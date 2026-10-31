@@ -71,6 +71,18 @@ export class DonorAgent {
       this.deps.memos.update(m.id, { status: 'declined', reasons: [...m.reasons, 'expired: the campaign closed before you approved'] })
       this.log(`proposal for "${m.campaignTitle}" expired`)
     }
+    // Proposals made under an older mandate (the donor changed it and restarted) must still fit the current one.
+    for (const m of this.deps.memos.all().filter(x => x.kind === 'pledge' && x.status === 'proposed')) {
+      const c = campaigns.find(x => x.id === m.campaignId)
+      if (c === undefined) continue
+      const empty = { byCampaign: {}, byCreator: {}, total: 0 }
+      const rules = screen(c, this.mandate, creatorRecord(campaigns, c.meta.creatorIdentityKey, c.id), empty, this.now())
+      const why = !rules.ok ? rules.failed[0] : (m.amount ?? 0) > this.mandate.budget.perPledgeMaxSats ? `more than your per-pledge limit of ${this.mandate.budget.perPledgeMaxSats} sats` : undefined
+      if (why !== undefined) {
+        this.deps.memos.update(m.id, { status: 'declined', reasons: [...m.reasons, `no longer fits your mandate: ${why}`] })
+        this.log(`proposal for "${m.campaignTitle}" withdrawn: ${why}`)
+      }
+    }
     // Decided campaigns are not looked at again; a pledge that FAILED (wallet offline, broadcast error)
     // is retried on later steps, up to 3 attempts, since it spent nothing.
     const memos = this.deps.memos.all()
