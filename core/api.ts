@@ -1,5 +1,7 @@
 /** Shapes of the CryptoPledgePot indexer API, shared by the server, the client library and the UI. */
 import type { CampaignMeta, CampaignStatus, ProtocolTag } from './campaign'
+import type { SpendingResult } from './paymentPlan'
+import type { MilestoneCompliance } from './compliance'
 
 export interface MilestoneView {
   index: number // 1-based
@@ -14,6 +16,25 @@ export interface MilestoneView {
   approved: boolean
   /** Why it is not approved yet. */
   pending?: string
+  /** Campaigns with a payment plan, released milestones: verified spending against the plan. */
+  spending?: SpendingResult
+  /** Campaigns with a payment plan, released milestones: did the creator keep the plan? */
+  compliance?: MilestoneCompliance
+}
+
+/** What a donor can collect: a repayment output paying one of their pledges' donor keys. */
+export interface RepaymentView { campaignId: string, campaignTitle: string, milestone: number, outpoint: string, pledgeId: string, sats: number, donorKey: string, donorKeyId: string, beef: string }
+
+/** A verified expense against a payment plan line. */
+export interface SpendView {
+  milestone: number
+  lineId: string
+  outpoint: string | null
+  invoiceSha256: string | null
+  note: string | null
+  verifiedSats: number
+  reason: string
+  createdAt: number
 }
 
 export interface CampaignView {
@@ -79,3 +100,5 @@ export type CampaignEvent =
   | { type: 'refund', pledgeId: string, txid: string }
   | { type: 'vote', milestone: number }
   | { type: 'update', milestone: number }
+  | { type: 'spending', milestone: number }
+  | { type: 'repayment', milestone: number, txid: string, sats: number }

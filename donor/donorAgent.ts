@@ -3,8 +3,9 @@
  *
  *  autopilot  The donor funds the agent's own wallet with the budget and sets
  *             the terms. The agent finds campaigns, does the due diligence,
- *             pledges, verifies each milestone report and votes, and reclaims
- *             money from failed or expired campaigns.
+ *             pledges, verifies each milestone report and votes, reclaims
+ *             money from failed, breached or expired campaigns, and collects
+ *             repayments from NGOs that broke their payment plan.
  *  copilot    The agent finds and checks campaigns the same way, but only
  *             PROPOSES: a short memo with the amount, the score and the
  *             reasons. The donor approves and pays from their own wallet; the
@@ -21,6 +22,7 @@ import { checkAgent, checkAnchor, checkArbiter, verifiedPaymentsIn, type Check, 
 import type { Mandate } from './mandate'
 import type { Memo, MemoBook } from './memo'
 import { amountFor, creatorRecord, screen, type Portfolio } from './screen'
+import { RESOLVED } from '../core/compliance'
 import { scoreCampaign } from './score'
 
 export interface DonorDeps extends DiligenceDeps {
@@ -74,7 +76,7 @@ export class DonorAgent {
     }
     if (this.mandate.mode === 'autopilot') {
       s.votes = await this.monitor()
-      s.refunds = await this.recover()
+      s.refunds = await this.recover() + await this.collectRepayments()
     }
     return s
   }
@@ -141,7 +143,17 @@ export class DonorAgent {
       for (const ms of c.milestones) {
         if (ms.index < 2 || ms.released || ms.update === undefined || done.has(`${c.id}:${ms.index}`)) continue
         done.add(`${c.id}:${ms.index}`)
+        const prior = c.milestones[ms.index - 2]?.compliance
+        if (prior !== undefined && !RESOLVED.includes(prior.state)) {
+          // The NGO has not accounted for the last tranche: never vote more money to it.
+          const reasons = [`milestone ${prior.milestone} spending is ${prior.state}: ${prior.detail}`]
+          await this.deps.client!.vote(c.id, ms.index, false)
+            .then(() => { votes++; this.deps.memos.add({ campaignId: c.id, campaignTitle: c.meta.title, kind: 'vote', milestone: ms.index, checks: [], reasons, status: 'executed', vote: 'no', summary: `Voted NO on milestone ${ms.index}: the payment plan is not kept.` }, this.now()) })
+            .catch(e => this.deps.memos.add({ campaignId: c.id, campaignTitle: c.meta.title, kind: 'vote', milestone: ms.index, checks: [], reasons, status: 'failed', vote: 'no', summary: `Vote on milestone ${ms.index} failed.`, error: (e as Error).message }, this.now()))
+          continue
+        }
         const evidence = await verifiedPaymentsIn(ms.update.note, this.deps)
+        if (prior?.state === 'compliant' || prior?.state === 'cured') { evidence.linked++; evidence.verified++ } // plan spending verified by SPV
         const verdict = await this.deps.brain.assessReport(this.mandate, c, ms.index, ms.update.note, evidence.verified)
           .catch(e => ({ verdict: 'unsure' as const, reasons: [`could not assess (${(e as Error).message})`] }))
         const reasons = [`${evidence.verified}/${evidence.linked} linked payment(s) verified on chain`, ...verdict.reasons]
@@ -174,9 +186,11 @@ export class DonorAgent {
       const { pledge } = await this.deps.api.pledge(p.pledgeId!)
       if (pledge.status !== 'active') continue
       const c = await this.deps.api.campaign(p.campaignId)
-      const mode = c.status === 'failed' ? 'failed' : now >= c.meta.refundAfter && c.status !== 'completed' ? 'deadline' : undefined
+      const early = c.status === 'failed' || c.status === 'breached'
+      const mode = early ? 'failed' : now >= c.meta.refundAfter && c.status !== 'completed' ? 'deadline' : undefined
       if (mode === undefined) continue
-      const memo = { campaignId: c.id, campaignTitle: c.meta.title, kind: 'refund' as const, pledgeId: p.pledgeId, checks: [], reasons: [mode === 'failed' ? 'the campaign missed its goal' : 'the refund date has passed'] }
+      const why = c.status === 'breached' ? 'the NGO breached its payment plan' : mode === 'failed' ? 'the campaign missed its goal' : 'the refund date has passed'
+      const memo = { campaignId: c.id, campaignTitle: c.meta.title, kind: 'refund' as const, pledgeId: p.pledgeId, checks: [], reasons: [why] }
       try {
         const r = await this.deps.client!.refund(p.pledgeId!, mode, now)
         refunds++
@@ -187,6 +201,20 @@ export class DonorAgent {
       }
     }
     return refunds
+  }
+
+  /** Autopilot: collect what NGOs paid back for milestones that broke their payment plan. */
+  private async collectRepayments (): Promise<number> {
+    try {
+      const r = await this.deps.client!.claimRepayments()
+      if (r === undefined) return 0
+      this.log(`collected ${r.satoshis} sats repaid by NGOs`)
+      this.deps.memos.add({ campaignId: '', campaignTitle: 'Repayments', kind: 'refund', status: 'executed', amount: r.satoshis, txid: r.txid, checks: [], reasons: [`${r.outpoints.length} repayment(s)`], summary: `Collected ${r.satoshis} sats an NGO paid back under its payment plan.` }, this.now())
+      return 1
+    } catch (e) {
+      this.log(`collecting repayments failed: ${(e as Error).message}`)
+      return 0
+    }
   }
 
   // ── co-pilot: the donor's decisions ─────────────────────────────────────

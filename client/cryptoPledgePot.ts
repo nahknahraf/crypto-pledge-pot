@@ -10,8 +10,15 @@
  *                       land in the creator's wallet as change
  *   refund()   donor    reclaim: alone after refundAfter (nLockTime), or with
  *                       the arbiter's co-signature if the campaign failed
+ *   payPlanLine() / reportSpending()
+ *              creator  pay a payment-plan budget line and prove it (SPV), or
+ *                       report an auditor-signed off-chain invoice
+ *   repay()    creator  pay a non-compliant milestone's unaccounted sats back
+ *                       to the donors, pro rata (P2PKH of each donor key)
+ *   claimRepayments()
+ *              donor    collect those repayments into this wallet
  */
-import { Hash, Random, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
+import { Beef, Hash, PublicKey, Random, Script, Signature, Transaction, TransactionSignature, Utils, type WalletInterface, type WalletProtocol } from '@bsv/sdk'
 import {
   campaignAnchorScript,
   campaignIdOf,
@@ -42,6 +49,7 @@ import {
   cumulativeSchedule,
   parsePledgeScript
 } from '../core/pledge'
+import { lineOf, PAYMENT_PLAN_PROTOCOL, paymentPlanHash, type PaymentPlan, type SpendClaim, type SpendingResult } from '../core/paymentPlan'
 import type { PledgeView } from '../core/api'
 import type { CryptoPledgePotApi } from './cryptoPledgePotApi'
 
@@ -55,6 +63,8 @@ export interface LaunchInput {
   milestones: Milestone[]
   kind?: 'agent'
   agentUrl?: string
+  /** NGO payment plan: signed by this wallet and fixed into the campaign id. */
+  paymentPlan?: PaymentPlan
 }
 
 /** Release at most this many escrows per transaction. */
@@ -114,6 +124,16 @@ export class CryptoPledgePot {
       createdAt: Math.floor(Date.now() / 1000),
       kind: input.kind,
       agentUrl: input.agentUrl
+    }
+    if (input.paymentPlan !== undefined) {
+      const { signature } = await this.wallet.createSignature({
+        hashToDirectlySign: paymentPlanHash(input.paymentPlan),
+        protocolID: PAYMENT_PLAN_PROTOCOL,
+        keyID: nonce,
+        counterparty: 'anyone'
+      }, this.originator)
+      meta.paymentPlan = input.paymentPlan
+      meta.paymentPlanSignature = hex(signature)
     }
     validateCampaign(meta)
     const res = await this.wallet.createAction({
@@ -196,6 +216,47 @@ export class CryptoPledgePot {
     await this.api.postUpdate(campaignId, milestone, note)
   }
 
+  /**
+   * Pay a budget line of the payment plan to its on-chain payee from this
+   * wallet, and report the payment (the server checks it by SPV).
+   */
+  async payPlanLine (campaignId: string, milestone: number, lineId: string, satoshis: number, note?: string): Promise<{ txid: string, spending: SpendingResult }> {
+    const { meta } = await this.api.campaign(campaignId)
+    const line = meta.paymentPlan !== undefined ? lineOf(meta.paymentPlan, milestone, lineId) : undefined
+    if (line === undefined) throw new Error(`no budget line "${lineId}" in milestone ${milestone}`)
+    const payee = line.payee
+    if (payee.kind !== 'onchain') throw new Error(`${payee.name} is paid off chain: report the auditor-signed invoice with reportSpending()`)
+    const res = await this.wallet.createAction({
+      description: `Pay ${payee.name}`.slice(0, 50).padEnd(5, '.'),
+      labels: ['cryptopledgepot', 'payment plan'],
+      outputs: [{ lockingScript: payee.lockingScript, satoshis, outputDescription: `${line.category}`.slice(0, 50).padEnd(5, '.') }],
+      options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
+    }, this.originator)
+    if (res.tx === undefined || res.txid === undefined) throw new Error('wallet did not return the payment transaction')
+    const vout = Transaction.fromAtomicBEEF(res.tx).outputs.findIndex(o => o.lockingScript.toHex() === payee.lockingScript && o.satoshis === satoshis)
+    const spending = await this.reportSpending(campaignId, milestone, [{ lineId, beef: hex(res.tx), vout, note }])
+    return { txid: res.txid, spending }
+  }
+
+  /** Report expenses against the payment plan: on-chain payments (AtomicBEEF + vout) or auditor-signed invoices. */
+  async reportSpending (campaignId: string, milestone: number, claims: Array<SpendClaim & { beef?: string }>): Promise<SpendingResult> {
+    return await this.api.reportSpending(campaignId, milestone, claims)
+  }
+
+  /** Pay back what the payment plan says is owed for milestone k, to every donor's key in one transaction. */
+  async repay (campaignId: string, milestone: number): Promise<{ txid: string, sats: number }> {
+    const plan = await this.api.repaymentPlan(campaignId, milestone)
+    if (plan.outstanding.length === 0) throw new Error(`nothing is owed for milestone ${milestone} (${plan.state})`)
+    const res = await this.wallet.createAction({
+      description: `Repay donors, milestone ${milestone}`,
+      labels: ['cryptopledgepot', 'payment plan'],
+      outputs: plan.outstanding.map(o => ({ lockingScript: o.lockingScript, satoshis: o.sats, outputDescription: 'Repayment to a donor' })),
+      options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
+    }, this.originator)
+    if (res.tx === undefined) throw new Error('wallet did not return the repayment transaction')
+    return await this.api.reportRepayment(campaignId, milestone, hex(res.tx))
+  }
+
   // ── donor ────────────────────────────────────────────────────────────────
 
   /** Pledge `satoshis` into a fresh escrow, with an on-chain memo. */
@@ -228,6 +289,46 @@ export class CryptoPledgePot {
 
   async vote (campaignId: string, milestone: number, approve: boolean): Promise<void> {
     await this.api.vote(campaignId, milestone, approve)
+  }
+
+  /**
+   * Collect every repayment owed to this wallet's pledges (an NGO paying back
+   * a non-compliant milestone) in one transaction, into this wallet.
+   */
+  async claimRepayments (): Promise<{ txid: string, satoshis: number, outpoints: string[] } | undefined> {
+    const owed = await this.api.donorRepayments(await this.identityKey())
+    if (owed.length === 0) return undefined
+    const beef = new Beef()
+    const keys: Array<{ keyID: string, protocol: WalletProtocol, pub: number[] }> = []
+    for (const r of owed) {
+      beef.mergeBeef(Utils.toArray(r.beef, 'hex'))
+      const tag = (await this.api.campaign(r.campaignId)).protocolTag ?? 'cryptopledgepot'
+      const keyID = r.donorKeyId !== '' ? r.donorKeyId : (await this.findDonorKey(r.donorKey))?.keyID
+      if (keyID === undefined || await this.derivedKey(protocolsFor(tag).donor, keyID) !== r.donorKey) throw new Error(`pledge ${r.pledgeId} was not made from this wallet`)
+      keys.push({ keyID, protocol: protocolsFor(tag).donor, pub: PublicKey.fromString(r.donorKey).encode(true) as number[] })
+    }
+    const created = await this.wallet.createAction({
+      description: 'Collect CryptoPledgePot repayments',
+      labels: ['cryptopledgepot'],
+      inputBEEF: beef.toBinary(),
+      inputs: owed.map(r => ({ outpoint: r.outpoint, unlockingScriptLength: 108, inputDescription: 'Repayment from a campaign' })),
+      outputs: [],
+      options: { randomizeOutputs: false, acceptDelayedBroadcast: false }
+    }, this.originator)
+    const signable = created.signableTransaction
+    if (signable === undefined) throw new Error('wallet did not return a signable transaction')
+    const tx = Transaction.fromAtomicBEEF(signable.tx)
+    const spends: Record<number, { unlockingScript: string }> = {}
+    for (let j = 0; j < owed.length; j++) {
+      const i = tx.inputs.findIndex((_, k) => outpointOf(tx, k) === owed[j].outpoint)
+      if (i < 0) { await this.wallet.abortAction({ reference: signable.reference }, this.originator); throw new Error('repayment input missing') }
+      const sig = await this.signInput(tx, i, keys[j].protocol, keys[j].keyID)
+      spends[i] = { unlockingScript: new Script().writeBin(sig).writeBin(keys[j].pub).toHex() }
+    }
+    const signed = await this.wallet.signAction({ reference: signable.reference, spends, options: { acceptDelayedBroadcast: false } }, this.originator)
+    if (signed.tx === undefined || signed.txid === undefined) throw new Error('wallet did not complete the collection')
+    await this.api.reportRepaymentsClaimed(hex(signed.tx))
+    return { txid: signed.txid, satoshis: owed.reduce((s, r) => s + r.sats, 0), outpoints: owed.map(r => r.outpoint) }
   }
 
   // ── recovery: claiming, finding keys, reclaiming without the server ─────

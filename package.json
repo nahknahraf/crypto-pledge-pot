@@ -20,6 +20,7 @@
     "demo": "vite-node --config vitest.config.ts server/demo.ts",
     "agent": "vite-node --config vitest.config.ts agent/main.ts --",
     "data-provider": "vite-node --config vitest.config.ts agent/providerMain.ts",
+    "compliance": "vite-node --config vitest.config.ts compliance/main.ts",
     "import": "vite-node --config vitest.config.ts server/importTx.ts --",
     "share": "vite build app && vite preview app",
     "share:internet": "bash scripts/share.sh",
