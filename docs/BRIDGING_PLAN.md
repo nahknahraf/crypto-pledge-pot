@@ -185,5 +185,5 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 - [ ] **Contract hardening.** A Foundry/slither pass and a second reviewer. Test a fee-on-transfer token (the contract refuses it by checking the balance delta, but no test covers it), a 0 amount, and `refundAfter` in the past.
 - [ ] **Donor signs in the browser.** Today both EVM accounts are local keys in one process (Anvil's public dev keys, or testnet keys from env). A real donor signs `approve` + `lock` with their own EVM wallet (EIP-1193 through viem's `custom()` transport) in the web app.
 - [x] **One transaction instead of two.** `lockWithPermit` + `EvmUsdcChain({ permit: true })`: an EIP-2612 permit replaces `approve` (tested: 1 transaction vs 2). Off by default; on for real USDC once tested on a testnet.
-- [ ] **Docker.** `@foundry-rs/anvil` is a dev dependency, so `demo:bridge` needs the dev install. `demo:bridge` has not been tried in the container.
+- [x] **Docker.** `demo:bridge` runs in the `app` image (built with Podman, run with `podman run … npm run demo:bridge`): the image keeps dev dependencies, which include the Linux anvil binary.
 - [ ] **Phases 2–5** (DEX, CeFi helper, BTC, Lightning, on-ramp, wrapped stablecoins): not started.

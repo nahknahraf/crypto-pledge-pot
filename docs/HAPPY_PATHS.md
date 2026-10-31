@@ -41,7 +41,6 @@ The files are listed in the `test:happy` script in `package.json`. Some of them 
 - The LP does not wait for confirmations on the donor's source-chain lock before locking sats.
 - In `demo:bridge`, both EVM accounts are keys inside one process. A real donor would sign in their own EVM wallet in the browser, which is not built.
 - The donor agent's manipulation check is a phrase list plus the model's judgement. It catches the common wordings (tested), but a determined writer can rephrase. Treat it as a filter, not a guarantee.
-- `demo:bridge` has not been tried inside Docker (anvil is a dev dependency).
 
 **Not built:**
 

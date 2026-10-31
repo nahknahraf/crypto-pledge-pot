@@ -1970,3 +1970,5 @@ Tests (`walletGate`, in Node, with a fake wallet factory):
 - the spend prompt says it's a real transaction.
 
 No jsdom or Testing Library dependency was needed. The app build is unchanged.
+
+**8.25 The bridge demo in the container.** I built the `app` image with Podman and ran `npm run demo:bridge` inside it. It plays to the end (Anvil, the Solidity HTLC, the swap, the pledge). The image keeps dev dependencies (vite-node needs them), and those include the Linux anvil binary, so no Dockerfile change was needed. The check image was removed afterwards.
