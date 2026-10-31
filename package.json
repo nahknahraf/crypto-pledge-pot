@@ -11,7 +11,7 @@
     "overlay": "tsx overlay/server.ts",
     "web": "vite web",
     "test": "vitest run",
-    "test:happy": "vitest run test/happyPaths.e2e.test.ts test/cryptoPledgePot.e2e.test.ts test/agentDemo.e2e.test.ts test/swapDemo.test.ts test/bridge.evm.test.ts test/bridge.service.test.ts test/bridge.browser.test.ts test/bridge.dex.test.ts test/bridge.btc.test.ts test/receive.test.ts test/payments-nft.e2e.test.ts test/pay-per-request.e2e.test.ts test/recovery.e2e.test.ts test/e2e.mockchain.test.ts",
+    "test:happy": "vitest run test/happyPaths.e2e.test.ts test/cryptoPledgePot.e2e.test.ts test/agentDemo.e2e.test.ts test/swapDemo.test.ts test/bridge.evm.test.ts test/bridge.service.test.ts test/bridge.browser.test.ts test/bridge.dex.test.ts test/bridge.btc.test.ts test/bridge.lightning.test.ts test/receive.test.ts test/payments-nft.e2e.test.ts test/pay-per-request.e2e.test.ts test/recovery.e2e.test.ts test/e2e.mockchain.test.ts",
     "typecheck": "tsc --noEmit",
     "server": "vite-node --config vitest.config.ts server/main.ts",
     "app": "vite app",
@@ -35,7 +35,8 @@
     "eval:agents": "vite-node --config vitest.config.ts eval/agentEvalMain.ts",
     "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts",
     "secrets:init": "vite-node --config vitest.config.ts scripts/secretsInit.ts",
-    "demo:bridge:btc": "vite-node --config vitest.config.ts swap/btcBridgeDemoMain.ts"
+    "demo:bridge:btc": "vite-node --config vitest.config.ts swap/btcBridgeDemoMain.ts",
+    "demo:bridge:ln": "vite-node --config vitest.config.ts swap/lnBridgeDemoMain.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

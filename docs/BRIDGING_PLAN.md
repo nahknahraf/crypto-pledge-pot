@@ -133,6 +133,27 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
 
   If the donor never claims, the invoice is cancelled and the funds return automatically. The invoice expiry must be longer than T2 + the margin.
 
+  **Happy path done, on real LND 0.21.6 nodes (regtest).**
+  - **The code:**
+    - `swap/lightningChain.ts` is a `SourceChain` over LND REST;
+    - `swap/lnd.ts` is the REST client with a pinned TLS certificate, plus throwaway regtest nodes and a channel helper.
+  - **Interface changes:** two optional hooks, so the agents stay chain-agnostic.
+    - `SourceChain.request`: the receiver acts first, by issuing the hold invoice under the donor's hashlock. The agent exposes it as `sourceRequest` and `POST /api/lp/request`.
+    - `SourceAccount.release`: when the agent refunds its sats, it cancels the invoice, so the donor is paid back at once.
+  - **Before paying, the donor checks the invoice:** the hash, the amount, the payee and the timeout.
+  - **Tests** (`bridge.lightning`, 4 tests):
+    - the happy path;
+    - a wrong-amount invoice is refused, and a cancelled invoice fails back;
+    - the donor never claims: the agent refunds its sats and cancels the invoice;
+    - the same swap through the HTTP service.
+    - Mutation check: without the donor's amount check, the refusal test fails.
+  - **Run it:** `npm run demo:bridge:ln`, or `npm run lp` with `BRIDGE_CHAIN=ln` and the agent's own LND.
+  - **Still open:**
+    - a real-network run;
+    - routing through other nodes (tested only on a direct channel);
+    - the case where the agent disappears and the HTLC expires on chain (LND handles it; not exercised here).
+  - **Checked before use:** the LND binary in `~/opt/lnd-linux-amd64-v0.21.6-beta`. Its checksum is in the release manifest, and the manifest carries 3 good maintainer signatures.
+
 ## 5. Phase 4–5: fiat on-ramp and wrapped stablecoins
 
 - **On-ramp:** embed a provider's widget configured with the user's own receive address (BSV, or USDC on Base followed by Phase 1). The UI says plainly that the provider holds the money until delivery and handles KYC.
@@ -213,4 +234,6 @@ What the Phase 1a happy path does **not** do yet, in rough order:
   - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). **Real DEX:** `swap/dex.ts` builds Uniswap V3 `exactInputSingle` calldata. On a **fork of Base** (`FORK_URL=https://mainnet.base.org npx vitest run test/bridge.fork.test.ts`), real ETH becomes real WETH, then real USDC via the real Uniswap router, and exactly 20 USDC are locked. Real USDC's permit works too.
 - [x] **BTC on-chain (Phase 3a):** the happy path and the refund work on a Bitcoin Core regtest node; see §4.
 - [ ] **BTC on signet or mainnet:** the code is ready (Esplora backend, fee estimation, `npm run lp` with `BRIDGE_CHAIN=btc-signet`). It needs a funded signet key (`LP_BTC_KEY`) and BSV inventory.
-- [ ] **Lightning (Phase 3b), on-ramp and wrapped stablecoins (Phases 4–5):** not started. Lightning needs an LND node with hold invoices.
+- [x] **Lightning (Phase 3b):** hold-invoice swaps work on real LND nodes (regtest); see §4.
+- [ ] **Lightning on a real network:** needs an LND node with inbound liquidity (`BRIDGE_CHAIN=ln`).
+- [ ] **On-ramp and wrapped stablecoins (Phases 4–5):** not started; they need provider research and accounts.

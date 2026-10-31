@@ -30,18 +30,22 @@ export interface Regtest {
   mine: (n?: number) => Promise<void>
   /** Move the node's clock (and, after ~11 blocks, the median time past that timelocks use). */
   setMockTime: (unix: number) => Promise<void>
+  /** ZMQ endpoints, when started with { zmq: true } (LND needs them). */
+  zmq?: { rawBlock: string, rawTx: string }
   stop: () => Promise<void>
 }
 
-export async function startRegtest (): Promise<Regtest> {
+export async function startRegtest (opts: { zmq?: boolean } = {}): Promise<Regtest> {
   const bin = bitcoindBinary()
   if (bin === undefined) throw new Error('bitcoind not found: set BITCOIND_BIN')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpp-regtest-'))
   const rpcPort = await freePort() // no P2P port: -listen=0
   const user = 'cpp'; const password = randomBytes(16).toString('hex')
+  const zmq = opts.zmq === true ? { rawBlock: `tcp://127.0.0.1:${await freePort()}`, rawTx: `tcp://127.0.0.1:${await freePort()}` } : undefined
   const proc = spawn(bin, [
     '-regtest', `-datadir=${dir}`, '-server', '-txindex', '-listen=0', `-rpcport=${rpcPort}`, '-rpcbind=127.0.0.1', '-rpcallowip=127.0.0.1',
-    `-rpcuser=${user}`, `-rpcpassword=${password}`, '-fallbackfee=0.0002', '-printtoconsole=0', '-disablewallet=0'
+    `-rpcuser=${user}`, `-rpcpassword=${password}`, '-fallbackfee=0.0002', '-printtoconsole=0', '-disablewallet=0',
+    ...(zmq === undefined ? [] : [`-zmqpubrawblock=${zmq.rawBlock}`, `-zmqpubrawtx=${zmq.rawTx}`])
   ], { stdio: 'ignore' })
   const rpc = new BitcoindRpc(`http://127.0.0.1:${rpcPort}`, user, password)
   for (let i = 0; ; i++) {
@@ -59,6 +63,7 @@ export async function startRegtest (): Promise<Regtest> {
     rpc,
     wallet,
     mine,
+    zmq,
     setMockTime: async (unix) => { await rpc.call('setmocktime', [unix]) },
     stop: async () => {
       await rpc.call('stop').catch(() => {})

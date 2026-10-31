@@ -36,6 +36,11 @@ BTC_RPC_PASSWORD=
 # …or an Esplora API (default https://mempool.space[/signet]/api)
 BTC_ESPLORA_URL=
 
+# --- Lightning leg: npm run lp with BRIDGE_CHAIN=ln (your own LND node) ---
+LND_REST_URL=
+LND_MACAROON_PATH=
+LND_TLS_CERT_PATH=
+
 # --- Optional: server-side BSV root keys (otherwise generated into data/*.key) ---
 AGENT_ROOT_KEY=
 LP_ROOT_KEY=

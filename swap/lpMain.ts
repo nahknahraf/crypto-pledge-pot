@@ -14,6 +14,9 @@
  *     BTC_RPC_URL + BTC_RPC_USER + BTC_RPC_PASSWORD   your node (with -txindex), or else
  *     BTC_ESPLORA_URL            default https://mempool.space[/signet|/testnet]/api
  *     LP_SATS_PER_BTC (BSV sats per 1 BTC), LP_MAX_BTC=0.001; state in data/lp-swaps-btc.json
+ *   BRIDGE_CHAIN=ln: Lightning via the agent's own LND node (hold invoices), needs
+ *     LND_REST_URL (e.g. https://127.0.0.1:8080), LND_MACAROON_PATH (admin or invoices macaroon), LND_TLS_CERT_PATH
+ *     LP_SATS_PER_BTC, LP_MAX_BTC; state in data/lp-swaps-ln.json
  *   LP_ROOT_KEY                else <LP_DATA_DIR>/lp.key (LP_DATA_DIR default data)
  *   LP_HOST=127.0.0.1 LP_PORT=8793 LP_INTERVAL_S=30
  *   LP_SATS_PER_USDC=21500 LP_MAX_USDC=20 LP_MIN_CONFIRMATIONS=3 (1 on anvil)
@@ -37,6 +40,8 @@ import type { SpendFinder } from './bsv'
 import { btcPublicKey } from './btc'
 import { BitcoindBackend, BitcoindRpc, BtcChain, EsploraBackend, type BtcBackend } from './btcChain'
 import { EvmUsdcChain } from './evmChain'
+import { LightningChain } from './lightningChain'
+import { LndRest } from './lnd'
 import { DEFAULT_LIQUIDITY, LiquidityAgent, type LpSwap } from './liquidityAgent'
 import { createLiquidityApp } from './lpHttp'
 import { USDC, type SourceChain } from './usdcChain'
@@ -50,7 +55,13 @@ const network = env.NETWORK === 'test' ? 'test' : 'main'
 acquireLock(path.resolve(dataDir, 'lp.lock')) // one liquidity agent per state: two would lock sats twice
 const btcNet = ({ btc: 'main', 'btc-signet': 'test', 'btc-testnet': 'test', 'btc-regtest': 'regtest' } as const)[env.BRIDGE_CHAIN ?? '']
 let source: SourceChain, lpAddress: string, limits: { satsPerUnit: number, maxUnits: number, confirmations: number }, stateFile: string
-if (btcNet !== undefined) {
+if (env.BRIDGE_CHAIN === 'ln') {
+  const node = new LndRest(need('LND_REST_URL'), fs.readFileSync(need('LND_MACAROON_PATH')).toString('hex'), fs.readFileSync(need('LND_TLS_CERT_PATH')))
+  source = new LightningChain({ nodes: [node] })
+  lpAddress = (await node.call<{ identity_pubkey: string }>('GET', '/v1/getinfo')).identity_pubkey
+  limits = { satsPerUnit: Number(need('LP_SATS_PER_BTC')), maxUnits: Math.round(Number(env.LP_MAX_BTC ?? 0.001) * 1e8), confirmations: 1 } // a held payment reads as final; an unpaid invoice as 0 ("wait:")
+  stateFile = 'lp-swaps-ln.json'
+} else if (btcNet !== undefined) {
   const key = PrivateKey.fromHex(need('LP_BTC_KEY'))
   const esplora = env.BTC_ESPLORA_URL ?? `https://mempool.space${({ btc: '', 'btc-signet': '/signet', 'btc-testnet': '/testnet', 'btc-regtest': '' } as Record<string, string>)[env.BRIDGE_CHAIN!]}/api`
   const backend: BtcBackend = (env.BTC_RPC_URL ?? '') !== '' ? new BitcoindBackend(new BitcoindRpc(need('BTC_RPC_URL'), need('BTC_RPC_USER'), need('BTC_RPC_PASSWORD'))) : new EsploraBackend(esplora)

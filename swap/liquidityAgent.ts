@@ -74,6 +74,8 @@ export interface LiquidityProvider {
   acceptSourceLock: (quoteId: string, sourceHtlcId: string) => Promise<BsvLock>
   /** The BSV lock made for a quote, if any: for a donor whose acceptSourceLock reply was lost. */
   lockFor?: (quoteId: string) => Promise<BsvLock | undefined>
+  /** Sources where the agent acts first (Lightning): the payment request for a quote and the donor's hashlock. */
+  sourceRequest?: (quoteId: string, hashlock: string, refundAfter: number) => Promise<string>
 }
 
 export class LiquidityAgent implements LiquidityProvider {
@@ -121,6 +123,22 @@ export class LiquidityAgent implements LiquidityProvider {
     this.persist()
     this.say(`quoted ${this.fmt(usdc)} → ${sats.toLocaleString('en-US')} sats (${q.id})`)
     return q
+  }
+
+  /**
+   * On a source where the receiver acts first (Lightning), issue what the donor pays: a hold invoice for the quoted
+   * amount under the DONOR's hashlock. We can't settle it without the secret, so issuing it costs us nothing.
+   */
+  async sourceRequest (quoteId: string, hashlock: string, refundAfter: number): Promise<string> {
+    const s = this.swaps.get(quoteId)
+    if (s === undefined || s.state !== 'quoted') throw new Error('unknown or already used quote')
+    if (this.source.request === undefined) throw new Error(`${this.source.name} needs no payment request: lock directly`)
+    if ((await this.source.now()) > s.quote.expiresAt) throw new Error('the quote expired')
+    if (!/^[0-9a-f]{64}$/.test(hashlock)) throw new Error('hashlock must be 32 bytes hex')
+    if (!Number.isSafeInteger(refundAfter) || refundAfter < s.quote.minSourceRefundAfter) throw new Error('the timeout is too short to be safe')
+    const request = await this.source.request(this.usdc.address, { amount: s.quote.usdc, hashlock, refundAfter })
+    this.say(`${quoteId}: issued a payment request for ${this.fmt(s.quote.usdc)} under the donor's hashlock`)
+    return request
   }
 
   /** The donor says they locked USDC. Verify it on the other chain, then lock sats for them. */
@@ -187,6 +205,11 @@ export class LiquidityAgent implements LiquidityProvider {
         s.state = 'refunded'
         this.persist()
         this.say(`donor never claimed; refunded our ${s.quote.sats.toLocaleString('en-US')} sats`)
+        // Where the receiver can give a held lock back at once (Lightning: cancel the hold invoice), do it:
+        // the donor gets their money now instead of at the source timeout. Best effort; the timeout still applies.
+        if (this.usdc.release !== undefined) {
+          await this.usdc.release(s.sourceHtlcId!).then(() => this.say(`${s.quote.id}: released the donor's ${this.sym} lock`), e => this.say(`${s.quote.id}: could not release the donor's lock: ${(e as Error).message}`))
+        }
       }
     }
   }

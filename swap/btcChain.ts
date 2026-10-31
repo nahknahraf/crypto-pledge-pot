@@ -36,7 +36,9 @@ export interface BtcBackend {
 }
 
 export class BitcoindRpc {
-  constructor (readonly url: string, private readonly user: string, private readonly password: string) {}
+  constructor (readonly url: string, readonly user: string, private readonly password: string) {}
+  /** For tools that must log in to the same node (LND's bitcoind backend). */
+  get credentials (): { user: string, password: string } { return { user: this.user, password: this.password } }
   async call<T = any>(method: string, params: unknown[] = [], wallet?: string): Promise<T> {
     const res = await fetch(wallet === undefined ? this.url : `${this.url}/wallet/${encodeURIComponent(wallet)}`, {
       method: 'POST',

@@ -70,7 +70,13 @@ export class DonorSwap {
    */
   async lockAndRequest (lp: LiquidityProvider, r: SwapRecord, lockWith?: (args: { receiver: string, amount: number, hashlock: string, refundAfter: number }) => Promise<string>): Promise<SwapRecord> {
     const refundAfter = Math.max((await this.source.now()) + this.options.sourceWindow, r.quote.minSourceRefundAfter)
-    const args = { receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter }
+    // Lightning: the agent issues a hold invoice under OUR hashlock first; lock() checks it before paying.
+    let request: string | undefined
+    if (this.source.request !== undefined) {
+      if (lp.sourceRequest === undefined) throw new Error(`this liquidity provider can't issue payment requests for ${this.source.name}`)
+      request = await lp.sourceRequest(r.quote.id, r.hashlock, refundAfter)
+    }
+    const args = { receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter, request }
     r.sourceHtlcId = await (lockWith ?? this.usdc.lock)(args)
     r.state = 'source-locked'
     r.steps.push(`locked ${this.fmt(r.quote.usdc)} on ${this.source.name}, refundable to you after the timeout`)

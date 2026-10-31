@@ -2150,3 +2150,18 @@ Suite: 249 passed, 3 skipped.
 - **The service.** `npm run lp` takes a Bitcoin source (`BRIDGE_CHAIN=btc…`, `LP_BTC_KEY`, `LP_SATS_PER_BTC`, a node or Esplora). Its state goes in `lp-swaps-btc.json`, and `LP_DATA_DIR` gives each agent its own directory.
   - **Checked** against a regtest node with a throwaway wallet in a scratch directory: `/api/lp` reports the BTC asset, and quotes are refused for lack of BSV inventory, as expected.
   - **Fixed along the way:** `/api/lp` divided limits by the USDC unit. It now uses the source asset's unit and reports `asset`.
+
+**9.5 Lightning.** I installed LND 0.21.6 in `~/opt/lnd-linux-amd64-v0.21.6-beta`, after checking the tarball's checksum against the release manifest and 3 good maintainer signatures on that manifest (isolated keyring).
+- **How the swap works.** The donor pays a hold invoice whose payment hash is the swap's hashlock. The agent locks BSV once the payment is held, and settles with the secret the donor reveals on BSV.
+  - `swap/lightningChain.ts`: the payee's view comes from the invoice, the payer's from the payment.
+  - Timeouts are block heights, estimated at 600 s per block.
+  - An unpaid invoice reads as a lock with 0 confirmations, so the agent answers "wait:" instead of rejecting.
+- **Interfaces.**
+  - Two optional hooks:
+    - `SourceChain.request`: the agent issues the hold invoice, as `sourceRequest` and `POST /api/lp/request`.
+    - `SourceAccount.release`: when the agent refunds its sats, it cancels the invoice.
+  - `DonorSwap` asks for the request only on chains that define one. EVM and BTC are unchanged.
+- **What I found while testing:**
+  - A channel reports active a moment before it can route ("insufficient local balance"), so `openChannel` waits for a route.
+  - The BSV refund needs a lock time in the real past, so the test runs both Lightning clocks 30 days back, as `bridge.evm.failures` does.
+- **Verified** with `bridge.lightning` (4 tests) and a mutation check (removing the donor's amount check fails the refusal test). `npm run demo:bridge:ln` runs. `npm test`: 261 passed, 3 skipped.

@@ -28,9 +28,12 @@ export interface SourceHtlc {
 export interface SourceAccount {
   address: string
   balance: () => Promise<number>
-  lock: (a: { receiver: string, amount: number, hashlock: string, refundAfter: number }) => Promise<string>
+  /** `request`: what the receiver asked to be paid, on chains where it acts first (`SourceChain.request`). */
+  lock: (a: { receiver: string, amount: number, hashlock: string, refundAfter: number, request?: string }) => Promise<string>
   claim: (id: string, secret: string) => Promise<void>
   refund: (id: string) => Promise<void>
+  /** Receiver only, where the chain allows it (Lightning): give a held lock back to the sender now. */
+  release?: (id: string) => Promise<void>
 }
 
 /** What a source chain's amounts are: integer base units with `decimals` (USDC: 6; BTC: 8, i.e. satoshis). */
@@ -44,6 +47,11 @@ export interface SourceChain {
   htlc: (id: string) => Promise<SourceHtlc | undefined>
   /** The chain's own time (unix seconds). Async: on a real chain it is a network call (the latest block). */
   now: () => Promise<number>
+  /**
+   * Only on chains where the RECEIVER acts first (Lightning: it issues a hold invoice for the donor's hashlock).
+   * Returns what the sender passes to `lock` as `request`. Undefined elsewhere (EVM, BTC: the sender locks alone).
+   */
+  request?: (receiver: string, a: { amount: number, hashlock: string, refundAfter: number }) => Promise<string>
 }
 
 export const USDC = 1_000_000 // micro-USDC per USDC

@@ -38,6 +38,7 @@ export function createLiquidityApp (lp: LiquidityAgent): express.Express {
     return { state: lp.state(String(req.params.quoteId)) ?? 'unknown', lock: lock ?? null }
   }))
   app.post('/api/lp/quote', handle(async req => await lp.quote(Number(req.body?.usdc), String(req.body?.donorBsvKey ?? ''))))
+  app.post('/api/lp/request', handle(async req => ({ request: await lp.sourceRequest(String(req.body?.quoteId ?? ''), String(req.body?.hashlock ?? ''), Number(req.body?.refundAfter)) })))
   app.post('/api/lp/lock', handle(async req => await lp.acceptSourceLock(String(req.body?.quoteId ?? ''), String(req.body?.sourceHtlcId ?? ''))))
   return app
 }

@@ -42,10 +42,10 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | Pay-per-call data API (HTTP 402) | ✅ real Open-Meteo data, synthetic fallback | `agent.pay402`, `pay-per-request` tests |
 | Donor agent | ✅ autopilot and co-pilot, budget caps, manipulation → score 0 (enforced in code for every brain) | 25 tests; `npm run demo:donor`; Donor page in the app |
 | Liquidity agent (bridging) | ✅ runs on its own (`npm run lp`, HTTP), keeps state across crashes, waits for confirmations; a USDC lock can back only one swap · the BSV side runs on the offline chain in tests | `swap.*` and `bridge.*` tests; `npm run demo:bridge` |
-| Bringing money in | ✅ **EVM:** a Solidity HTLC; the donor signs in their own wallet (EIP-1193, permit); **DeFi:** swap another token on a DEX and lock USDC in one transaction, checked against **real USDC and Uniswap on a fork of Base**; **CeFi:** withdraw from an exchange to a deposit address of your own wallet · ✅ **BTC:** a P2WSH HTLC swapped for sats, checked on a real Bitcoin Core node (regtest) · 🟡 no public-network run yet · ❌ Lightning | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
+| Bringing money in | ✅ **EVM:** a Solidity HTLC; the donor signs in their own wallet (EIP-1193, permit); **DeFi:** swap another token on a DEX and lock USDC in one transaction, checked against **real USDC and Uniswap on a fork of Base**; **CeFi:** withdraw from an exchange to a deposit address of your own wallet · ✅ **BTC:** a P2WSH HTLC swapped for sats, checked on a real Bitcoin Core node (regtest) · ✅ **Lightning:** hold invoices on real LND nodes (regtest) · 🟡 no public-network run yet | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **253 tests**, all passing (the BTC ones skip themselves when `bitcoind` is not installed) (`npm test`), plus 3 opt-in tests against a fork of Base (`FORK_URL`), and both typechecks are clean.
+In total there are **261 tests**, all passing (the BTC and Lightning ones skip themselves when `bitcoind` or `lnd` is not installed) (`npm test`), plus 3 opt-in tests against a fork of Base (`FORK_URL`), and both typechecks are clean.
 
 **Secrets** (API keys, testnet EVM keys) go in one file outside the repository: run `npm run secrets:init`, then paste the values into `~/.config/cryptopledgepot/secrets.env` (mode 600). Every `npm run` command loads it; variables set in the shell take precedence.
 

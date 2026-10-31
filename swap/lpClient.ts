@@ -31,6 +31,10 @@ export class LiquidityClient implements LiquidityProvider {
     return ((await res.json()) as { lock: BsvLock | null }).lock ?? undefined
   }
 
+  async sourceRequest (quoteId: string, hashlock: string, refundAfter: number): Promise<string> {
+    return (await this.post<{ request: string }>('/api/lp/request', { quoteId, hashlock, refundAfter })).request
+  }
+
   async acceptSourceLock (quoteId: string, sourceHtlcId: string): Promise<BsvLock> {
     return await this.post<BsvLock>('/api/lp/lock', { quoteId, sourceHtlcId })
   }
