@@ -2312,3 +2312,15 @@ Suite: 249 passed, 3 skipped.
 
   The remaining gap is the risk-flag penalty: about 6 specific flags at 10 points each, capped at −30. That is a policy decision left to the owner, and it is recorded in TODO.
 - **Results file:** `docs/AGENT_EVAL_RESULTS.md`, with a findings header.
+
+**9.18 The fundraising agent remembers refused purchases.** This was found by running `npm run demo:agent` with real Claude through the CLI.
+- **The problem:** the code correctly refused `zurich` (500 sats against a 50-sat cap), but the brain was never told. At milestone 3, Claude spent its whole plan on `zurich` again and bought nothing.
+- **The fix:**
+  - a refused topic is added to `AgentState.unavailable`, which is persisted and so survives restarts;
+  - the brain gets it as `PlanInput.unavailable`: one more prompt line for Claude, a filter for the mock brain;
+  - code drops those topics from any plan, so a brain that insists is overruled.
+- **Tests:**
+  - in `agent.e2e`, a stubborn brain: refused once, the brain is told at the next round, and the topic is never attempted again. Mutation check: without the code filter it is attempted twice;
+  - `agentDemo.e2e` updated on purpose: 1 refusal instead of 2, and 14 calls for 700 sats instead of 13 for 650.
+- **Real Claude, re-run:** milestone 3 now plans five refresh readings instead of `zurich`, and the agent buys 700 sats of data instead of 450.
+- **Suite:** 278 passed, 3 skipped.

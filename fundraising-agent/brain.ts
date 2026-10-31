@@ -22,6 +22,8 @@ export interface PlanInput {
   maxCalls: number
   /** Topics already bought, so the planner can avoid repeats. */
   alreadyBought: City[]
+  /** Topics the agent's code refused to buy (e.g. priced above its cap): don't plan them. */
+  unavailable?: City[]
 }
 export interface ReportInput {
   mission: string
@@ -92,6 +94,7 @@ export class ClaudeBrain implements Brain {
       `Current milestone ${input.milestone.index}: ${input.milestone.title}\n` +
       `You may buy at most ${input.maxCalls} readings this round.\n` +
       `Already bought (avoid unless needed): ${input.alreadyBought.join(', ') || 'none'}\n` +
+      `Unavailable (refused by your spending rules; never pick these): ${(input.unavailable ?? []).join(', ') || 'none'}\n` +
       'For each purchase give the topic and one short sentence on why.')
     return sanitizePlan(plan.calls, input.maxCalls)
   }
@@ -121,8 +124,9 @@ export class MockBrain implements Brain {
 
   async planCalls (input: PlanInput): Promise<PlannedCall[]> {
     // Cities not covered yet first, then refresh the ones bought longest ago.
-    const fresh = CITIES.filter(c => !input.alreadyBought.includes(c))
-    const refresh = [...new Set(input.alreadyBought)]
+    const ok = (c: City): boolean => !(input.unavailable ?? []).includes(c)
+    const fresh = CITIES.filter(c => !input.alreadyBought.includes(c) && ok(c))
+    const refresh = [...new Set(input.alreadyBought)].filter(ok)
     return sanitizePlan([
       ...fresh.map(topic => ({ topic, why: `new coverage for "${input.milestone.title}"` })),
       ...refresh.map(topic => ({ topic, why: `refresh an older reading for "${input.milestone.title}"` }))

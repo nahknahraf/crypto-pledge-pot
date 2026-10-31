@@ -24,6 +24,8 @@ export interface AgentState {
   campaignId?: string
   /** Milestones whose released funds have already been spent on work. */
   worked: number[]
+  /** Topics the agent's code refused to buy (e.g. priced above its cap): never planned again. */
+  unavailable?: City[]
 }
 
 // The generic store lives in shared/; re-exported for the fundraising agent's own modules and tests.

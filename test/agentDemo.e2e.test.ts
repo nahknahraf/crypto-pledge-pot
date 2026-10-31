@@ -32,12 +32,12 @@ describe('the AirWatch live story', () => {
 
   it('the agent paid per call, never above its cap, and refused the premium price', () => {
     const byMilestone = [1, 2, 3].map(m => demo.ledger.forMilestone(m))
-    expect(byMilestone.map(e => e.length)).toEqual([5, 4, 4])
+    expect(byMilestone.map(e => e.length)).toEqual([5, 4, 5]) // milestone 3 no longer wastes a slot on the refused topic
     expect(demo.ledger.all().every(e => e.sats === 50 && /^[0-9a-f]{64}$/.test(e.txid ?? ''))).toBe(true)
     expect(demo.ledger.all().some(e => e.topic === 'zurich')).toBe(false)
-    expect(demo.ledger.totals()).toEqual({ calls: 13, sats: 650 })
+    expect(demo.ledger.totals()).toEqual({ calls: 14, sats: 700 })
     const refusals = lines.filter(l => /refused to pay: .*zurich asks 500 sats/.test(l))
-    expect(refusals).toHaveLength(2) // milestones 2 and 3
+    expect(refusals).toHaveLength(1) // milestone 2; afterwards the brain is told zurich is unavailable
   })
 
   it('shows its reasoning on its status page', async () => {
@@ -46,6 +46,6 @@ describe('the AirWatch live story', () => {
     const activity: string[] = status.activity.map((a: { line: string }) => a.line)
     expect(activity.some(l => /^brain \(mock\) plans 5 purchase\(s\)/.test(l))).toBe(true)
     expect(activity.some(l => /refused to pay/.test(l))).toBe(true)
-    expect(status.spent).toEqual({ calls: 13, sats: 650 })
+    expect(status.spent).toEqual({ calls: 14, sats: 700 })
   })
 })

@@ -126,7 +126,11 @@ export class CryptoPledgePotAgent {
     const bought = this.deps.ledger.all().map(e => e.topic)
     this.log(`milestone ${milestone} "${m.title}": balance ${balance} sats, budget ${budget} sats → up to ${maxCalls} calls`)
 
-    const plan = await this.deps.brain.planCalls({ mission: this.config.mission, milestone: { index: milestone, title: m.title }, maxCalls, alreadyBought: bought })
+    const unavailable = this.deps.state.load().unavailable ?? []
+    const planned = await this.deps.brain.planCalls({ mission: this.config.mission, milestone: { index: milestone, title: m.title }, maxCalls, alreadyBought: bought, unavailable })
+    // The brain is told, but code decides: a topic refused before is never tried again.
+    const plan = planned.filter(p => !unavailable.includes(p.topic))
+    if (plan.length < planned.length) this.log(`skipping topics refused earlier: ${planned.filter(p => unavailable.includes(p.topic)).map(p => p.topic).join(', ')}`)
     this.log(`brain (${this.deps.brain.name}) plans ${plan.length} purchase(s): ${plan.map(p => p.topic).join(', ') || 'none'}`)
     const results: AirQualityReport[] = []
     const txids: string[] = []
@@ -143,7 +147,12 @@ export class CryptoPledgePotAgent {
         this.deps.ledger.add({ milestone, topic: call.topic as City, why: call.why, url, sats: r.paid, txid: r.txid, at: Math.floor(Date.now() / 1000) })
         this.log(`paid ${r.paid} sats for ${call.topic} (AQI ${r.body.aqi}) tx ${r.txid ?? '-'}`)
       } catch (e) {
-        if (e instanceof PaymentRefused) { this.log(`refused to pay: ${e.message}`); continue }
+        if (e instanceof PaymentRefused) {
+          this.log(`refused to pay: ${e.message}`)
+          const st = this.deps.state.load()
+          if (!(st.unavailable ?? []).includes(call.topic)) this.deps.state.save({ ...st, unavailable: [...(st.unavailable ?? []), call.topic] })
+          continue
+        }
         if (e instanceof PaidButNotServed) {
           // The money is gone: record it (it counts against the cap) and move on; never pay twice for it.
           spent += e.paid

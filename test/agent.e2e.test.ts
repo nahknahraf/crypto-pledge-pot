@@ -18,7 +18,7 @@ import { CryptoPledgePotAgent, type AgentConfig } from '../fundraising-agent/age
 import { MockBrain, sanitizePlan, type Brain } from '../fundraising-agent/brain'
 import { createDataProviderApp, serveDataProvider } from '../data-provider/dataProvider'
 import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../fundraising-agent/ledger'
-import { createCappedPayer, PaidButNotServed } from '../fundraising-agent/pay402'
+import { createCappedPayer, PaidButNotServed, PaymentRefused } from '../fundraising-agent/pay402'
 import { createMockChain, memoryKnex, type MockChain } from './helpers/mockchain'
 
 const T0 = Math.floor(Date.now() / 1000) - 30 * 86_400
@@ -173,6 +173,31 @@ describe('the agent cannot be talked into overspending', () => {
     const out = await (agent as any).work(view, 1)
     expect(out).toMatchObject({ action: 'worked', calls: 2, sats: 100 })
     expect(ledger.all()).toHaveLength(2)
+  })
+
+  it('a topic its code refused is remembered: the brain is told, and a brain that insists is overruled', async () => {
+    const wallet = await chain.makeWallet()
+    await chain.fund(wallet, 20_000)
+    const seen: Array<string[] | undefined> = []
+    const stubborn: Brain = {
+      name: 'stubborn',
+      planCalls: async (input) => { seen.push(input.unavailable); return sanitizePlan([{ topic: 'zurich', why: 'again' }, { topic: 'paris', why: 'x' }], input.maxCalls) },
+      writeReport: async () => 'report'
+    }
+    const { agent, ledger, state } = makeAgent(wallet, {}, stubborn)
+    let attempts = 0
+    ;(agent as any).deps.pay = async (url: string) => {
+      if (url.endsWith('/zurich')) { attempts++; throw new PaymentRefused(`${url} asks 500 sats; the agent's cap is 50`) }
+      return { body: { city: 'paris', aqi: 1 }, paid: 50, txid: 'cd'.repeat(32) }
+    }
+    state.save({ campaignId: 'x', worked: [] })
+    const view: any = { id: 'x', meta: { milestones: [{ title: 'only', percent: 100 }] }, milestones: [{ index: 1, title: 'only', released: true }] }
+    await (agent as any).work(view, 1)
+    expect(state.load().unavailable).toEqual(['zurich']) // persisted with the agent's state: survives a restart
+    await (agent as any).work(view, 1) // a second planning round (the cap still has room)
+    expect(seen).toEqual([[], ['zurich']]) // the brain is told at the next planning round
+    expect(attempts).toBe(1) // and code never tries it again, even though the brain asked
+    expect(ledger.all().map(e => e.topic)).toEqual(['paris', 'paris'])
   })
 
   it('a paid call that delivers nothing is recorded, counts against the cap, and is not paid twice', async () => {
