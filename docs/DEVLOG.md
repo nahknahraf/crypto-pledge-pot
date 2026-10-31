@@ -2110,3 +2110,13 @@ Full suite: **241 passing**, plus 3 opt-in fork tests that pass with `FORK_URL`.
 ## Step 9: secrets, the last edge cases, and the Bitcoin leg
 
 **9.1 Where secrets live.** API keys and EVM keys go in one file **outside the repository**: `~/.config/cryptopledgepot/secrets.env`, mode 600, created empty by `npm run secrets:init` (it never overwrites and never prints values). Every `npm run` entrypoint imports `core/loadEnv.ts` first, which fills only variables the shell hasn't set and warns if the file is readable by others. Why outside the repo: a gitignored `.env` inside it can still be committed by `git add -f`, served by `npm run share:internet`, or copied into a container build; a file in `~/.config` can't. `CPP_SECRETS_FILE` points elsewhere (`none` skips it). No new dependency (a 15-line parser). Tests: `loadEnv` (parse, no override, empty values skipped, missing file).
+
+**9.2 The last open edge cases.**
+1. **HTLC refusals** (`bridge.contract`, Anvil). Each one is checked against a normal lock that goes through:
+   - a fee-on-transfer token (new test-only `FeeOnTransferToken.sol`) is refused. A mutation check, removing the balance-delta `require`, makes exactly this test fail;
+   - a 0 amount, a `refundAfter` that is now or in the past, and the 0 receiver are refused.
+2. **Several pledges released in one transaction.** The e2e release spends all 3 escrows in one transaction. For each input, the `unlockLength.release` hint is at least the real unlocking script length and at most 15 bytes more.
+3. **A pledge that fails SPV with a strict chain tracker.** Already covered by `server.votes`, so I only ticked it.
+4. **S10.** It was already done (`minSourceConfirmations`); the plan was stale.
+
+Suite: 249 passed, 3 skipped.

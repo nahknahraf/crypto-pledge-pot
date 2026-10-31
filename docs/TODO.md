@@ -13,12 +13,12 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 
 - [x] Vote tie at exactly 50 % fails (§4).
 - [x] The same pledge submitted twice gets 409 and is counted once (§4).
-- [ ] A pledge whose BEEF fails SPV is refused, tested with a strict chain tracker (§4).
+- [x] A pledge whose BEEF fails SPV is refused, tested with a strict chain tracker (§4): `server.votes` runs a second server whose chain tracker knows no roots, and the pledge is refused.
 - [x] A pledge after the deadline is refused; a refunded donor's vote counts 0; a changed vote replaces the earlier one (§4).
 - [x] Server restart between handing out release signatures and the broadcast (§4): the next release request gets fresh signatures, and a release broadcast but never reported is indexed by the watcher (`watcher` test).
 - [x] A pledge that fails SPV is refused (§4).
 - [x] `MIN_PLEDGE` 100 vs 99; rounding; 1 and the maximum of 4 milestones; the largest amount. The last one was a real float bug, fixed (§1).
-- [ ] Two pledges released in one transaction; `unlockLength` equals the real size (§1).
+- [x] Several pledges released in one transaction; `unlockLength` covers the real size (§1): the e2e release spends 3 escrows in one transaction, and each hint is at most 16 bytes above the real unlocking script.
 - [x] `validateCampaign` table: 21 cases (§3).
 - [x] Swap secrets of 0, 31 and 33 bytes (§2).
 - [x] WhatsOnChain 429/500/timeout in the watcher: one failure no longer aborts the round; a 429 ends it (§5). Reorgs: accepted for now (a spend is recorded once it has a proof; BSV reorgs deeper than a block are rare).

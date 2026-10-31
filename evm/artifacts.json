@@ -1,5 +1,148 @@
 {
  "compiler": "0.8.38+commit.1835d247.Emscripten.clang",
+ "FeeOnTransferToken": {
+  "abi": [
+   {
+    "inputs": [
+     {
+      "internalType": "address",
+      "name": "",
+      "type": "address"
+     },
+     {
+      "internalType": "address",
+      "name": "",
+      "type": "address"
+     }
+    ],
+    "name": "allowance",
+    "outputs": [
+     {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+     }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+   },
+   {
+    "inputs": [
+     {
+      "internalType": "address",
+      "name": "spender",
+      "type": "address"
+     },
+     {
+      "internalType": "uint256",
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "name": "approve",
+    "outputs": [
+     {
+      "internalType": "bool",
+      "name": "",
+      "type": "bool"
+     }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+   },
+   {
+    "inputs": [
+     {
+      "internalType": "address",
+      "name": "",
+      "type": "address"
+     }
+    ],
+    "name": "balanceOf",
+    "outputs": [
+     {
+      "internalType": "uint256",
+      "name": "",
+      "type": "uint256"
+     }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+   },
+   {
+    "inputs": [
+     {
+      "internalType": "address",
+      "name": "to",
+      "type": "address"
+     },
+     {
+      "internalType": "uint256",
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "name": "mint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+   },
+   {
+    "inputs": [
+     {
+      "internalType": "address",
+      "name": "to",
+      "type": "address"
+     },
+     {
+      "internalType": "uint256",
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "name": "transfer",
+    "outputs": [
+     {
+      "internalType": "bool",
+      "name": "",
+      "type": "bool"
+     }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+   },
+   {
+    "inputs": [
+     {
+      "internalType": "address",
+      "name": "from",
+      "type": "address"
+     },
+     {
+      "internalType": "address",
+      "name": "to",
+      "type": "address"
+     },
+     {
+      "internalType": "uint256",
+      "name": "amount",
+      "type": "uint256"
+     }
+    ],
+    "name": "transferFrom",
+    "outputs": [
+     {
+      "internalType": "bool",
+      "name": "",
+      "type": "bool"
+     }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+   }
+  ],
+  "bytecode": "0x6080604052348015600e575f5ffd5b506103af8061001c5f395ff3fe608060405234801561000f575f5ffd5b5060043610610060575f3560e01c8063095ea7b31461006457806323b872dd1461008c57806340c10f191461009f57806370a08231146100b4578063a9059cbb146100e1578063dd62ed3e146100f4575b5f5ffd5b61007761007236600461026d565b61011e565b60405190151581526020015b60405180910390f35b61007761009a366004610295565b61014b565b6100b26100ad36600461026d565b61019a565b005b6100d36100c23660046102cf565b5f6020819052908152604090205481565b604051908152602001610083565b6100776100ef36600461026d565b6101ca565b6100d36101023660046102ef565b600160209081525f928352604080842090915290825290205481565b335f9081526001602081815260408084206001600160a01b03871685529091529091208290555b92915050565b6001600160a01b0383165f90815260016020908152604080832033845290915281208054839190839061017f908490610334565b9091555061019090508484846101df565b5060019392505050565b6001600160a01b0382165f90815260208190526040812080548392906101c1908490610347565b90915550505050565b5f6101d63384846101df565b50600192915050565b6001600160a01b0383165f9081526020819052604081208054839290610206908490610334565b90915550610217905060648261035a565b6102219082610334565b6001600160a01b0383165f9081526020819052604081208054909190610248908490610347565b9091555050505050565b80356001600160a01b0381168114610268575f5ffd5b919050565b5f5f6040838503121561027e575f5ffd5b61028783610252565b946020939093013593505050565b5f5f5f606084860312156102a7575f5ffd5b6102b084610252565b92506102be60208501610252565b929592945050506040919091013590565b5f602082840312156102df575f5ffd5b6102e882610252565b9392505050565b5f5f60408385031215610300575f5ffd5b61030983610252565b915061031760208401610252565b90509250929050565b634e487b7160e01b5f52601160045260245ffd5b8181038181111561014557610145610320565b8082018082111561014557610145610320565b5f8261037457634e487b7160e01b5f52601260045260245ffd5b50049056fea264697066735822122053524247685ed0c6f9a3e83134017a7cb4c7199e77d4d51a4759ecedb30a859464736f6c63430008260033"
+ },
  "HashedTimelockERC20": {
   "abi": [
    {

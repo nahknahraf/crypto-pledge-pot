@@ -12,7 +12,7 @@ import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { createCryptoPledgePotApp } from '../server/app'
 import { CryptoPledgePotDb } from '../server/db'
 import { campaignIdOf, pledgeTerms } from '../core/campaign'
-import { parsePledgeScript, pledgeLockingScript } from '../core/pledge'
+import { parsePledgeScript, pledgeLockingScript, unlockLength } from '../core/pledge'
 import { createMockChain, memoryKnex, type MockChain } from './helpers/mockchain'
 
 let chain: MockChain
@@ -103,6 +103,16 @@ describe('a funded campaign with three milestones', () => {
     expect(fee).toBeLessThan(2_750)
     expect((await spendable(creator)) - before).toBe(2_750 - fee)
     console.log(`release of ${releaseTx.inputs.length} escrows: ${releaseTx.toBinary().length} bytes, fee ${fee} sats`)
+    // All three pledges are released in ONE transaction, and the size hint the wallet used to fund it
+    // (unlockLength.release) covers every real unlocking script, so the fee is never short.
+    const escrowInputs = releaseTx.inputs.filter(i => parsePledgeScript(i.sourceTransaction!.outputs[i.sourceOutputIndex].lockingScript) !== null)
+    expect(escrowInputs).toHaveLength(3)
+    for (const i of escrowInputs) {
+      const scriptLen = i.sourceTransaction!.outputs[i.sourceOutputIndex].lockingScript.toBinary().length
+      const real = i.unlockingScript!.toBinary().length
+      expect(real).toBeLessThanOrEqual(unlockLength.release(scriptLen))
+      expect(unlockLength.release(scriptLen) - real).toBeLessThan(16) // a tight bound, not a wild overestimate
+    }
     const detail = await api().campaign(campaignId)
     expect(detail).toMatchObject({ released: 2_750, escrowed: 8_250, milestonesReleased: 1 })
     expect(detail.feed.every(p => p.stage === 1 && p.status === 'active')).toBe(true)
