@@ -16,6 +16,7 @@
  * The arbiter wallet is a full wallet-toolbox wallet. It never needs funds:
  * it only derives keys, signs sighashes and authenticates the API (BRC-103).
  */
+import '../core/loadEnv'
 import fs from 'node:fs'
 import path from 'node:path'
 import { PrivateKey } from '@bsv/sdk'

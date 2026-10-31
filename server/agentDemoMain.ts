@@ -5,6 +5,7 @@
  * Env: DEMO_PACE_S (6), PORT (8787), DATA_PORT (8790), AGENT_PORT (8791),
  *      AGENT_PUBLIC_URL (the agent's public status URL when shared).
  */
+import '../core/loadEnv'
 import { defaultBrain } from '../agent/brain'
 import { runAgentDemo } from './agentDemo'
 

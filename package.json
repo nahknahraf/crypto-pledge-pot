@@ -33,7 +33,8 @@
     "evm:compile": "node evm/compile.cjs",
     "lp": "vite-node --config vitest.config.ts swap/lpMain.ts",
     "eval:agents": "vite-node --config vitest.config.ts eval/agentEvalMain.ts",
-    "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts"
+    "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts",
+    "secrets:init": "vite-node --config vitest.config.ts scripts/secretsInit.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

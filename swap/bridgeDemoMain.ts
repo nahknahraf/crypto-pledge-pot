@@ -13,6 +13,7 @@
  *   BRIDGE_USDC        amount in USDC (default 1)
  * Never put a mainnet key here. The BSV side is always the offline mock chain in this demo.
  */
+import '../core/loadEnv'
 import type { Address, Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { baseSepolia } from 'viem/chains'

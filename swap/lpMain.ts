@@ -17,6 +17,7 @@
  * mock chain). This entry point has NOT been run against a public network yet.
  * Keep LP_MAX_USDC small, and use testnets until the contract has been reviewed.
  */
+import '../core/loadEnv'
 import path from 'node:path'
 import { Transaction, Utils } from '@bsv/sdk'
 import type { Hex } from 'viem'

@@ -1,4 +1,5 @@
 /** npm run demo:donor: the donor agent's two modes, narrated (offline; DEMO_PACE_S=2 by default). */
+import '../core/loadEnv'
 import { runDonorDemo } from './donorDemo'
 
 await runDonorDemo({ paceMs: Number(process.env.DEMO_PACE_S ?? 2) * 1000 })

@@ -6,6 +6,7 @@
  * Testnets and local chains only until the contract has been reviewed
  * (docs/BRIDGING_PLAN.md, step 1c). Prints the address to use as BRIDGE_HTLC.
  */
+import '../core/loadEnv'
 import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { anvil, baseSepolia } from 'viem/chains'

@@ -3,6 +3,7 @@
  * ANTHROPIC_API_KEY is set, the deterministic ones otherwise), EVAL_RUNS times
  * (default 3), and write docs/AGENT_EVAL_RESULTS.md.
  */
+import '../core/loadEnv'
 import fs from 'node:fs'
 import { defaultBrain } from '../agent/brain'
 import { defaultDonorBrain } from '../donor/brain'

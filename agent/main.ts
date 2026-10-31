@@ -16,6 +16,7 @@
  *   AGENT_FEE_RESERVE=3000  AGENT_GOAL=20000  AGENT_DEADLINE_MIN=15  AGENT_REFUND_DAYS=7
  *   ANTHROPIC_API_KEY (Claude brain; without it the mock brain is used)  AGENT_MODEL  AGENT_BRAIN=mock
  */
+import '../core/loadEnv'
 import path from 'node:path'
 import { CryptoPledgePot } from '../client/cryptoPledgePot'
 import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'

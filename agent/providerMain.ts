@@ -7,6 +7,7 @@
  *      DATA_PROVIDER_KEY (else data/provider.key, generated once).
  * Payments land in this provider's own wallet-toolbox wallet.
  */
+import '../core/loadEnv'
 import path from 'node:path'
 import { createDataProviderApp, serveDataProvider } from './dataProvider'
 import { createToolboxWallet, loadOrCreateKey } from './wallet'

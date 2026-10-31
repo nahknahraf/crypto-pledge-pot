@@ -14,6 +14,7 @@
  *      DONOR_MANDATE (data/donor-mandate.json), ANTHROPIC_API_KEY (Claude;
  *      otherwise a deterministic brain), DONOR_ROOT_KEY.
  */
+import '../core/loadEnv'
 import fs from 'node:fs'
 import { Transaction, Utils, type WalletInterface } from '@bsv/sdk'
 import path from 'node:path'
