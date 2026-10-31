@@ -2211,3 +2211,13 @@ Suite: 249 passed, 3 skipped.
   - `npm run lp:fund -- <sats>` pays from your own wallet.
   - Tested: a top-up is accepted, a forged sender is refused, and the default app doesn't serve the endpoint.
 - **`scripts/` is now typechecked.**
+
+**9.10 Fuzzing the HTLC.** `bridge.contract.fuzz` fuzzes the contract against a model, on Anvil.
+- **What it does:** seeded random locks, claims and refunds, with the right or wrong secret, the right or wrong caller, timeouts already past, and clock jumps. Each call must succeed exactly when the model of the rules says it should.
+- **Invariants checked after every step:**
+  - the HTLC's balance equals the sum of open locks;
+  - tokens are conserved;
+  - at the end, the on-chain state and the revealed secret match the model for every lock.
+- **Runs:** five seeds × 200 steps all passed. Each run made 63–74 locks, 4–13 claims, 11–20 refunds and 81–95 correct refusals. The suite runs 150 steps by default, and `FUZZ_SEED`, `FUZZ_STEPS` and `FUZZ_REPORT` reproduce or extend a run.
+- **Mutation check:** letting anyone claim is caught at step 57.
+- **Why not Foundry:** a Foundry pass would add a download for the same kind of check.
