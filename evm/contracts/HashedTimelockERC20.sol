@@ -29,6 +29,9 @@ contract HashedTimelockERC20 {
         bytes32 hashlock;
         uint64 refundAfter;
         State state;
+        /// Kept in storage so readers need no log scans (public RPCs limit eth_getLogs ranges).
+        uint64 lockedBlock;
+        bytes32 secret;
     }
 
     mapping(bytes32 => Lock) public locks;
@@ -67,7 +70,7 @@ contract HashedTimelockERC20 {
         uint256 before = IERC20(token).balanceOf(address(this));
         _call(token, abi.encodeCall(IERC20.transferFrom, (msg.sender, address(this), amount)));
         require(IERC20(token).balanceOf(address(this)) - before == amount, "token");
-        locks[id] = Lock(sender, receiver, token, amount, hashlock, refundAfter, State.Locked);
+        locks[id] = Lock(sender, receiver, token, amount, hashlock, refundAfter, State.Locked, uint64(block.number), bytes32(0));
         emit Locked(id, sender, receiver, token, amount, hashlock, refundAfter);
     }
 
@@ -78,6 +81,7 @@ contract HashedTimelockERC20 {
         require(block.timestamp < l.refundAfter, "expired");
         require(sha256(abi.encodePacked(secret)) == l.hashlock, "secret");
         l.state = State.Claimed;
+        l.secret = secret;
         emit Claimed(id, secret);
         _call(l.token, abi.encodeCall(IERC20.transfer, (l.receiver, l.amount)));
     }

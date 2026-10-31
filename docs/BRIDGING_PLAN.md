@@ -191,5 +191,5 @@ What the Phase 1a happy path does **not** do yet, in rough order:
   - `SwapAndLock.sol` is a stateless router: it swaps another token on a DEX and locks exactly the quoted USDC through `HashedTimelockERC20.lockFor` (refundable to the donor), returns any surplus, and reverts on slippage.
   - It refuses a "DEX" that is the HTLC or one of the tokens. Arbitrary calls never run in the HTLC, which holds everyone's locks.
   - `EvmUsdcChain.swapAndLock`, and `DonorSwap.lockAndRequest(…, lockWith)`.
-  - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). A real DEX (e.g. Uniswap on Base) needs its router calldata built off-chain, which is not done yet.
+  - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). **Real DEX:** `swap/dex.ts` builds Uniswap V3 `exactInputSingle` calldata. On a **fork of Base** (`FORK_URL=https://mainnet.base.org npx vitest run test/bridge.fork.test.ts`), real ETH becomes real WETH, then real USDC via the real Uniswap router, and exactly 20 USDC are locked. Real USDC's permit works too.
 - [ ] **Phases 3–5** (BTC, Lightning, on-ramp, wrapped stablecoins): not started. BTC and Lightning need a regtest node, which this machine doesn't have.

@@ -65,19 +65,15 @@ export class EvmUsdcChain implements SourceChain {
   }
 
   async htlc (id: string): Promise<SourceHtlc | undefined> {
-    const [sender, receiver, , amount, hashlock, refundAfter, state] = await this.client.readContract({ address: this.opts.htlc, abi: HTLC_ABI, functionName: 'locks', args: [hex32(id)] }) as [Address, Address, Address, bigint, Hex, bigint, number]
+    // Everything comes from contract storage (no eth_getLogs): public RPCs limit log ranges.
+    const [sender, receiver, , amount, hashlock, refundAfter, state, lockedBlock, secret] = await this.client.readContract({ address: this.opts.htlc, abi: HTLC_ABI, functionName: 'locks', args: [hex32(id)] }) as [Address, Address, Address, bigint, Hex, bigint, number, bigint, Hex]
     if (state === 0) return undefined
     const h: SourceHtlc = { id, sender: getAddress(sender), receiver: getAddress(receiver), amount: Number(amount), hashlock: plain(hashlock), refundAfter: Number(refundAfter), state: STATES[state] as SourceHtlc['state'] }
-    const [locked] = await this.client.getContractEvents({ address: this.opts.htlc, abi: HTLC_ABI, eventName: 'Locked', args: { id: hex32(id) }, fromBlock: 0n })
-    const minedIn = (locked as { blockNumber?: bigint | null } | undefined)?.blockNumber
-    if (minedIn != null) h.confirmations = Number((await this.client.getBlockNumber({ cacheTime: 0 })) - minedIn) + 1 // no cache: viem keeps the block number for seconds
-    if (h.state === 'claimed') {
-      const logs = await this.client.getContractEvents({ address: this.opts.htlc, abi: HTLC_ABI, eventName: 'Claimed', args: { id: hex32(id) }, fromBlock: 0n })
-      const secret = (logs[0] as unknown as { args: { secret: Hex } } | undefined)?.args.secret
-      if (secret !== undefined) h.secret = plain(secret)
-    }
+    h.confirmations = Number((await this.client.getBlockNumber({ cacheTime: 0 })) - lockedBlock) + 1 // no cache: viem keeps the block number for seconds
+    if (h.state === 'claimed') h.secret = plain(secret)
     return h
   }
+
 
   /** Send one contract call as `from`. Simulated first, so a revert comes back with the contract's reason. */
   private async send (signer: Account | undefined, from: Address, to: Address, abi: Abi, functionName: string, args: unknown[]): Promise<Hex> {
@@ -138,7 +134,10 @@ export class EvmUsdcChain implements SourceChain {
       lock: async ({ receiver, amount, hashlock, refundAfter }) => {
         const args = [getAddress(receiver), this.opts.token, BigInt(amount), hex32(hashlock), BigInt(refundAfter)]
         let hash: Hex
-        if (this.opts.permit === true) {
+        // USDC checks a permit with ecrecover only for plain accounts; an address with code (a smart account,
+        // or an EIP-7702 delegated EOA) is checked via ERC-1271 instead, so use approve + lock there.
+        const hasCode = this.opts.permit === true && ((await this.client.getCode({ address: addr })) ?? '0x') !== '0x'
+        if (this.opts.permit === true && !hasCode) {
           hash = await write(this.opts.htlc, HTLC_ABI, 'lockWithPermit', [...args, ...await this.permitSignature(signer, addr, BigInt(amount))])
         } else {
           await write(this.opts.token, TOKEN_ABI, 'approve', [this.opts.htlc, BigInt(amount)])

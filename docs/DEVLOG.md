@@ -2079,3 +2079,17 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
 **What broke:** the first compile hit "stack too deep" (10 parameters). An `Order` struct fixed it, and reads better.
 
 **Not done:** calldata for a real DEX router.
+
+**8.36 Against the real contracts: a fork of Base.** `test/bridge.fork.test.ts` is opt-in, running only with `FORK_URL`. It starts Anvil as a fork of Base, so it uses real USDC, real WETH and the real Uniswap V3 router, and only reads from the network.
+- The addresses in `swap/dex.ts` (USDC, WETH, SwapRouter02) are **checked on the fork** (symbol, decimals, the router's `WETH9`), not trusted from memory.
+- **ETH → WETH → real Uniswap → exactly 20 real USDC locked**, refundable to the donor. The surplus returns, the swap completes into sats, and the agent collects real USDC.
+- Real USDC accepts our EIP-2612 permit (1 transaction).
+
+**What broke, and what it taught us (three real issues):**
+1. **Log scans from block 0.** `htlc()` used `eth_getLogs` from genesis for confirmations and for the secret. On the fork that hit the public RPC's limit (429), and on any real chain it's slow or refused. **Fix in the contract:** each lock stores `lockedBlock`, and a claim stores the `secret`, so reading a lock needs no logs at all.
+2. **Smart accounts can't permit with ECDSA.** USDC said "EIP2612: invalid signature" although the domain matched exactly. Anvil's public dev addresses carry **EIP-7702 delegations** on Base (`eth_getCode` = `0xef0100…`), and for an address with code, USDC checks ERC-1271 instead of ecrecover. Real donors with smart accounts hit the same thing. **Fix:** in permit mode, if the owner's address has code, fall back to approve + lock. The test covers both: a fresh plain key uses 1 transaction, the 7702-delegated account uses 2.
+3. **A fork must keep its real chain id.** `startAnvil` no longer forces 31337 when forking, because EIP-712 domains depend on the chain id. The domain separator was compared directly: ours equals USDC's on-chain one.
+
+Also: a timing flake in the "waits for confirmations" test (background mining could finish before the agent looked). Mining now starts only when the flow reports that it's waiting, and it passed 3 runs in a row.
+
+Full suite: **241 passing**, plus 3 opt-in fork tests that pass with `FORK_URL`.

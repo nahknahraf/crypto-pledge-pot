@@ -37,14 +37,14 @@ export async function freePort (): Promise<number> {
 }
 
 /** `timestamp`: the chain's start time (unix seconds), e.g. in the past so BSV timelocks line up with the mock chain. */
-export async function startAnvil (port?: number, opts: { timestamp?: number } = {}): Promise<Anvil> {
+export async function startAnvil (port?: number, opts: { timestamp?: number, forkUrl?: string } = {}): Promise<Anvil> {
   port ??= await freePort()
   const bin = anvilBinary()
   if (bin === undefined) throw new Error('anvil not found: npm install (dev dependency @foundry-rs/anvil) or set ANVIL_BIN')
-  const proc: ChildProcess = spawn(bin, ['--port', String(port), '--silent', '--chain-id', '31337', ...(opts.timestamp !== undefined ? ['--timestamp', String(opts.timestamp)] : [])], { stdio: 'ignore' })
+  const proc: ChildProcess = spawn(bin, ['--port', String(port), '--silent', ...(opts.forkUrl === undefined ? ['--chain-id', '31337'] : []), /* a fork keeps its real chain id: EIP-712 domains depend on it */ ...(opts.timestamp !== undefined ? ['--timestamp', String(opts.timestamp)] : []), ...(opts.forkUrl !== undefined ? ['--fork-url', opts.forkUrl] : [])], { stdio: 'ignore' })
   const rpcUrl = `http://127.0.0.1:${port}`
   const exited = new Promise<void>(resolve => proc.once('exit', () => resolve()))
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < (opts.forkUrl !== undefined ? 600 : 100); i++) { // a fork needs longer to start
     try {
       const r = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }) })
       if (r.ok) return { rpcUrl, stop: async () => { proc.kill(); await exited } }
@@ -54,6 +54,11 @@ export async function startAnvil (port?: number, opts: { timestamp?: number } = 
   }
   proc.kill()
   throw new Error('anvil did not start')
+}
+
+/** Give `address` some ETH for gas (Anvil only). */
+export async function anvilSetBalance (rpcUrl: string, address: string, wei: bigint): Promise<void> {
+  await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'anvil_setBalance', params: [address, `0x${wei.toString(16)}`] }) })
 }
 
 /** Mine `blocks` empty blocks (Anvil only). */

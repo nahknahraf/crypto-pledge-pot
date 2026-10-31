@@ -85,15 +85,19 @@ describe.skipIf(anvilBinary() === undefined)('the donor signs in their own EVM w
     const lpWallet = await chain.makeWallet(); await chain.fund(lpWallet, 3_000_000)
     const lp = new LiquidityAgent(lpWallet, lpSide, lpEvm.address, findSpend, async () => await spendable(lpWallet), { ...DEFAULT_LIQUIDITY, minSourceConfirmations: 2 })
     const server: Server = await new Promise(resolve => { const s = createLiquidityApp(lp).listen(0, '127.0.0.1', () => resolve(s)) })
-    const mineWhileWaiting = setInterval(() => { void anvilMine(node.rpcUrl, 1) }, 50)
+    // Mine only once the flow says it is waiting: right after the lock there is 1 confirmation, so it always waits first.
+    let mining: ReturnType<typeof setInterval> | undefined
     try {
       const bsvWallet = await chain.makeWallet()
       const lines: string[] = []
-      const r = await swapUsdcToSats(provider(), bsvWallet, chain.chainTracker, { lpUrl: `http://127.0.0.1:${(server.address() as any).port}`, evm: { name: 'USDC', rpcUrl: node.rpcUrl, chain: anvilChain, htlc, token, permit: true }, retryMs: 100 }, 10 * USDC, l => lines.push(l))
+      const r = await swapUsdcToSats(provider(), bsvWallet, chain.chainTracker, { lpUrl: `http://127.0.0.1:${(server.address() as any).port}`, evm: { name: 'USDC', rpcUrl: node.rpcUrl, chain: anvilChain, htlc, token, permit: true }, retryMs: 100 }, 10 * USDC, l => {
+        lines.push(l)
+        if (/waiting for confirmations/.test(l) && mining === undefined) mining = setInterval(() => { void anvilMine(node.rpcUrl, 1) }, 50)
+      })
       expect(r.state).toBe('claimed')
       expect(lines.join('\n')).toMatch(/waiting for confirmations/)
       expect(await spendable(bsvWallet)).toBeGreaterThan(10 * 21_500 - 2_000)
-    } finally { clearInterval(mineWhileWaiting); await new Promise(r => server.close(r)) }
+    } finally { clearInterval(mining); await new Promise(r => server.close(r)) }
   }, 120_000)
 })
 
