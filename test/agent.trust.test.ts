@@ -3,7 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Transaction } from '@bsv/sdk'
 import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { parseCryptoPledgePotRecord, reportMatchesRecord, splitAnchoredReport } from '../core/campaign'
-import { checkAgent } from '../donor/diligence'
+import { memoryStore } from '../agent/ledger'
+import { MockDonorBrain } from '../donor/brain'
+import { checkAgent, checkReportAnchor } from '../donor/diligence'
+import { DonorAgent } from '../donor/donorAgent'
+import { parseMandate } from '../donor/mandate'
+import { MemoBook, type Memo } from '../donor/memo'
 import { runAgentDemo, type AgentDemo } from '../server/agentDemo'
 
 let demo: AgentDemo
@@ -46,5 +51,52 @@ describe('the fundraising agent publishes its limits, and its ledger is audited 
     expect((await checkAgent(c, deps([{ sats: 500, txid: tx, milestone: 2 }])))!.detail).toMatch(/above its published cap of 50/)
     expect((await checkAgent(c, deps(Array.from({ length: 6 }, () => ({ sats: 50, txid: tx, milestone: 2 })))))!.detail).toMatch(/published 250-sat limit in milestone 2/)
     expect((await checkAgent({ ...c, meta: { ...c.meta, agentLimits: undefined } }, deps([])))!.detail).toMatch(/publishes no spending limits/)
+  })
+})
+
+describe('the donor agent checks a report against its anchor before voting (D11)', () => {
+  /** The anchor with its merkle proof, as WhatsOnChain would serve it once mined. */
+  const provenTx = async (txid: string): Promise<Transaction> => {
+    let proof = await (demo.chain.services as any).getMerklePath(txid)
+    if (proof.merklePath === undefined) { await demo.chain.mineBlock(); proof = await (demo.chain.services as any).getMerklePath(txid) }
+    const tx = await anchorTx(txid)
+    tx.merklePath = proof.merklePath
+    return tx
+  }
+  const deps = () => ({ api: new CryptoPledgePotApi(demo.url), chainTracker: demo.chain.chainTracker, txExists: async () => true, fetchTx: provenTx })
+
+  it('a matching report passes; an edited one is a mismatch; an unfetchable anchor is unverifiable; no anchor, no check', async () => {
+    const c = await new CryptoPledgePotApi(demo.url).campaign(demo.status().campaignId!)
+    const m = c.milestones.find(x => x.update !== undefined)!
+    const note = m.update!.note
+    expect(await checkReportAnchor(c, m.index, note, deps())).toMatchObject({ ok: true, outcome: 'match' })
+    expect(await checkReportAnchor(c, m.index, note.replace('readings', 'READINGS'), deps())).toMatchObject({ ok: false, outcome: 'mismatch' })
+    expect(await checkReportAnchor(c, m.index, note, { ...deps(), fetchTx: undefined })).toMatchObject({ outcome: 'unverifiable' })
+    expect(await checkReportAnchor(c, m.index, 'Done, no anchor.', deps())).toBeUndefined()
+  })
+
+  it('end to end: the agent votes NO on a report edited after anchoring, and YES on the anchored original', async () => {
+    const real = new CryptoPledgePotApi(demo.url)
+    const id = demo.status().campaignId!
+    const original = await real.campaign(id)
+    const m = original.milestones.find(x => x.update !== undefined)!
+    // The campaign as an index would show it before the vote: milestone m not released yet.
+    const view = (edited: boolean) => ({
+      ...original,
+      milestones: original.milestones.map(x => x.index === m.index ? { ...x, released: false, update: { ...x.update!, note: edited ? x.update!.note.replace('readings', 'READINGS') : x.update!.note } } : { ...x, update: undefined })
+    })
+    for (const edited of [true, false]) {
+      const votes: boolean[] = []
+      const memos = new MemoBook(memoryStore<Memo[]>([]))
+      memos.add({ campaignId: id, campaignTitle: 'AirWatch', kind: 'pledge', status: 'executed', summary: 'pledged', checks: [], reasons: [], amount: 1_000 }, 0)
+      const agent = new DonorAgent(parseMandate({ name: 'x', mode: 'autopilot', keywords: ['air'] }), {
+        ...deps(), api: { campaigns: async () => [], campaign: async () => view(edited) } as any,
+        client: { vote: async (_c: string, _k: number, yes: boolean) => { votes.push(yes) } } as any,
+        brain: new MockDonorBrain(), memos, log: () => {}
+      })
+      await agent.step()
+      expect(votes, edited ? 'edited' : 'original').toEqual([!edited])
+      if (edited) expect(memos.all().find(x => x.kind === 'vote')!.reasons.join(' ')).toMatch(/differs from the version anchored/)
+    }
   })
 })

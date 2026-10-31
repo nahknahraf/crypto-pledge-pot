@@ -15,9 +15,9 @@
  *      otherwise a deterministic brain), DONOR_ROOT_KEY.
  */
 import fs from 'node:fs'
-import type { WalletInterface } from '@bsv/sdk'
+import { Transaction, Utils, type WalletInterface } from '@bsv/sdk'
 import path from 'node:path'
-import { CryptoPledgePot } from '../client/cryptoPledgePot'
+import { CryptoPledgePot, wocBeef } from '../client/cryptoPledgePot'
 import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
 import { fileStore } from '../agent/ledger'
@@ -62,7 +62,12 @@ if (mandate.mode === 'autopilot') {
 }
 const api = new CryptoPledgePotApi(serverUrl, wallet)
 const memos = new MemoBook(fileStore<Memo[]>(path.join(dataDir, 'donor-memos.json'), []))
-const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), memos, chainTracker, txExists })
+// Report anchors are not kept by the CryptoPledgePot server: fetch them (with proof) from WhatsOnChain.
+const fetchTx = async (txid: string): Promise<Transaction> => {
+  const bytes = Utils.toArray(await wocBeef(txid, network), 'hex')
+  try { return Transaction.fromAtomicBEEF(bytes) } catch { return Transaction.fromBEEF(bytes, txid) }
+}
+const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), memos, chainTracker, txExists, fetchTx })
 
 const spendable = async (): Promise<number> => {
   if (wallet === undefined) return 0

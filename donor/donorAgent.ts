@@ -17,7 +17,7 @@ import type { CampaignView } from '../core/api'
 import type { CryptoPledgePot } from '../client/cryptoPledgePot'
 import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { addressesAgents, MANIPULATION, type DonorBrain } from './brain'
-import { checkAgent, checkAnchor, checkArbiter, verifiedPaymentsIn, type Check, type DiligenceDeps } from './diligence'
+import { checkAgent, checkAnchor, checkArbiter, checkReportAnchor, verifiedPaymentsIn, type Check, type DiligenceDeps } from './diligence'
 import type { Mandate } from './mandate'
 import type { Memo, MemoBook } from './memo'
 import { amountFor, creatorRecord, screen, type Portfolio } from './screen'
@@ -143,6 +143,16 @@ export class DonorAgent {
     }
   }
 
+  /** Hard rules first, then the brain. Anchor edited after the fact → reject; anchor unverifiable → abstain; text addressing AI agents → reject. */
+  private async judgeReport (c: CampaignView, milestone: number, note: string, verifiedPayments: number): Promise<{ verdict: 'approve' | 'reject' | 'unsure', reasons: string[] }> {
+    const anchor = await checkReportAnchor(c, milestone, note, this.deps)
+    if (anchor?.outcome === 'mismatch') return { verdict: 'reject', reasons: [anchor.detail] }
+    if (anchor?.outcome === 'unverifiable') return { verdict: 'unsure', reasons: [anchor.detail] }
+    if (addressesAgents(note)) return { verdict: 'reject', reasons: ['the report contains text addressed to AI agents'] }
+    return await this.deps.brain.assessReport(this.mandate, c, milestone, note, verifiedPayments)
+      .catch(e => ({ verdict: 'unsure' as const, reasons: [`could not assess (${(e as Error).message})`] }))
+  }
+
   /** Autopilot: read each new milestone report of the campaigns we backed, verify its evidence, vote. */
   private async monitor (): Promise<number> {
     let votes = 0
@@ -154,11 +164,7 @@ export class DonorAgent {
         if (ms.index < 2 || ms.released || ms.update === undefined || done.has(`${c.id}:${ms.index}`)) continue
         done.add(`${c.id}:${ms.index}`)
         const evidence = await verifiedPaymentsIn(ms.update.note, this.deps)
-        // Same hard rule for reports, whatever the brain would say: a report that addresses AI agents is rejected.
-        const verdict = addressesAgents(ms.update.note)
-          ? { verdict: 'reject' as const, reasons: ['the report contains text addressed to AI agents'] }
-          : await this.deps.brain.assessReport(this.mandate, c, ms.index, ms.update.note, evidence.verified)
-            .catch(e => ({ verdict: 'unsure' as const, reasons: [`could not assess (${(e as Error).message})`] }))
+        const verdict = await this.judgeReport(c, ms.index, ms.update.note, evidence.verified)
         const reasons = [`${evidence.verified}/${evidence.linked} linked payment(s) verified on chain`, ...verdict.reasons]
         const memo = { campaignId: c.id, campaignTitle: c.meta.title, kind: 'vote' as const, milestone: ms.index, checks: [], reasons }
         if (verdict.verdict === 'unsure') {

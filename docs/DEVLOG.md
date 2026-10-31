@@ -1972,3 +1972,15 @@ Tests (`walletGate`, in Node, with a fake wallet factory):
 No jsdom or Testing Library dependency was needed. The app build is unchanged.
 
 **8.25 The bridge demo in the container.** I built the `app` image with Podman and ran `npm run demo:bridge` inside it. It plays to the end (Anvil, the Solidity HTLC, the swap, the pledge). The image keeps dev dependencies (vite-node needs them), and those include the Linux anvil binary, so no Dockerfile change was needed. The check image was removed afterwards.
+
+**8.26 The donor agent checks a report against its anchor before voting** (D11). **A real gap, fixed.** The fundraising agent anchors each report's hash on chain, but the donor agent never *checked* it. A report edited after anchoring could still get the agent's YES.
+- New `checkReportAnchor` in `donor/diligence.ts`. If a report names an anchor, the agent fetches the transaction with its proof (a new optional `fetchTx` dependency: WhatsOnChain BEEF in `npm run donor`, the mock chain in tests), verifies it by SPV, and compares the record with the text.
+  - **mismatch:** vote NO;
+  - **unverifiable** (not found, no proof): abstain;
+  - **no anchor named** (people's updates rarely have one): no check, as before.
+- The vote rules now sit in one small method, `judgeReport`, with early returns, in order: anchor, text addressed to agents, then the brain.
+- Tests (`agent.trust`, in the real AirWatch world):
+  - the check returns match, mismatch and unverifiable correctly;
+  - **end to end, the donor agent votes NO on the edited report and YES on the anchored original**. With the rule switched off, this test fails.
+
+**What broke while testing:** my first `fetchTx` returned the raw transaction without its merkle proof, so SPV said "unverifiable". The test now mines a block and attaches the proof, as WhatsOnChain would serve it.

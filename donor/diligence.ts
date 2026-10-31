@@ -6,7 +6,7 @@
  */
 import { Transaction, Utils, type ChainTracker } from '@bsv/sdk'
 import type { CampaignView } from '../core/api'
-import { campaignIdOf, parseCryptoPledgePotRecord } from '../core/campaign'
+import { campaignIdOf, parseCryptoPledgePotRecord, reportMatchesRecord, splitAnchoredReport } from '../core/campaign'
 import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 
 export interface Check { name: string, ok: boolean, detail: string }
@@ -17,7 +17,30 @@ export interface DiligenceDeps {
   chainTracker: ChainTracker
   /** Does a transaction exist on chain? (WhatsOnChain on mainnet.) */
   txExists: (txid: string) => Promise<boolean>
+  /** A transaction with its proof (BEEF), for report anchors the CryptoPledgePot server does not keep. WhatsOnChain on mainnet. */
+  fetchTx?: (txid: string) => Promise<Transaction | undefined>
   fetchImpl?: typeof fetch
+}
+
+/**
+ * A report that names an on-chain anchor must match it: same campaign, same milestone, same text
+ * hash, and the anchor passes SPV. `mismatch` (edited after anchoring) means vote NO;
+ * `unverifiable` means abstain. Undefined if the report names no anchor (people's updates rarely do).
+ */
+export async function checkReportAnchor (c: CampaignView, milestone: number, note: string, d: DiligenceDeps): Promise<(Check & { outcome: 'match' | 'mismatch' | 'unverifiable' }) | undefined> {
+  const name = 'report matches its on-chain anchor'
+  const { anchorTxid } = splitAnchoredReport(note)
+  if (anchorTxid === undefined) return undefined
+  const unverifiable = (why: string) => ({ name, ok: false, detail: `the report's anchor could not be checked: ${why}`, outcome: 'unverifiable' as const })
+  if (d.fetchTx === undefined) return unverifiable('no transaction source configured')
+  let tx: Transaction | undefined
+  try { tx = await d.fetchTx(anchorTxid) } catch (e) { return unverifiable((e as Error).message) }
+  if (tx === undefined) return unverifiable('anchor transaction not found')
+  if (!(await tx.verify(d.chainTracker).catch(() => false))) return unverifiable('the anchor failed SPV verification')
+  const record = tx.outputs.map(o => parseCryptoPledgePotRecord(o.lockingScript)).find(r => r?.kind === 'report')
+  return reportMatchesRecord(note, record, c.id, milestone)
+    ? { name, ok: true, detail: `report hash matches anchor ${anchorTxid.slice(0, 12)}…`, outcome: 'match' }
+    : { name, ok: false, detail: 'the report differs from the version anchored on chain (edited after anchoring?)', outcome: 'mismatch' }
 }
 
 /** The campaign's anchor transaction carries exactly this campaign's record and passes SPV. */
