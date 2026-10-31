@@ -9,6 +9,10 @@
  * 200 = 2%) away from it. API3_AIRNODE / API3_REQUEST_HASH override the
  * signer and request (defaults: CoinPaprika, BSV_USD_REQUEST).
  *
+ * The guarded deployment is recorded in deployments/api3-price-guard.json
+ * (network, address, deploy tx, settings, a public RPC): commit it, it is the
+ * proof judges check with `npm run api3:judge` and `npm run evm:verify`.
+ *
  * Testnets and local chains only until the contract has been reviewed
  * (docs/BRIDGING_PLAN.md, step 1c). Prints the address to use as BRIDGE_HTLC.
  */
@@ -16,6 +20,7 @@ import type { Address, Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { anvil, baseSepolia } from 'viem/chains'
 import { BSV_USD_REQUEST, COINPAPRIKA_AIRNODE_ADDRESS, deriveRequestHash } from './api3Price'
+import { DEPLOYMENT_FILE, PUBLIC_NETWORKS, writeDeployment } from './api3Proof'
 import { DEFAULT_PRICE_GUARD, deployBridgeContracts, type PriceGuardSettings } from './evmChain'
 
 const env = process.env
@@ -31,6 +36,30 @@ const priceGuard: PriceGuardSettings | undefined = env.BRIDGE_PRICE_GUARD === 'a
       maxDeviationBps: Number(env.API3_MAX_DEVIATION_BPS ?? DEFAULT_PRICE_GUARD.maxDeviationBps)
     }
   : undefined
-const { htlc } = await deployBridgeContracts(rpc, chain, privateKeyToAccount(key as Hex), { withTestToken: false, priceGuard })
-console.log(`${priceGuard !== undefined ? 'PriceGuardedHTLC' : 'HashedTimelockERC20'} deployed on ${chain.name}: ${htlc}`)
-if (priceGuard !== undefined) console.log(`  airnode ${priceGuard.airnode} · request ${priceGuard.requestHash} · max deviation ${priceGuard.maxDeviationBps / 100}%`)
+const deployer = privateKeyToAccount(key as Hex)
+const { htlc, htlcTx, htlcBlock } = await deployBridgeContracts(rpc, chain, deployer, { withTestToken: false, priceGuard, confirmations: chain.id === anvil.id ? 1 : 2 })
+console.log(`${priceGuard !== undefined ? 'PriceGuardedHTLC' : 'HashedTimelockERC20'} deployed on ${chain.name}: ${htlc} (tx ${htlcTx})`)
+if (priceGuard !== undefined) {
+  console.log(`  airnode ${priceGuard.airnode} · request ${priceGuard.requestHash} · max deviation ${priceGuard.maxDeviationBps / 100}%`)
+  const pub = PUBLIC_NETWORKS[chain.id]
+  writeDeployment({
+    contract: 'PriceGuardedHTLC',
+    network: chain.name,
+    chainId: chain.id,
+    rpcUrl: pub?.rpcUrl ?? rpc,
+    address: htlc,
+    deployTx: htlcTx,
+    blockNumber: htlcBlock,
+    deployer: deployer.address,
+    deployedAt: new Date().toISOString(),
+    explorer: pub !== undefined ? pub.explorer + htlc : undefined,
+    token: (env.BRIDGE_TOKEN ?? pub?.usdc ?? '0x0000000000000000000000000000000000000000') as Address,
+    airnode: priceGuard.airnode,
+    requestHash: priceGuard.requestHash,
+    request: BSV_USD_REQUEST,
+    maxDeviationBps: priceGuard.maxDeviationBps,
+    maxResponseAge: priceGuard.maxResponseAge,
+    maxPriceAge: priceGuard.maxPriceAge
+  })
+  console.log(`  recorded in ${DEPLOYMENT_FILE}; next: npm run evm:verify (source on Sourcify), then npm run api3:judge`)
+}

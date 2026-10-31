@@ -46,4 +46,19 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 
 **Before you start:** check that no browser automation is running while BSV Desktop is open. Every payment in the video is clicked and approved by a person.
 
+## API3 track: 40-second add-on
+
+A separate clip for the API3 submission. It is **not mainnet**: say which chain is on screen. Record it against the Base Sepolia deployment if `deployments/api3-price-guard.json` exists; otherwise use `--local` and say "a local EVM chain".
+
+**Before recording:** a Base Sepolia key with aUSD from the AirnodeHub faucet in `API3_PAYER_KEY`; the contract open on the block explorer; a terminal with a large font.
+
+| Time | Show | Say |
+|---|---|---|
+| **0:00–0:08** | The explorer page of `PriceGuardedHTLC` (address, network, verified source) | "This is the swap contract on Base Sepolia. Before it locks a donor's USDC, it checks the quoted rate against a BSV/USD price signed by CoinPaprika's Airnode on API3 AirnodeHub." |
+| **0:08–0:15** | `API3_PAYER_KEY=… npm run api3:judge`: the deployment block, then *read back from the chain* | "The tool reads the Airnode and request hash back from the contract, then pays 0.001 aUSD for a fresh signed price." |
+| **0:15–0:32** | The five rows appearing, then *1 accepted, 4 rejected* | "The response as signed is accepted. Halve the price, move the timestamp, or bring a real API3 signature from another Airnode: the contract refuses all three. And a valid price with a quote 5% too low is refused too." |
+| **0:32–0:40** | `docs/API3_CROSSCHAIN_SWAP_GUARD.md`, section 0 | "Judges can run the same check with their own response, or paste it into checkedPrice on the explorer." |
+
+**Must not claim:** a Base Sepolia run if the clip shows `--local`, or that any of it is mainnet.
+
 Open work is in [`TODO.md`](TODO.md).

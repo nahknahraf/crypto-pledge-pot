@@ -2,6 +2,11 @@
 // The artifact is committed, so running the app or tests does not need solc.
 //   npm run evm:compile        (installs evm/'s own dependencies first)
 //
+// require('./compile.cjs').standardInput() returns the exact Standard JSON input
+// the artifact is built from, with every imported library source inlined. Source
+// verification (npm run evm:verify, Sourcify) recompiles that input and compares
+// it with the deployed bytecode.
+//
 // Sources: every .sol file under evm/contracts, including the API3 AirnodeHub
 // libraries in evm/contracts/api3. Their imports resolve like the starter's
 // Foundry remappings:
@@ -22,19 +27,38 @@ const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.is
 const own = walk(dir).filter(f => f.endsWith('.sol')).map(f => path.relative(dir, f).split(path.sep).join('/'))
 const sources = Object.fromEntries(own.map(f => [f, { content: fs.readFileSync(path.join(dir, f), 'utf8') }]))
 
+// Library sources solc asked for, by import path: standardInput() inlines them.
+const imported = {}
 function findImports (importPath) {
   for (const [prefix, target] of REMAPPINGS) {
     if (!importPath.startsWith(prefix)) continue
     const file = path.join(target, importPath.slice(prefix.length))
-    if (fs.existsSync(file)) return { contents: fs.readFileSync(file, 'utf8') }
+    if (fs.existsSync(file)) return { contents: (imported[importPath] = fs.readFileSync(file, 'utf8')) }
     return { error: `${importPath} not found: run npm install --prefix evm` }
   }
   const local = path.join(dir, importPath)
   return fs.existsSync(local) ? { contents: fs.readFileSync(local, 'utf8') } : { error: `${importPath} not found` }
 }
 
-const input = { language: 'Solidity', sources, settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: 'cancun', outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } } } }
-const out = JSON.parse(solc.compile(JSON.stringify(input), { import: findImports }))
+const SETTINGS = { optimizer: { enabled: true, runs: 200 }, evmVersion: 'cancun' }
+const compile = (outputSelection) => {
+  const input = { language: 'Solidity', sources, settings: { ...SETTINGS, outputSelection } }
+  return { input, out: JSON.parse(solc.compile(JSON.stringify(input), { import: findImports })) }
+}
+
+/** The Standard JSON input of the committed artifact, self-contained (libraries inlined under their import paths). */
+function standardInput () {
+  const { input, out } = compile({ '*': { '*': ['evm.bytecode.object'] } })
+  const errors = (out.errors ?? []).filter(e => e.severity === 'error')
+  if (errors.length > 0) throw new Error(errors.map(e => e.formattedMessage).join('\n'))
+  const libs = Object.fromEntries(Object.entries(imported).map(([p, content]) => [p, { content }]))
+  return { ...input, sources: { ...input.sources, ...libs }, settings: { ...SETTINGS, outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object', 'metadata'] } } } }
+}
+
+module.exports = { standardInput, compilerVersion: () => solc.version() }
+if (require.main !== module) return
+
+const { out } = compile({ '*': { '*': ['abi', 'evm.bytecode.object'] } })
 const errors = (out.errors ?? []).filter(e => e.severity === 'error')
 // Warnings from the libraries (OpenZeppelin, Solady) are theirs; show only ours.
 for (const e of out.errors ?? []) if (e.severity === 'error' || own.includes(e.sourceLocation?.file)) console.error(e.formattedMessage)

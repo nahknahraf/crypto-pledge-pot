@@ -138,21 +138,21 @@ export interface PriceGuardSettings {
 export const DEFAULT_PRICE_GUARD: Omit<PriceGuardSettings, 'airnode' | 'requestHash'> = { maxDeviationBps: 200, maxResponseAge: 5 * 60, maxPriceAge: 15 * 60, priceTime: 'iso' }
 
 /** Deploy the HTLC (price-guarded if `priceGuard` is given) and, for local tests, a TestUSDC token. */
-export async function deployBridgeContracts (rpcUrl: string, chain: Chain, deployer: Account, opts: { withTestToken: boolean, priceGuard?: PriceGuardSettings }): Promise<{ htlc: Address, token?: Address }> {
+export async function deployBridgeContracts (rpcUrl: string, chain: Chain, deployer: Account, opts: { withTestToken: boolean, priceGuard?: PriceGuardSettings, confirmations?: number }): Promise<{ htlc: Address, token?: Address, htlcTx: Hex, htlcBlock: number }> {
   const client = createPublicClient({ chain, transport: http(rpcUrl) })
   const wallet = createWalletClient({ account: deployer, chain, transport: http(rpcUrl) })
-  const deploy = async (c: { abi: unknown, bytecode: string }, args: unknown[] = []): Promise<Address> => {
+  const deploy = async (c: { abi: unknown, bytecode: string }, args: unknown[] = []): Promise<{ address: Address, hash: Hex, block: number }> => {
     const hash = await wallet.deployContract({ abi: c.abi as Abi, bytecode: c.bytecode as Hex, args })
-    const r = await client.waitForTransactionReceipt({ hash })
+    const r = await client.waitForTransactionReceipt({ hash, confirmations: opts.confirmations ?? 1 })
     if (r.contractAddress == null) throw new Error('deploy failed')
-    return r.contractAddress
+    return { address: r.contractAddress, hash, block: Number(r.blockNumber) }
   }
   const g = opts.priceGuard
   const htlc = g === undefined
     ? await deploy(artifacts.HashedTimelockERC20)
     : await deploy(artifacts.PriceGuardedHTLC, [g.airnode, g.requestHash, BigInt(g.maxDeviationBps), BigInt(g.maxResponseAge), BigInt(g.maxPriceAge), 6, g.priceTime === 'millis' ? 1 : 0])
-  const token = opts.withTestToken ? await deploy(artifacts.TestUSDC) : undefined
-  return { htlc, token }
+  const token = opts.withTestToken ? (await deploy(artifacts.TestUSDC)).address : undefined
+  return { htlc: htlc.address, token, htlcTx: htlc.hash, htlcBlock: htlc.block }
 }
 
 /** Mint TestUSDC (local chains only: anyone can mint it). */

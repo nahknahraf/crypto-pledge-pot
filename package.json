@@ -11,7 +11,7 @@
     "overlay": "tsx overlay/server.ts",
     "web": "vite web",
     "test": "vitest run",
-    "test:happy": "vitest run test/happyPaths.e2e.test.ts test/cryptoPledgePot.e2e.test.ts test/agentDemo.e2e.test.ts test/swapDemo.test.ts test/bridge.evm.test.ts test/api3.guard.evm.test.ts test/payments-nft.e2e.test.ts test/pay-per-request.e2e.test.ts test/recovery.e2e.test.ts test/e2e.mockchain.test.ts",
+    "test:happy": "vitest run test/happyPaths.e2e.test.ts test/cryptoPledgePot.e2e.test.ts test/agentDemo.e2e.test.ts test/swapDemo.test.ts test/bridge.evm.test.ts test/api3.guard.evm.test.ts test/api3.proof.evm.test.ts test/payments-nft.e2e.test.ts test/pay-per-request.e2e.test.ts test/recovery.e2e.test.ts test/e2e.mockchain.test.ts",
     "typecheck": "tsc --noEmit",
     "server": "vite-node --config vitest.config.ts server/main.ts",
     "app": "vite app",
@@ -34,7 +34,9 @@
     "donor:search": "vite-node --config vitest.config.ts donor/searchMain.ts --",
     "evm:compile": "npm install --prefix evm && node evm/compile.cjs",
     "api3:price": "vite-node --config vitest.config.ts swap/api3PriceMain.ts",
-    "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts"
+    "api3:judge": "vite-node --config vitest.config.ts swap/api3JudgeMain.ts --",
+    "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts",
+    "evm:verify": "npm install --prefix evm && vite-node --config vitest.config.ts swap/evmVerifyMain.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

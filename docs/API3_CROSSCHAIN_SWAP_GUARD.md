@@ -13,7 +13,106 @@ and refuses the lock if the rate is more than 2% off or the data is stale.
 | API3 libraries (unchanged, MIT) | [`evm/contracts/api3/`](../evm/contracts/api3/): `AirnodeV2Attestation`, `ProjectedJson`, `IsoTimestamp` from [airnodehub-hackathon-starter](https://github.com/api3dao/airnodehub-hackathon-starter) @ `52933ae` |
 | Data source | CoinPaprika's Airnode on AirnodeHub, `getTickersById` for `bsv-bitcoin-sv` in USD. It is paid with x402: 0.001 aUSD on Base Sepolia |
 | TypeScript | [`swap/api3Price.ts`](../swap/api3Price.ts) (request hash, fetch, verify, test signing) · [`swap/evmChain.ts`](../swap/evmChain.ts) (viem adapter, `lockWithPrice`) · [`swap/liquidityAgent.ts`](../swap/liquidityAgent.ts) (quotes from the signed price) |
-| Tests | [`test/api3.guard.evm.test.ts`](../test/api3.guard.evm.test.ts): 9 tests on a real EVM chain (Anvil), including a **real API3 signature** |
+| Tests | [`test/api3.guard.evm.test.ts`](../test/api3.guard.evm.test.ts): 9 tests on a real EVM chain (Anvil), including a **real API3 signature** · [`test/api3.proof.evm.test.ts`](../test/api3.proof.evm.test.ts): the judges' proof (deployment record, tamper test) |
+| **Check it yourself** | [Section 0](#0-proof-for-judges-check-it-yourself): deployed address, your own signed response, the tamper test |
+
+---
+
+## 0. Proof for judges: check it yourself
+
+### 0.1 Deployed contract
+
+| | |
+|---|---|
+| Network | Base Sepolia (chain id 84532) |
+| `PriceGuardedHTLC` | _pending deployment: `npm run evm:deploy` writes it to [`deployments/api3-price-guard.json`](../deployments/api3-price-guard.json)_ |
+| Deploy transaction | _pending_ |
+| Source | verified on Sourcify (`npm run evm:verify`), so Blockscout and Basescan show it |
+| Airnode it trusts | CoinPaprika on AirnodeHub, `0xB8b7816a39A0bF55eF2ae9A282A1502ce35ff732` |
+| Request it accepts | `0xd38b25988cb891a7b9cdc8d37a34b6c759156c8e1c42c7f205f91ae7cf057baf` = `getTickersById(bsv-bitcoin-sv, USD)` with the `price`/`updatedAt` projection |
+
+[`deployments/api3-price-guard.json`](../deployments/api3-price-guard.json)
+is the machine-readable record: network, address, deploy transaction, block,
+settings and a public RPC. `npm run api3:judge` does not trust it: it reads
+`airnode`, `requestHash` and `maxDeviationBps` back from the chain and stops
+if anything differs.
+
+### 0.2 Send your own response
+
+Every check below is a free `eth_call`: you need no ETH, no USDC and no
+wallet connection, only a signed response from AirnodeHub.
+
+1. **Get a signed BSV/USD response** from CoinPaprika's Airnode. It costs
+   0.001 aUSD; the [AirnodeHub faucet](https://api3dao.github.io/airnodehub-hackathon/faucet/)
+   gives aUSD to any Base Sepolia address, and no ETH is needed.
+
+   ```bash
+   API3_PAYER_KEY=0x… npm run api3:judge          # fetches it for you, then runs the checks below
+   ```
+
+   Or fetch it with your own tooling (POST the request from `npm run api3:price`
+   to `https://airnode-coinpaprika.fly.dev/`) and pass the JSON:
+
+   ```bash
+   npm run api3:judge -- my-response.json         # or: … | npm run api3:judge -- -
+   ```
+
+2. **Without cloning anything:** open the contract on the block explorer,
+   *Read contract* → `checkedPrice(timestamp, data, signature)`. Paste your
+   response's `timestamp`, `data` as hex bytes (`0x` + the UTF-8 bytes of the
+   string) and `signature`. A genuine, fresh response returns the price with 18
+   decimals; change one character of `data` and it reverts with
+   `NotSignedByAirnode`. `fairSats(100000000, price)` gives the sats 100 USDC
+   are worth, and `withinTolerance(quote, fair)` says whether a quote would
+   lock.
+
+The response has to be fresh: signed at most 5 minutes before the call, with
+a price at most 15 minutes old. An older one is refused with `ResponseTooOld`
+or `PriceTooOld`, and the tool says so.
+
+### 0.3 The tamper test: one valid, four rejected
+
+`npm run api3:judge` submits your response and four manipulations of it to the
+deployed contract through `lockWithPrice`, the real entry point. The price
+checks run before any token moves, so a refusal needs no allowance.
+
+| # | Submission | The contract answers |
+|---|---|---|
+| 1 | Your signed response as received, with an honest quote (fair rate − 0.5%) | ✅ **accepted** |
+| 2 | Price halved after signing, quote halved to match | 🛑 `NotSignedByAirnode` |
+| 3 | Timestamp moved 10 minutes forward (to pass off a stale response as fresh) | 🛑 `NotSignedByAirnode` |
+| 4 | A genuine API3 signature from another Airnode (Nodary, USDC/USD) | 🛑 `NotSignedByAirnode` |
+| 5 | Your valid response, but a quote 5% below the market | 🛑 `RateOutsideTolerance` |
+
+It exits with code 0 only if exactly that happens. Offline, the same five
+cases run against a local chain whose guard trusts a test key:
+
+```bash
+npm run api3:judge -- --local
+```
+
+```
+✅ 1. Signed response, as received           accepted               BSV = $17.4500; 100 USDC = 573065902 sats fair, quote 570200573
+🛑 2. Price edited after signing             NotSignedByAirnode     "price" changed to 8.725, the quote halved to match
+🛑 3. Timestamp moved after signing          NotSignedByAirnode     timestamp + 10 min (the signature covers it)
+🛑 4. Real API3 signature, other Airnode     NotSignedByAirnode     Nodary USDC/USD, signed by 0xE70f1e8b22a21e4Bb5188918a3033341b281E4c0
+🛑 5. Valid response, quote 5% below market  RateOutsideTolerance   quote 544412607 sats vs fair 573065902
+
+1 accepted, 4 rejected: exactly as expected.
+```
+
+### 0.4 Deploying and verifying (team)
+
+```bash
+BRIDGE_PRICE_GUARD=api3 BRIDGE_RPC_URL=https://sepolia.base.org BRIDGE_DEPLOYER_KEY=0x… npm run evm:deploy   # writes deployments/api3-price-guard.json
+npm run evm:verify                                     # publishes the exact source on Sourcify (no API key)
+API3_PAYER_KEY=0x… npm run api3:judge                  # the tamper test against the deployment
+```
+
+Commit `deployments/api3-price-guard.json` and fill in the table in 0.1.
+`evm/artifacts.json` is compiled from exactly the Standard JSON input that
+`evm:verify` sends (`evm/compile.cjs`, `standardInput()`), so Sourcify gets a
+byte-for-byte match.
 
 ---
 
@@ -192,9 +291,12 @@ BRIDGE_PRICE_GUARD=api3 BRIDGE_RPC_URL=https://sepolia.base.org BRIDGE_DEPLOYER_
 - ✅ A real API3-signed response passes the same verification code.
 - ✅ The request PriceGuardedHTLC uses is accepted by CoinPaprika's live
   Airnode: it answers `402 Payment Required`. An invalid one gets `400`.
+- ✅ The judges' tamper test (1 accepted, 4 rejected) passes on a local
+  chain (`npm run api3:judge -- --local`, `test/api3.proof.evm.test.ts`).
 - 🟡 **Not run yet:**
   - a paid live fetch (needs a Base Sepolia key with aUSD);
-  - a deployment on Base Sepolia.
+  - a deployment on Base Sepolia, its Sourcify verification and the tamper
+    test against it (section 0.4).
 
   The commands are above. The code paths are the same as in the tests: only
   the RPC URL and the Airnode address change.
