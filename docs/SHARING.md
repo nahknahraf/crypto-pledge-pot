@@ -107,4 +107,4 @@ WhatsOnChain. Put the links into `docs/USAGE_AND_VALUE.md`.
 | Tester: "Your wallet is on testnet…" | Switch BSV Desktop to mainnet |
 | Live feed doesn't update | Reload once after the ngrok notice; check the host is still online |
 | Agent panel "not reachable" | `WITH_AGENT=yes`, and the agent's campaign was launched with this domain (it was, if it was launched by `npm run share:internet`) |
-| "Offline demo… wallet actions are disabled" | The host runs `SHARE_MODE=demo`; that's intended |
+| Tester sees "demo wallet" in the header | The host runs `SHARE_MODE=demo`: every visitor gets a simulated wallet with play money (up to 50 per demo run); that's intended |

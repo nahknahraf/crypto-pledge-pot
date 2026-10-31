@@ -148,7 +148,7 @@ export function Donor () {
   const { connect, identityKey, serverNetwork } = useWallet()
   // connect() reports why it failed through state that isn't updated yet here, so say it directly.
   const noWallet = (): Error => new Error(serverNetwork === 'mock'
-    ? 'This is the offline demo: wallet actions are disabled, so your real wallet is never contacted.'
+    ? 'The offline demo wallet is unavailable right now. Is `npm run demo` still running?'
     : 'Could not connect your wallet. Open and unlock BSV Desktop, then try again.')
   const [status, setStatus] = useState<Status>()
   const [memos, setMemos] = useState<Memo[]>([])

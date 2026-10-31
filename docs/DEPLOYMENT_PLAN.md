@@ -19,7 +19,7 @@ fixes in `docs/DEVLOG.md` (98 tests passing).*
 | Chain watcher | inside the server | same | Outbound to WhatsOnChain (free tier ~3 req/s) |
 | Paid data API | `npm run data-provider` (:8790) | Long-running Node process | Persistent wallet DB, secret key, **large request headers** (BRC-121 payments reached 35 KB) |
 | AI agent | `npm run agent` (:8791) | Long-running loop + small status API | Persistent wallet DB, ledger, state, secret key, `ANTHROPIC_API_KEY`; a few thousand sats of fee float |
-| Offline demo (optional) | `npm run demo` | Separate instance, `network: mock` | Nothing persistent; wallet actions are disabled by design |
+| Offline demo (optional) | `npm run demo` | Separate instance, `network: mock` | Nothing persistent; visitors get simulated demo wallets, real wallets are never contacted |
 
 **Why not serverless:** the server, watcher and agent are long-running and
 keep SQLite plus wallet databases on disk, and the live feed holds open SSE
