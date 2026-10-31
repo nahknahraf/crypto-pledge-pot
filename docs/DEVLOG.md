@@ -2394,3 +2394,14 @@ Suite: 249 passed, 3 skipped.
   - **Stopping:** Ctrl+C stopped every process and freed every port.
   - **Real data:** 0 files changed in the real `data/`. The scratch folder, with its throwaway testnet keys, was deleted.
 - **Not done:** a funded run, which needs testnet sats.
+
+**9.25 What works, the runbook, and Docker verified.**
+- **New docs:**
+  - `docs/WHAT_WORKS.md`: every part, marked mainnet, live, tested or built;
+  - `docs/DEMO_RUNBOOK.md`: offline demos, Docker/Podman steps, the zero-click mainnet run, the recording.
+- **Docker verified with rootless Podman 4.9** driving `docker-compose.yml`. Docker's own daemon is closed to this user (not in the docker group).
+  - Both images built, and the `demo` profile ran.
+  - Through Caddy, these answered: HTTPS on 8443 (the web app), `/api/health` (mock), `/api/campaigns` (5 campaigns, every state), `/agent/api/agent`, the tunnel port 8081, and HTTP→HTTPS on 8080.
+  - Quirk, noted in the runbook: with a custom HTTPS port, the redirect drops the port.
+- **Compose and `.env.docker.example`:** the stale `AGENT_GOAL`/`AGENT_MAX_SPEND` are replaced by the spending-plan settings (`AGENT_READINGS`, `AGENT_FEE_ALLOWANCE`, `AGENT_FEE_RESERVE`, `AGENT_OPERATOR`).
+- **Built, not run:** the production stack and the `agent-demo` and `tunnel` profiles.

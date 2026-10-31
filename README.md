@@ -45,7 +45,9 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | Bringing money in | ✅ **EVM:** a Solidity HTLC; the donor signs in their own wallet (EIP-1193, permit); **DeFi:** swap another token on a DEX and lock USDC in one transaction, checked against **real USDC and Uniswap on a fork of Base**; **CeFi:** withdraw from an exchange to a deposit address of your own wallet · ✅ **BTC:** a P2WSH HTLC swapped for sats, checked on a real Bitcoin Core node (regtest) · ✅ **Lightning:** hold invoices on real LND nodes (regtest) · 🟡 no public-network run yet | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **291 tests**, all passing (the BTC and Lightning ones skip themselves when `bitcoind` or `lnd` is not installed) (`npm test`), plus 3 opt-in tests against a fork of Base (`FORK_URL`), and both typechecks are clean.
+In total there are **292 tests**, all passing (the BTC and Lightning ones skip themselves when `bitcoind` or `lnd` is not installed) (`npm test`), plus 3 opt-in tests against a fork of Base (`FORK_URL`), and both typechecks are clean.
+
+**Start here:** [`docs/WHAT_WORKS.md`](docs/WHAT_WORKS.md) (what works, and how it was verified) and [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) (what to run, with and without Docker).
 
 **Zero-click runs:** `npm run rehearse:agents` plays the whole story with only agents, offline. With real Claude, the campaign completes with 3/3 milestones and 0 human actions. `npm run agents:mainnet` starts the same agents for real; one deposit funds them all.
 

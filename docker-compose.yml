@@ -70,9 +70,13 @@ services:
       AGENT_PUBLIC_URL: ${PUBLIC_URL:-https://localhost}/agent  # written into the agent's campaign: must be its public address
       AGENT_ROOT_KEY: ${AGENT_ROOT_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # The campaign's goal and spending cap are derived from one spending plan (fundraising-agent/campaignPlan.ts):
+      # AGENT_READINGS per milestone × AGENT_PRICE_CAP sats + AGENT_FEE_ALLOWANCE (default 5 × 50 + 150 → 1,200 sats).
+      AGENT_READINGS: ${AGENT_READINGS:-5}
       AGENT_PRICE_CAP: ${AGENT_PRICE_CAP:-50}
-      AGENT_MAX_SPEND: ${AGENT_MAX_SPEND:-500}
-      AGENT_GOAL: ${AGENT_GOAL:-20000}
+      AGENT_FEE_ALLOWANCE: ${AGENT_FEE_ALLOWANCE:-150}
+      AGENT_FEE_RESERVE: ${AGENT_FEE_RESERVE:-3000}
+      AGENT_OPERATOR: ${AGENT_OPERATOR:-}
     volumes: [agent-data:/app/data]
     healthcheck:
       <<: *health
