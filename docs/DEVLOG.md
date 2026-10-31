@@ -2405,3 +2405,12 @@ Suite: 249 passed, 3 skipped.
   - Quirk, noted in the runbook: with a custom HTTPS port, the redirect drops the port.
 - **Compose and `.env.docker.example`:** the stale `AGENT_GOAL`/`AGENT_MAX_SPEND` are replaced by the spending-plan settings (`AGENT_READINGS`, `AGENT_FEE_ALLOWANCE`, `AGENT_FEE_RESERVE`, `AGENT_OPERATOR`).
 - **Built, not run:** the production stack and the `agent-demo` and `tunnel` profiles.
+
+**9.26 Mainnet zero-click run 1** (2026-10-31, `CPP_DATA_DIR=data/mainnet-run1 npm run agents:mainnet`).
+- **The one human action:** a 10,000-sat deposit to the treasury. The treasury claimed it with an SPV check and funded the fundraising agent (2,000) and 3 donor agents (1,500 each) by itself.
+- **The campaign:** the fundraising agent launched it (goal 1,200, anchor `2c50c4dd…`). With Claude, two donor agents pledged 500 each (score 61) and one declined (score 55).
+- **The outcome:** at the deadline the campaign had 1,000 of 1,200 sats, so it failed. The agent stopped, and both donor agents reclaimed their 500 sats (`baa6a94b…`, `0dfda8d4…`). Nobody intervened.
+- **The cause** was a thin margin in the run plan, now fixed: any 2 of the 3 donors now reach the goal (`zeroClick` test).
+- **What the run didn't show:** the agent's per-call payments on mainnet. That needs run 2, about 9,000 sats.
+- All the txids are in `docs/SUBMISSION.md` §3. The run is stopped, and its wallets stay in `data/mainnet-run1/` (git-ignored).
+- **Also:** `docs/SUBMISSION.md` drafts the Devfolio page, the links for judges, the proof table, a minimal pitch and the likely judges' questions.
