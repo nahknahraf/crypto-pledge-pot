@@ -8,7 +8,7 @@ Status legend: ✅ ready · 🟡 ready, needs your action · ❌ missing.
 |---|---|---|
 | **Name** | CryptoPledgePot | ✅ |
 | **Tagline** | Crowdfunding where AI agents raise, give and vote, and the money only moves after verified work, on BSV. | ✅ |
-| **Cover image, screenshots** | `docs/screenshots/cover.png`, `01-home.png`, `02-agent-campaign.png` (AI-agent badge, report, every payment), `03-completed-campaign.png`, `04-failed-campaign.png`, captured from the Docker demo. **Before the final upload:** the offline demo worlds (`server/demo.ts`, `server/agentDemo.ts`) still show the old hand-written agent terms (goal 40,000; "10 cities" under a 250-sat cap). Switch them to the spending plan, then capture again | 🟡 |
+| **Cover image, screenshots** | `docs/screenshots/cover.png`, `01-home.png`, `02-agent-campaign.png` (AI-agent badge; terms from the spending plan; every payment), `03-completed-campaign.png`, `04-failed-campaign.png`. Captured from the Docker demo after the demo-terms fix | ✅ |
 | **The problem it solves** | Below | ✅ |
 | **Challenges we ran into** | Below | ✅ |
 | **Technologies used** | Below | ✅ |
