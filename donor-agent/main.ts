@@ -10,7 +10,7 @@
  *               payment to /api/donor/fund) and it does the rest.
  *
  * Env: CRYPTOPLEDGEPOT_URL (http://localhost:8787), NETWORK=main|test,
- *      DONOR_PORT (8792, bound to 127.0.0.1), DONOR_INTERVAL_S (60),
+ *      DONOR_PORT (8792), DONOR_HOST (127.0.0.1; 0.0.0.0 inside Docker), DONOR_INTERVAL_S (60),
  *      DONOR_DATA_DIR (data: its key, wallet, memos and lock; one per agent),
  *      DONOR_MANDATE (<DONOR_DATA_DIR>/donor-mandate.json), ANTHROPIC_API_KEY (Claude;
  *      otherwise a deterministic brain), DONOR_ROOT_KEY.
@@ -89,7 +89,10 @@ const runStep = async (): Promise<StepSummary> => {
 }
 
 const port = Number(process.env.DONOR_PORT ?? 8792)
-createDonorApp({ agent, wallet, chainTracker, spendable, lastStep: () => last, runStep }).listen(port, '127.0.0.1', () => {
+// 127.0.0.1 by default: a personal agent. In Docker it listens inside its container (DONOR_HOST=0.0.0.0), and only
+// Caddy's local-only entrance (127.0.0.1:8444) forwards to it; the public link never does.
+const host = process.env.DONOR_HOST ?? '127.0.0.1'
+createDonorApp({ agent, wallet, chainTracker, spendable, lastStep: () => last, runStep }).listen(port, host, () => {
   console.log(`[donor] "${mandate.name}" · ${mandate.mode} · budget ${mandate.budget.totalSats} sats · brain ${agent.deps.brain.name} · http://127.0.0.1:${port}/api/donor`)
 })
 const intervalMs = Number(process.env.DONOR_INTERVAL_S ?? 60) * 1000

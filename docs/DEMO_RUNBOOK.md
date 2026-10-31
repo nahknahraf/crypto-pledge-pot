@@ -89,7 +89,7 @@ ANTHROPIC_API_KEY=<key>          # the AI agent's Claude brain (otherwise a dete
 
 | Step | Command / action |
 |---|---|
-| 1. Start the stack and the public link | `docker-compose --env-file .env.docker --profile tunnel up -d --build` (with Podman, first: `systemctl --user start podman.socket; export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock`) |
+| 1. Start the stack and the public link (add `--profile donor` for your own donor agent, below) | `docker-compose --env-file .env.docker --profile tunnel up -d --build` (with Podman, first: `systemctl --user start podman.socket; export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock`) |
 | 2. Check | `docker-compose --env-file .env.docker ps`: all healthy; `https://<NGROK_DOMAIN>/api/health` says `"network":"main"` |
 | 3. Give the AI agent its fee float | Open its campaign page once it appears, or find its status at `/agent/api/agent`. Click **Top up agent fees** (about 3,000 sats from your wallet). It then launches its own campaign (goal 1,200 sats) |
 | 4. Visitors | Share the link or a QR code. They connect their wallet, then **Start a campaign** (title, story, goal, deadline, milestones) or **Donate** to any campaign |
@@ -102,17 +102,25 @@ ANTHROPIC_API_KEY=<key>          # the AI agent's Claude brain (otherwise a dete
 - **Releasing milestones:** a creator releases them from their own Dashboard (milestone 1 once funded; later ones after a >50 % YES vote).
 - **The donor agents and the zero-click run** (§3) run on the host with npm. Point them at the Docker server with `CRYPTOPLEDGEPOT_URL=https://<NGROK_DOMAIN>` if you want agents giving alongside the visitors.
 
-### Your own donor agent next to the Docker stack (private, this machine only)
+### Your own donor agent in Docker (private, this machine only)
 
-The "My donor agent" page talks to a donor agent on **your** machine. The public Docker app never forwards it, because a personal agent that can approve payments must not be reachable through the ngrok link. To use one with the Docker stack, go through Caddy's local-only plain-HTTP entrance (`127.0.0.1:8081`):
+The donor agent can approve and decline proposals, so it is **never** reachable through the public link. It runs as its own container (profile `donor`). Only Caddy's local-only entrance, **`https://localhost:8444`** (published on 127.0.0.1), forwards `/donor` to it.
 
 ```bash
-cp donor-mandate.example.json data/donor-mandate.json   # set budget, interests and donorIdentityKey (click the ● key chip in the app to copy it)
-CRYPTOPLEDGEPOT_URL=http://127.0.0.1:8081 npm run donor                                        # terminal 1
-CRYPTOPLEDGEPOT_SERVER=http://127.0.0.1:8081 AGENT_SERVER=http://127.0.0.1:8081/agent npm run app   # terminal 2
+cp donor-mandate.example.json data/donor-mandate.json   # budget, interests, donorIdentityKey (click the ● key chip in the app to copy it)
+docker-compose --env-file .env.docker --profile tunnel down
+docker-compose --env-file .env.docker --profile tunnel --profile donor up -d --build
 ```
 
-Open **http://localhost:5174**. It's the same data as the Docker stack, and **My donor agent** now works. Checked on 2026-10-31: `/api` and `/agent` reach the Docker stack through the dev server.
+Open **https://localhost:8444/#/donor** (accept the local certificate). That's **My donor agent**: proposals, reasons, **Approve & pay** from your own BSV Desktop, and skipped campaigns.
+- **Same data:** `https://localhost:8444` is the same app and data as the public link, and it's the one you use yourself.
+- **Visitors** use the public link, which has no `/donor`.
+- **Verified 2026-10-31:**
+  - the container is healthy, in co-pilot mode, with Claude, and it evaluated and skipped an off-topic campaign;
+  - the page loads at 8444;
+  - `/donor` on 8443, on 8081 and through ngrok returns only the app page, never the agent's data.
+- **Mandate file:** it must be readable by the container (`chmod 644 data/donor-mandate.json`). It holds no secrets.
+- **Without Docker:** `CRYPTOPLEDGEPOT_URL=http://127.0.0.1:8081 npm run donor`, plus `CRYPTOPLEDGEPOT_SERVER=http://127.0.0.1:8081 AGENT_SERVER=http://127.0.0.1:8081/agent npm run app`, gives the same thing at http://localhost:5174.
 
 ## 3. Zero-click on mainnet (only agents, nobody approving)
 

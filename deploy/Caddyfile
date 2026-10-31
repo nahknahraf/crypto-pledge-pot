@@ -52,3 +52,12 @@
 http://:8080 {
 	import cryptopledgepot
 }
+# Local-only entrance (published on 127.0.0.1 only): the same app, plus YOUR donor agent at /donor.
+# The donor agent can approve and decline proposals, so it is never reachable through the public sites above.
+https://localhost:8444 {
+	tls internal
+	handle_path /donor/* {
+		reverse_proxy donor-agent:8792
+	}
+	import cryptopledgepot
+}

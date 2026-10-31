@@ -95,11 +95,36 @@ services:
       # point it here, e.g. `ngrok http 8081`, NOT at port 80, which redirects
       # to https and loops back through the tunnel forever. Localhost only.
       - "127.0.0.1:${TUNNEL_PORT:-8081}:8080"
+      # Local-only HTTPS entrance with YOUR donor agent at /donor (profile "donor"): https://localhost:8444
+      - "127.0.0.1:${LOCAL_PORT:-8444}:8444"
     volumes:
       - caddy-data:/data        # certificates
       - caddy-config:/config
     # No depends_on: Caddy answers 502 until the backends are up, which is fine
     # and lets the same Caddy front the demo profile too.
+
+  # ── optional: YOUR donor agent (profile "donor"), reachable only at https://localhost:8444/#/donor ──
+  donor-agent:
+    <<: *app
+    profiles: [donor]
+    command: ["npm", "run", "donor"]
+    depends_on:
+      server: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      CRYPTOPLEDGEPOT_URL: http://server:8787
+      DONOR_HOST: 0.0.0.0
+      DONOR_PORT: "8792"
+      DONOR_MANDATE: /config/donor-mandate.json
+      DONOR_INTERVAL_S: ${DONOR_INTERVAL_S:-60}
+      DONOR_ROOT_KEY: ${DONOR_ROOT_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - donor-data:/app/data
+      - ./data/donor-mandate.json:/config/donor-mandate.json:ro   # your terms (cp donor-mandate.example.json data/donor-mandate.json)
+    healthcheck:
+      <<: *health
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8792/api/donor').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 
   # ── optional: ngrok in front (profile "tunnel"): no domain, no open ports ──
   ngrok:
@@ -142,6 +167,7 @@ services:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8787/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 
 volumes:
+  donor-data:
   server-data:
   provider-data:
   agent-data:

@@ -2422,3 +2422,12 @@ Suite: 249 passed, 3 skipped.
 - **New runbook section §2b:** `.env.docker` settings, ngrok, the agent's top-up, what visitors need, stopping without losing the arbiter key.
 - **The owner chose "visitors bring their own BSV"** (no faucet).
 - **Not done:** a donation through the stack, which needs a person with a wallet.
+
+**9.28 The donor agent in Docker, private.**
+- **New:** a `donor-agent` service (profile `donor`) uses the owner's `data/donor-mandate.json`, mounted read-only, and runs with Claude. `DONOR_HOST=0.0.0.0` lets it listen inside its container; the default is still 127.0.0.1.
+- **Private by design:** Caddy gained a local-only site, `https://localhost:8444` (published on 127.0.0.1 only, `tls internal`). It forwards `/donor` to the agent; the public sites (DOMAIN/ngrok and :8080) never do.
+- **Verified:**
+  - the container is healthy (co-pilot, Claude, the owner's key, 50,000-sat budget) and skipped an off-topic campaign (score 14);
+  - the My donor agent page loads at 8444;
+  - `/donor` on 8443, on 8081 and through ngrok returns only the app page, never the agent's data.
+- **Also:** I moved the owner's identity key from `donor-mandate.example.json` (tracked) to `data/donor-mandate.json` (ignored) and restored the template, so the key isn't published.
