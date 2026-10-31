@@ -74,10 +74,11 @@ describe('a funded campaign with three milestones', () => {
     const donationTx = Transaction.fromAtomicBEEF(Array.from(Buffer.from((await api().pledge(p.id)).beef, 'hex')))
     console.log(`donation: ${donationTx.toBinary().length} bytes, fee ${donationTx.getFee()} sats`)
     await as(bob).donate(meta, 3_000, { name: 'Bob' })
-    await as(carol).donate(meta, 2_000)
     expect(p).toMatchObject({ amount: 6_000, stage: 0, status: 'active', name: 'Alice', message: 'Go solar!' })
+    expect(await api().campaign(campaignId)).toMatchObject({ raised: 9_000, status: 'active' })
+    await as(carol).donate(meta, 2_000)
     const detail = await api().campaign(campaignId)
-    expect(detail).toMatchObject({ raised: 11_000, escrowed: 11_000, donors: 3, pledges: 3, status: 'active' })
+    expect(detail).toMatchObject({ raised: 11_000, escrowed: 11_000, donors: 3, pledges: 3, status: 'funded' })
     expect(detail.feed.map(f => f.amount).sort()).toEqual([2_000, 3_000, 6_000])
     // The pledge lives in an escrow script, not in the creator's wallet.
     const { beef } = await api().pledge(p.id)
@@ -86,12 +87,8 @@ describe('a funded campaign with three milestones', () => {
     expect(out.satoshis).toBe(6_000)
   })
 
-  it('the arbiter refuses to release while the campaign is still raising', async () => {
-    await expect(as(creator).release(campaignId)).rejects.toThrow(/no milestone is approved/)
-  })
-
-  it('after the deadline with the goal met, milestone 1 (25%) is released to the creator', async () => {
-    clock = T0 + 3_601
+  it('once the goal is met, milestone 1 (25%) is released to the creator, even before the deadline', async () => {
+    expect(clock).toBeLessThan(T0 + 3_600)
     expect((await api().campaign(campaignId)).status).toBe('funded')
     const before = await spendable(creator)
     const r = await as(creator).release(campaignId)

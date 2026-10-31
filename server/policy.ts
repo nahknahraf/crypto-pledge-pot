@@ -1,8 +1,10 @@
 /**
  * The arbiter's policy: when does the CryptoPledgePot vote oracle co-sign?
  *
- *  - Milestone 1 is released once the campaign is funded: the deadline has
- *    passed and the goal was met (all-or-nothing).
+ *  - Milestone 1 is released once the campaign is funded: the pledges reached
+ *    the goal (all-or-nothing), which ends the campaign early if it happens
+ *    before the deadline. Pledges that arrive after that (two donors at once)
+ *    are still indexed until the deadline and released with the rest.
  *  - Milestone k ≥ 2 needs milestone k-1 released, a progress update from the
  *    creator, and a majority donor vote: YES weight > 50% of all satoshis still
  *    pledged. Each donor's vote weighs what they pledged.

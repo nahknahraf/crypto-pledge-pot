@@ -112,7 +112,9 @@ export function Campaign ({ id }: { id: string }) {
           </div>
           {c.status === 'active'
             ? <DonateButton meta={c.meta} onDonated={load} />
-            : <Notice kind="info">This campaign is no longer accepting pledges.</Notice>}
+            : c.status === 'funded'
+              ? <Notice kind="ok">Goal reached: this campaign is fully funded and no longer takes pledges.</Notice>
+              : <Notice kind="info">This campaign is no longer accepting pledges.</Notice>}
           {myPledges.length > 0 && <p className="small">You have {myPledges.length} pledge(s) here. <a href="#/dashboard">Manage or refund</a></p>}
         </div>
 

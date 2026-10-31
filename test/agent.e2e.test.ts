@@ -111,12 +111,11 @@ describe('an AI agent service funded through CryptoPledgePot', () => {
   it('waits while humans back it', async () => {
     const { meta } = await new CryptoPledgePotApi(url).campaign(campaignId)
     await as(alice).donate(meta, 15_000, { name: 'Alice', message: 'Open data, yes please' })
-    await as(bob).donate(meta, 10_000, { name: 'Bob' })
     expect(await a.agent.step()).toMatchObject({ action: 'waiting' })
+    await as(bob).donate(meta, 10_000, { name: 'Bob' })
   })
 
-  it('after the deadline it withdraws milestone 1 into its own wallet', async () => {
-    clock = T0 + 3_601
+  it('once the goal is met it withdraws milestone 1 into its own wallet, before the deadline', async () => {
     const before = await a.agent.spendable()
     const out = await a.agent.step()
     expect(out).toMatchObject({ action: 'released', milestone: 1, sats: 10_000 }) // 40% of 25,000

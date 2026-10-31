@@ -221,10 +221,15 @@ export function parseCryptoPledgePotRecord (script: Script | string): CryptoPled
 /** 'breached': the creator broke its payment plan (core/compliance.ts); set by the indexer's view, never by campaignStatus(). */
 export type CampaignStatus = 'active' | 'funded' | 'failed' | 'completed' | 'breached'
 
+/**
+ * 'funded' as soon as the pot reaches the goal, even before the deadline: the
+ * campaign stops asking for pledges and milestone 1 can be released. Below the
+ * goal it keeps raising until the deadline, then it failed (all or nothing).
+ */
 export function campaignStatus (meta: CampaignMeta, raised: number, milestonesReleased: number, now = Math.floor(Date.now() / 1000)): CampaignStatus {
   if (milestonesReleased >= meta.milestones.length) return 'completed'
-  if (now < meta.deadline) return 'active'
-  return raised >= meta.goal ? 'funded' : 'failed'
+  if (raised >= meta.goal) return 'funded'
+  return now < meta.deadline ? 'active' : 'failed'
 }
 
 /** Message a donor signs (with the escrow's donor key) to claim an imported pledge for their identity. */
