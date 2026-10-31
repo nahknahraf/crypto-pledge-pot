@@ -22,7 +22,7 @@ import path from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
 import { Setup } from '@bsv/wallet-toolbox'
 import { acquireLock } from '../shared/lock'
-import { loadOrCreateKey } from '../shared/wallet'
+import { startWalletMonitor, loadOrCreateKey } from '../shared/wallet'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
 import { createCryptoPledgePotService } from './app'
 import { startWatcher, wocSpendSource } from './watcher'
@@ -45,6 +45,7 @@ async function main (): Promise<void> {
     filePath: process.env.ARBITER_WALLET_DB ?? path.join(dataDir, 'arbiter-wallet.sqlite'),
     databaseName: 'cryptopledgepot_arbiter'
   })
+  startWalletMonitor(setup.monitor) // proofs and broadcast retries for the arbiter wallet (shared/wallet.ts)
 
   const dbFile = process.env.CRYPTOPLEDGEPOT_DB ?? path.join(dataDir, 'cryptopledgepot.db')
   acquireLock(`${dbFile}.lock`) // one server per index: two would both act as arbiter on the same data

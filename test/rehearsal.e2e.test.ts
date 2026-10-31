@@ -11,7 +11,7 @@ import { runRehearsal } from '../server/rehearsal'
 describe('zero-click rehearsal (agents only)', () => {
   it('completes every milestone with no human action', async () => {
     const lines: string[] = []
-    const r = await runRehearsal({ fundBrain: new MockBrain(), donorBrain: new MockDonorBrain(), log: l => lines.push(l) })
+    const r = await runRehearsal({ fundBrain: new MockBrain(), donorBrain: new MockDonorBrain(), dataSource: 'synthetic', log: l => lines.push(l) })
     expect(r).toMatchObject({ status: 'completed', milestonesReleased: 3, humanActions: 0 })
     expect(r.raised).toBeGreaterThanOrEqual(1_200) // the goal derived from the spending plan (fundraising-agent/campaignPlan.ts)
     expect(r.spent.calls).toBeGreaterThan(0)

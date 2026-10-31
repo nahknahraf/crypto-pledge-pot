@@ -41,7 +41,7 @@ describe('the fundraising agent publishes its limits, and its ledger is audited 
     const c = await new CryptoPledgePotApi(demo.url).campaign(demo.status().campaignId!)
     expect(c.meta.agentLimits).toEqual({ pricePerCallSats: 50, maxSpendPerMilestoneSats: 250 })
     const check = await checkAgent(c, { api: new CryptoPledgePotApi(demo.url), chainTracker: undefined as never, txExists: async () => true })
-    expect(check).toMatchObject({ ok: true, detail: expect.stringMatching(/14 receipted payment\(s\), all within its published limits/) })
+    expect(check).toMatchObject({ ok: true, detail: expect.stringMatching(/15 receipted payment\(s\), all within its published limits/) })
   })
   it('flags payments above the cap, overspent milestones, and agents that publish no limits', async () => {
     const c = await new CryptoPledgePotApi(demo.url).campaign(demo.status().campaignId!)

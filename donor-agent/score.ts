@@ -1,6 +1,6 @@
 /**
  * The 0–100 score with its reasons: code features plus the brain's judgement.
- *   fit 35 · milestone quality 25 · creator record 20 · campaign health 10 · base 10 · risk flags −10 each (max −30)
+ *   fit 35 · milestone quality 25 · creator record 20 · campaign health 10 · base 10 · risk flags −5 each (max −15; owner decision 2026-10-31: concerns count, but no longer veto every new creator)
  */
 import type { CampaignView } from '../core/api'
 import { MANIPULATION, type CampaignAssessment } from './brain'
@@ -18,7 +18,7 @@ export function scoreCampaign (c: CampaignView, a: CampaignAssessment, record: C
   const timeLeft = Math.max(0, Math.min(1, (c.meta.deadline - now) / (c.meta.deadline - c.meta.createdAt || 1)))
   parts.push({ name: 'campaign health', points: Math.round(10 * Math.min(1, funded + timeLeft * 0.5 + Math.min(c.donors, 5) / 10)), max: 10, why: `${Math.round(funded * 100)}% funded, ${c.donors} backer(s)` })
   parts.push({ name: 'base', points: 10, max: 10, why: 'passed every hard rule' })
-  if (a.riskFlags.length > 0) parts.push({ name: 'risk flags', points: -Math.min(30, a.riskFlags.length * 10), max: 0, why: a.riskFlags.join('; ') })
+  if (a.riskFlags.length > 0) parts.push({ name: 'risk flags', points: -Math.min(15, a.riskFlags.length * 5), max: 0, why: a.riskFlags.join('; ') })
   // Trying to steer AI agents is disqualifying, not just a deduction.
   const manipulation = a.riskFlags.filter(f => f.startsWith(MANIPULATION))
   if (manipulation.length > 0) return { total: 0, parts: [...parts, { name: 'disqualified', points: -100, max: 0, why: manipulation.join('; ') }] }

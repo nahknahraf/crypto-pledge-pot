@@ -170,6 +170,9 @@ export async function runAgentDemo (opts: AgentDemoOptions = {}): Promise<AgentD
         log(`beat failed: ${status.error}`)
         throw e
       }
+      // Time passes between beats, and on a real chain so do blocks: mine one, so the agent's chain of
+      // unconfirmed payments stays short (the wallet refuses BEEF ancestry deeper than 12).
+      await chain.mineBlock()
       if (paceMs > 0) await new Promise(resolve => setTimeout(resolve, paceMs))
     }
     status.done = true

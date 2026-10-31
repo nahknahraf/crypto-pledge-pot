@@ -19,7 +19,7 @@ import type { CryptoPledgePot, LaunchInput } from '../client/cryptoPledgePot'
 import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import type { CampaignView } from '../core/api'
 import { reportRecordScript } from '../core/campaign'
-import type { Brain } from './brain'
+import type { Brain, PlannedCall } from './brain'
 import type { AirQualityReport, City } from '../data-provider/dataProvider'
 import { Ledger, type AgentState, type Store } from './ledger'
 import { PaidButNotServed, PaymentRefused, type PaidResponse } from './pay402'
@@ -126,43 +126,60 @@ export class CryptoPledgePotAgent {
     const bought = this.deps.ledger.all().map(e => e.topic)
     this.log(`milestone ${milestone} "${m.title}": balance ${balance} sats, budget ${budget} sats → up to ${maxCalls} calls`)
 
-    const unavailable = this.deps.state.load().unavailable ?? []
-    const planned = await this.deps.brain.planCalls({ mission: this.config.mission, milestone: { index: milestone, title: m.title }, maxCalls, alreadyBought: bought, unavailable })
-    // The brain is told, but code decides: a topic refused before is never tried again.
-    const plan = planned.filter(p => !unavailable.includes(p.topic))
-    if (plan.length < planned.length) this.log(`skipping topics refused earlier: ${planned.filter(p => unavailable.includes(p.topic)).map(p => p.topic).join(', ')}`)
-    this.log(`brain (${this.deps.brain.name}) plans ${plan.length} purchase(s): ${plan.map(p => p.topic).join(', ') || 'none'}`)
+    const planFor = async (maxCalls: number, alreadyBought: City[]): Promise<PlannedCall[]> => {
+      const unavailable = this.deps.state.load().unavailable ?? []
+      const planned = await this.deps.brain.planCalls({ mission: this.config.mission, milestone: { index: milestone, title: m.title }, maxCalls, alreadyBought, unavailable })
+      // The brain is told, but code decides: a topic refused before is never tried again.
+      const plan = planned.filter(p => !unavailable.includes(p.topic))
+      if (plan.length < planned.length) this.log(`skipping topics refused earlier: ${planned.filter(p => unavailable.includes(p.topic)).map(p => p.topic).join(', ')}`)
+      this.log(`brain (${this.deps.brain.name}) plans ${plan.length} purchase(s): ${plan.map(p => p.topic).join(', ') || 'none'}`)
+      return plan
+    }
     const results: AirQualityReport[] = []
     const txids: string[] = []
     let spent = 0
-    for (const call of plan) {
-      const url = `${this.config.dataUrl}/data/${call.topic}`
-      if (spent + this.config.pricePerCall > budget) { this.log(`budget reached, skipping ${call.topic}`); break }
-      if (this.config.dryRun === true) { this.log(`[dry run] would buy ${call.topic}: ${call.why}`); continue }
-      try {
-        const r = await this.deps.pay<AirQualityReport>(url)
-        spent += r.paid
-        results.push(r.body)
-        if (r.txid !== undefined) txids.push(r.txid)
-        this.deps.ledger.add({ milestone, topic: call.topic as City, why: call.why, url, sats: r.paid, txid: r.txid, at: Math.floor(Date.now() / 1000) })
-        this.log(`paid ${r.paid} sats for ${call.topic} (AQI ${r.body.aqi}) tx ${r.txid ?? '-'}`)
-      } catch (e) {
-        if (e instanceof PaymentRefused) {
-          this.log(`refused to pay: ${e.message}`)
-          const st = this.deps.state.load()
-          if (!(st.unavailable ?? []).includes(call.topic)) this.deps.state.save({ ...st, unavailable: [...(st.unavailable ?? []), call.topic] })
-          continue
+    const buy = async (plan: PlannedCall[]): Promise<number> => {
+      let refused = 0
+      for (const call of plan) {
+        const url = `${this.config.dataUrl}/data/${call.topic}`
+        if (spent + this.config.pricePerCall > budget) { this.log(`budget reached, skipping ${call.topic}`); break }
+        if (this.config.dryRun === true) { this.log(`[dry run] would buy ${call.topic}: ${call.why}`); continue }
+        try {
+          const r = await this.deps.pay<AirQualityReport>(url)
+          spent += r.paid
+          results.push(r.body)
+          if (r.txid !== undefined) txids.push(r.txid)
+          this.deps.ledger.add({ milestone, topic: call.topic as City, why: call.why, url, sats: r.paid, txid: r.txid, at: Math.floor(Date.now() / 1000) })
+          this.log(`paid ${r.paid} sats for ${call.topic} (AQI ${r.body.aqi}) tx ${r.txid ?? '-'}`)
+        } catch (e) {
+          if (e instanceof PaymentRefused) {
+            this.log(`refused to pay: ${e.message}`)
+            refused++
+            const st = this.deps.state.load()
+            if (!(st.unavailable ?? []).includes(call.topic)) this.deps.state.save({ ...st, unavailable: [...(st.unavailable ?? []), call.topic] })
+            continue
+          }
+          if (e instanceof PaidButNotServed) {
+            // The money is gone: record it (it counts against the cap) and move on; never pay twice for it.
+            spent += e.paid
+            if (e.txid !== undefined) txids.push(e.txid)
+            this.deps.ledger.add({ milestone, topic: call.topic as City, why: call.why, url, sats: e.paid, txid: e.txid, at: Math.floor(Date.now() / 1000), failed: true })
+            this.log(`paid ${e.paid} sats for ${call.topic} but got nothing: ${e.message}`)
+            continue
+          }
+          throw e
         }
-        if (e instanceof PaidButNotServed) {
-          // The money is gone: record it (it counts against the cap) and move on; never pay twice for it.
-          spent += e.paid
-          if (e.txid !== undefined) txids.push(e.txid)
-          this.deps.ledger.add({ milestone, topic: call.topic as City, why: call.why, url, sats: e.paid, txid: e.txid, at: Math.floor(Date.now() / 1000), failed: true })
-          this.log(`paid ${e.paid} sats for ${call.topic} but got nothing: ${e.message}`)
-          continue
-        }
-        throw e
       }
+      return refused
+    }
+
+    // A refused purchase must not cost the milestone a deliverable: re-plan once for the budget it left, with the
+    // refused topic now marked unavailable. Once only, so a brain that keeps picking refused topics can't loop.
+    const refused = await buy(await planFor(maxCalls, bought))
+    const left = Math.floor((budget - spent) / this.config.pricePerCall)
+    if (refused > 0 && left > 0 && this.config.dryRun !== true) {
+      this.log(`${refused} purchase(s) refused; re-planning for the ${left} call(s) the budget still allows`)
+      await buy(await planFor(left, this.deps.ledger.all().map(e => e.topic)))
     }
 
     // Report every payment for this milestone from the ledger, not just this run's: after a failed

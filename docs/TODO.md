@@ -36,7 +36,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [x] Donor agent D1–D13. Done: D1, D3, D4, D6, D8–D13 (D4, D11 and D12 were real gaps, fixed). **Accepted limits:** D2 (one creator under two identity keys looks like two creators); D5 (a creator's track record comes from the server's statuses, while terms, anchors and reports are checked on chain, and in this design the server is also the arbiter, a trust assumption that refunds never depend on).
 - [x] Liquidity agent S1–S11: all done (S5 and the crash window were real holes, fixed); see DEVLOG 8.5–8.25.
 - [x] A live-model eval through the **Anthropic API**, 3 runs, and through the Claude Code CLI for comparison; results in [`AGENT_EVAL_RESULTS.md`](AGENT_EVAL_RESULTS.md). Every invariant held. The runs found two bugs, now fixed: the goal units in the donor prompt, and a wrong milestone in the eval fixture. The fundraising agent's full demo also ran with Claude through the API.
-- [x] **Decided (owner, 2026-10-31): keep the risk-flag penalty.** Each flag costs 10 points (capped at −30), and the threshold stays at 60. The donor agent stays cautious: with real Claude, honest but sparse campaigns (50–58) need more detail before it funds them.
+- [x] ~~Keep the risk-flag penalty (−10, capped at −30)~~: superseded the same day by the decision below, once the rehearsal showed that no new campaign could ever be funded.
 
 ## Bridging (real money in)
 
@@ -48,6 +48,8 @@ Done: `SourceChain.now()` is async; there is an EVM HTLC + viem adapter with the
 - [x] `npm run rehearse:agents`: the whole story with only agents, offline, with the real brains. With the deterministic brains it completes (tested).
 - [x] Campaign terms derived from one spending plan (real Claude found the hand-written terms contradicting themselves).
 - [x] The donor brain now sees the agent's anchored spending limits (it used to flag them as missing).
-- [ ] **Decide:** with Claude as the donor brain, a first-time campaign can score at most 55 once 3+ concerns are flagged, below the threshold of 60. So autopilot donors fund no new campaign, and a zero-click run ends with the campaign failing.
+- [x] **Decided (owner, 2026-10-31): soften the risk-flag penalty** to −5 per flag, capped at −15. With Claude, a new campaign can now be funded.
+- [x] **The zero-click rehearsal completes with real Claude** (API). The campaign completed with 3/3 milestones, 15 real Open-Meteo purchases and 0 human actions.
+- [x] Wallet monitor started for every server-side wallet (proofs, broadcast retries). Without it, mainnet wallets refuse to build transactions after ~12 chained payments.
 - [ ] Zero-click funding of the agents' wallets (`npm run agents:fund`) and a launcher (`npm run agents:mainnet`).
 

@@ -35,6 +35,8 @@ export interface RehearsalOptions {
   fundBrain: Brain
   donorBrain: DonorBrain
   log?: (line: string) => void
+  /** The data shop's source: real Open-Meteo readings (as in production; a network call) or synthetic (offline tests). */
+  dataSource?: 'open-meteo' | 'synthetic'
   /** Most agent rounds after the deadline before giving up. Default 12. */
   maxRounds?: number
 }
@@ -67,7 +69,7 @@ export async function runRehearsal (o: RehearsalOptions): Promise<RehearsalResul
     const service = createCryptoPledgePotService({ wallet: await chain.makeWallet(), db, network: 'mock', chainTracker: chain.chainTracker, now })
     const server = await listen(service.app); servers.push(server)
     const url = `http://localhost:${portOf(server)}`
-    const dataServer = await serveDataProvider(createDataProviderApp(await chain.makeWallet(), 50, { zurich: 500 }), 0); servers.push(dataServer)
+    const dataServer = await serveDataProvider(createDataProviderApp(await chain.makeWallet(), 50, {}, { source: o.dataSource ?? 'open-meteo' }), 0); servers.push(dataServer) // as in production: one price, no premium trap
     const dataHost = `localhost:${portOf(dataServer)}`
 
     // The fundraising agent, exactly as in production: its own wallet, capped payer, public status page.
@@ -116,9 +118,10 @@ export async function runRehearsal (o: RehearsalOptions): Promise<RehearsalResul
     }
     const donors: Array<{ name: string, agent: DonorAgent, memos: MemoBook }> = []
     for (const [name, interests] of [
-      ['Open-data donor', 'open environmental data, air quality monitoring, public datasets'],
-      ['Climate donor', 'climate and air pollution research with transparent spending'],
-      ['AI-transparency donor', 'AI agents that publish every payment and stay within published limits']
+      // Backers who want what this campaign actually offers: an accountable AI agent paying per use, on chain.
+      ['AI-accountability donor', 'autonomous AI agents that publish every payment and stay within their published spending limits'],
+      ['Micropayments donor', 'machine-to-machine micropayments on BSV: agents paying per API call, every payment on chain'],
+      ['Open-data donor', 'open air-quality data published for anyone, bought transparently with every purchase on chain']
     ] as const) {
       const w = await chain.makeWallet(); await chain.fund(w, 40_000)
       const memos = new MemoBook(memoryStore<Memo[]>([]))
@@ -148,6 +151,8 @@ export async function runRehearsal (o: RehearsalOptions): Promise<RehearsalResul
       const c = await campaign()
       if (out.action === 'stopped' || c.status === 'completed' || c.status === 'failed') break
     }
+    // The last release completes the campaign; the agent still has the last milestone's work to do.
+    for (let i = 0; i < 3 && last?.action !== 'stopped'; i++) await agentStep()
     const c = await campaign()
     const result: RehearsalResult = {
       status: c.status,
@@ -159,13 +164,14 @@ export async function runRehearsal (o: RehearsalOptions): Promise<RehearsalResul
         return {
           name: d.name,
           pledged: ms.filter(m => m.kind === 'pledge' && m.status === 'executed').reduce((t, m) => t + (m.amount ?? 0), 0),
-          votes: ms.filter(m => m.kind === 'vote').map(m => `m${m.milestone}:${m.vote ?? m.status}`),
+          votes: ms.filter(m => m.kind === 'vote').map(m => `m${m.milestone}:${m.vote ?? m.status} (${m.reasons.join('; ').slice(0, 400)})`),
           refunds: ms.filter(m => m.kind === 'refund' && m.status === 'executed').length,
           skipped: ms.filter(m => m.kind === 'skip').map(m => `${m.campaignTitle}: ${m.reasons[0] ?? m.summary}${m.score !== undefined ? ` [${m.score.parts.map(p => `${p.name} ${p.points}/${p.max}${p.name === 'risk flags' ? ` (${p.why})` : ''}`).join('; ')}]` : ''}`)
         }
       }),
       humanActions: 0
     }
+    for (const m of c.milestones) if (m.update !== undefined) log(`   report for milestone ${m.index}:\n${m.update.note.split('\n').map(l => `     | ${l}`).join('\n')}`)
     log(`3. Result: campaign ${result.status}, ${result.milestonesReleased}/3 milestones released, ${result.raised.toLocaleString('en-US')} sats raised, ${result.spent.calls} data purchases (${result.spent.sats} sats). Human actions: 0.`)
     return result
   } finally {

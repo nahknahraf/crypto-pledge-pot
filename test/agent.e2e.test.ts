@@ -195,9 +195,11 @@ describe('the agent cannot be talked into overspending', () => {
     await (agent as any).work(view, 1)
     expect(state.load().unavailable).toEqual(['zurich']) // persisted with the agent's state: survives a restart
     await (agent as any).work(view, 1) // a second planning round (the cap still has room)
-    expect(seen).toEqual([[], ['zurich']]) // the brain is told at the next planning round
-    expect(attempts).toBe(1) // and code never tries it again, even though the brain asked
-    expect(ledger.all().map(e => e.topic)).toEqual(['paris', 'paris'])
+    // Round 1 plans [zurich, paris]; zurich is refused, so the agent re-plans once for the budget left, telling the brain.
+    // Round 2 (the second work call) is told too.
+    expect(seen).toEqual([[], ['zurich'], ['zurich']])
+    expect(attempts).toBe(1) // code never tries it again, even though the brain keeps asking
+    expect(ledger.all().every(e => e.topic === 'paris')).toBe(true)
   })
 
   it('a paid call that delivers nothing is recorded, counts against the cap, and is not paid twice', async () => {

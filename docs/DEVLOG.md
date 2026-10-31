@@ -2348,3 +2348,23 @@ Suite: 249 passed, 3 skipped.
 - **After both fixes,** Claude no longer flags inconsistencies. The remaining concerns are about the premise: the readings are public data resold to show micropayments.
 - **A structural finding about the scoring the owner kept:** a first-time campaign can score at most 35+25+10+5+10−30 = 55 once 3 or more concerns are flagged, under the threshold of 60. So with Claude, autopilot donors can't fund any new campaign. This is an open decision.
 - **Suite:** 284 passed, 3 skipped.
+
+**9.22 Zero-click, end to end, with real Claude.** The owner chose to soften the penalty (−5 per flag, capped at −15); `donor.rules` checks it, and the old −10/−30 fails that test. After that, rehearsing with real Claude found three more real problems, all fixed:
+1. **The report vote judged the wrong milestone.** A vote on milestone k releases k's funds on the strength of a report on milestone k−1's work, but the donor prompt asked whether the report showed k's work. The prompt now states both. **Correction to 9.17:** I had called the eval's milestone-2 call a "fixture bug" and changed it to 1. That was wrong, and it hid this product bug. The eval is restored to milestone 2.
+2. **A refused purchase cost the milestone a deliverable.** The agent now re-plans once for the budget a refusal leaves (`agent.e2e` covers it).
+3. **No server-side wallet ever started its monitor.** That covers the agents, the LP and the arbiter. The monitor records proofs, so without it every transaction stays unproven, and after ~12 chained payments the wallet refuses to build more ("Maximum BEEF depth exceeded"). On mainnet that would stop an agent mid-run.
+   - `shared/wallet.ts` `startWalletMonitor` now starts it, as the guide's §14 says to. It adds the default tasks only if they're missing, because Setup already adds them; an extra call doubled them.
+   - Checked live with a throwaway mainnet wallet: 16 unique tasks running, including `CheckForProofs`.
+   - The mock chain has no monitor, so it lifts the depth limit instead, with a comment.
+   - The offline demo now mines a block between beats.
+- **Rehearsal fidelity:**
+  - real Open-Meteo data, as in production; tests stay synthetic and offline;
+  - no "premium Zurich" trap, which the production shop doesn't have; it made "10 cities" impossible;
+  - donors whose interests match what the campaign offers;
+  - the vote reasons and reports are printed.
+- **Final run (`npm run rehearse:agents`, API, Opus 5.5):**
+  - 3 autopilot donors pledged 1,500 sats (goal 1,200);
+  - the agent released milestone 1 and bought 5 readings, and all 3 donors verified the report (6/6 on chain) and voted YES;
+  - the same for milestones 2 and 3;
+  - completed: 3/3 milestones, 15 purchases (750 sats), **0 human actions**.
+- **Tests updated on purpose:** `agentDemo` (now 5/5/5, 15 calls, 750 sats) and `agent.trust` (15 receipted payments).

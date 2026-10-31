@@ -36,5 +36,17 @@ export async function createToolboxWallet (opts: { chain: Chain, rootKey: Privat
   const identityKey = opts.rootKey.toPublicKey().toString()
   const env = { chain: opts.chain, identityKey, identityKey2: identityKey, taalApiKey: '', devKeys: {}, mySQLConnection: '{}' }
   const setup = await Setup.createWalletSQLite({ env: env as any, rootKeyHex: opts.rootKey.toHex(), filePath: opts.dbFile, databaseName: opts.dbName })
+  startWalletMonitor(setup.monitor)
   return setup
+}
+
+/**
+ * Run the wallet's monitor continuously (BSV_STACK_COMPLETE_GUIDE §14: "Run the monitor continuously in production").
+ * It records merkle proofs once transactions are mined and retries broadcasts. Without it the wallet keeps every
+ * transaction as unproven and, after ~12 chained payments, refuses to build more ("Maximum BEEF depth exceeded").
+ */
+export function startWalletMonitor (monitor: { addDefaultTasks: () => void, startTasks: () => Promise<void> }, log: (m: string) => void = console.error): void {
+  // Setup.createWalletSQLite builds the monitor in 'default' mode, which already adds the default tasks; add them only if missing.
+  if (((monitor as unknown as { _tasks?: unknown[] })._tasks ?? []).length === 0) monitor.addDefaultTasks()
+  monitor.startTasks().catch(e => { log(`[wallet monitor] stopped: ${(e as Error).message}`) })
 }

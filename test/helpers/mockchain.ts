@@ -80,6 +80,10 @@ export async function createMockChain (): Promise<MockChain> {
   async function makeWallet (rootKey = PrivateKey.fromRandom()): Promise<Wallet> {
     const db = memoryKnex()
     const provider = new StorageKnex({ chain: 'mock', knex: db, commissionSatoshis: 0, feeModel: { model: 'sat/kb', value: 100 } })
+    // Production wallets run the wallet monitor (shared/wallet.ts), which records merkle proofs as blocks are mined
+    // and so keeps the unproven ancestry short. The mock chain has no monitor, so lift the 12-level BEEF depth limit
+    // here instead of letting long offline stories (many chained payments) hit it.
+    provider.maxRecursionDepth = 1_000
     await provider.migrate('bsv21kit-e2e', randomBytesHex(33))
     await provider.makeAvailable()
     const storage = new WalletStorageManager(rootKey.toPublicKey().toString(), provider)
