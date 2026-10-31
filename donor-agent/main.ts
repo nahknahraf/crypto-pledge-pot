@@ -48,7 +48,13 @@ const serverUrl = process.env.CRYPTOPLEDGEPOT_URL ?? 'http://localhost:8787'
 const chainTracker = new ArcadeChainTracker(network === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
 const txExists = async (txid: string): Promise<boolean> => (await fetch(`https://api.whatsonchain.com/v1/bsv/${network}/tx/hash/${txid}`)).ok
 
-const health = await (await fetch(`${serverUrl}/api/health`)).json()
+const health = await fetch(`${serverUrl}/api/health`).then(async r => await r.json(), () => {
+  console.error(`Can't reach the CryptoPledgePot server at ${serverUrl}.\n` +
+    '  - Server on this machine: start it with npm run server.\n' +
+    '  - Docker stack: point at Caddy\'s local entrance: CRYPTOPLEDGEPOT_URL=http://127.0.0.1:8081 npm run donor\n' +
+    '    (or use the donor agent already in Docker: --profile donor, at https://localhost:8444/#/donor).')
+  process.exit(1)
+})
 if (health.network === 'mock' && mandate.mode === 'autopilot') {
   console.error('The server is the offline demo (network "mock"): an autopilot donor agent with a real wallet refuses to run against it.')
   process.exit(1)
