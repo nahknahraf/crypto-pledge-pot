@@ -16,24 +16,25 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [ ] A pledge whose BEEF fails SPV is refused, tested with a strict chain tracker (§4).
 - [x] A pledge after the deadline is refused; a refunded donor's vote counts 0; a changed vote replaces the earlier one (§4).
 - [ ] Server restart between handing out release signatures and the broadcast (§4).
+- [x] A pledge that fails SPV is refused (§4).
 - [x] `MIN_PLEDGE` 100 vs 99; rounding; 1 and the maximum of 4 milestones; the largest amount. The last one was a real float bug, fixed (§1).
 - [ ] Two pledges released in one transaction; `unlockLength` equals the real size (§1).
 - [x] `validateCampaign` table: 21 cases (§3).
 - [x] Swap secrets of 0, 31 and 33 bytes (§2).
-- [ ] WhatsOnChain 429/500/timeout in the watcher; reorgs (§5).
+- [x] WhatsOnChain 429/500/timeout in the watcher: one failure no longer aborts the round; a 429 ends it (§5). Reorgs are still open.
 
 ## Edge cases: client, web app and ops
 
-- [ ] The wallet user cancels; too few sats; a lost server reply after the broadcast (§6).
-- [ ] Component tests: no `WalletClient` in mock mode; `confirmSpend`; a testnet wallet against a mainnet server; no wallet installed; SSE reconnect (§7). Needs a test setup (jsdom + Testing Library).
+- [x] A lost server reply after the broadcast: `registerWalletPledges` and "Find my pledges" (§6). The user cancelling and too few sats fail in the wallet before anything is broadcast.
+- [x] The wallet gate as plain functions, with tests: mock never constructs a wallet; network mismatch; no wallet; the prompt (§7). SSE reconnect and empty pages remain.
 - [ ] Container restart keeps the DB and keys; `/@fs` and `data/` are unreachable via the share URL (§8).
-- [ ] A smoke test for `npm run demo` (§9).
+- [x] A smoke test for `npm run demo` (§9).
 
 ## Edge cases: agents
 
-- [ ] Fundraising agent: F3, F4, F6–F14 are open. Done: F1, F2 and F5 (paid-but-not-served is recorded; the cap holds across runs; both were real gaps, fixed). F12 (single instance) needs a lock file.
-- [ ] Donor agent: D1 and D9 done. In co-pilot without `donorIdentityKey`, `approve` cannot check who paid (bookkeeping only). Open: D1–D13 otherwise. First D3, D4, D5 (the chain beats a lying server; needs code). D10 is partly done: the agent-addressing rule now runs in code for every brain, over the title, the description and the milestone titles, plus reports.
-- [ ] Liquidity agent: S3, S7, S10 and S11 are open. Done: S2, S4 (persisted state, restart test), S5 (a real hole, fixed), S6, S8, S9. S1 does not apply to the LP (see DEVLOG 8.5).
+- [ ] Fundraising agent: F7, F9–F11 and F13 are open. Done: F1–F6, F8, F12 (lock file) and F14 (the report after a failed anchor). F1, F5 and F14 were real gaps, fixed.
+- [ ] Donor agent: D2, D5, D7, D8 and D12 are open. Done: D1, D3, D4 (shown terms must hash to the id; a real hole, fixed), D6 (stale proposals expire), D9, D10, D11 (report vs anchor; a real gap, fixed) and D13 (bounded rounds). In co-pilot without `donorIdentityKey`, approve cannot check who paid.
+- [x] Liquidity agent S1–S11: all done (S5 and the crash window were real holes, fixed); see DEVLOG 8.5–8.25.
 - [ ] A live-model eval: 20 scenarios × 3 runs, saved to `AGENT_EVAL_RESULTS.md`.
 
 ## Bridging (real money in)

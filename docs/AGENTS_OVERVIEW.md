@@ -54,7 +54,7 @@ The model only chooses *what* to buy and writes the text. Prices, caps, hosts an
 | **Holds** | **Co-pilot:** nothing; the human pays from their own BSV Desktop. **Autopilot:** only the budget the human moved into its wallet |
 | **State** | `data/donor-memos.json` (one memo per decision: checks, score, reasons, txids) |
 | **Loop** | list campaigns → hard rules → due diligence (SPV-verified anchor, arbiter key, an agent's ledger against its published limits) → model judgement → score → amount → pledge (autopilot) or propose (co-pilot) → for backed campaigns, verify reports and vote → reclaim from failed ones |
-| **Never** | exceeds the budget or per-creator cap; pledges twice to one campaign; pays in co-pilot; funds text that addresses AI agents (a rule in code, for every brain, so the campaign scores 0); votes YES without verified evidence |
+| **Never** | exceeds the budget or per-creator cap; pledges twice to one campaign; pays in co-pilot; funds text that addresses AI agents (a rule in code, for every brain, so the campaign scores 0); votes YES without verified evidence, or on a report that differs from its on-chain anchor; trusts terms the server shows unless they hash to the anchored campaign id; evaluates more than `maxEvaluationsPerStep` campaigns per round |
 | **Alone** | `donor.rules`, `donor.e2e`, `donor.http`; `npm run demo:donor` |
 
 ## 3. Liquidity (bridging) agent (`swap/`)
@@ -66,7 +66,7 @@ The model only chooses *what* to buy and writes the text. Prices, caps, hosts an
 | **Holds** | Its own sats inventory (BSV) and the USDC it collects (EVM). **Never the donor's money**: the donor's USDC sits in an HTLC that only the secret or the timeout can open |
 | **State** | `data/lp-swaps.json`: every quote and lock. It is saved before and after each lock, so a restart still collects or refunds |
 | **Loop** | `quote` → `acceptSourceLock` (reads the donor's lock **on the EVM chain**: pays us, right amount, long enough timeout, not already used) → lock sats on BSV for the donor's key, with an earlier timeout → `step`: when the donor claims, read the secret from the BSV claim and claim the USDC; if they never claim, refund our sats after our timeout |
-| **Never** | locks sats before seeing the source lock on chain; accepts one source lock for two swaps (including concurrent requests); quotes above its limit or its inventory; lets its timeout end after the donor's |
+| **Never** | locks sats before seeing the source lock on chain with `minSourceConfirmations`; loses track of a lock it broadcast (a `locking` intent is saved first and recovered from the wallet basket); accepts one source lock for two swaps (including concurrent requests); quotes above its limit or its inventory; lets its timeout end after the donor's |
 | **Alone** | `swap.edges`, `swap.e2e` (simulated USDC), `bridge.evm` and `bridge.service` (real Solidity HTLC on Anvil, the agent over HTTP, a crash and restart); `npm run demo:bridge` |
 
 The donor side of a swap (`swap/donorSwap.ts`) is a library, not a separate agent:
