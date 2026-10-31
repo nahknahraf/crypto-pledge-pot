@@ -51,7 +51,33 @@ describe('parseRoutineText', () => {
   it('asks back when the amount or the cause is missing', () => {
     expect(parseRoutineText('spende jeden Monat an Tierschutz')).toMatchObject({ ok: false, lang: 'de' })
     expect(parseRoutineText('donate 10 euros every month')).toMatchObject({ ok: false, error: expect.stringContaining('Who') })
-    expect(parseRoutineText('spende 10 an X')).toMatchObject({ ok: false }) // "10" without a currency is not an amount
+  })
+
+  it('assumes euros for a bare number instead of asking again, and says so', () => {
+    expect(parseRoutineText('Give 10 every week to schools')).toMatchObject({
+      ok: true, assumedCurrency: true, draft: { amount: { value: 10, currency: 'EUR' }, interval: 'weekly', target: { label: 'schools' } }
+    })
+    // Run counts are not mistaken for the amount.
+    expect(parseRoutineText('donate 5 every month for 6 months to cats')).toMatchObject({
+      ok: true, draft: { amount: { value: 5, currency: 'EUR' }, limits: { maxRuns: 6 } }
+    })
+    expect(parseRoutineText('Donate 10 euros to cats')).not.toHaveProperty('assumedCurrency')
+  })
+
+  it.each([
+    ['Donate ten euros a month to cats', { value: 10, currency: 'EUR' }, 'cats'],
+    ['Spende zwanzig Euro an die Tafel', { value: 20, currency: 'EUR' }, 'Tafel'],
+    ['Donate 10.000 sats weekly to education', { value: 10_000, currency: 'SATS' }, 'education'],
+    ['donate 1,000,000 sats to research', { value: 1_000_000, currency: 'SATS' }, 'research'],
+    ['donate 50 cents to schools', { value: 0.5, currency: 'EUR' }, 'schools'],
+    ['Give 5 bucks to schools', { value: 5, currency: 'USD' }, 'schools'],
+    ['I want to donate 15€ per month to a dog shelter', { value: 15, currency: 'EUR' }, 'dog shelter']
+  ])('reads "%s"', (text, amount, label) => {
+    expect(parseRoutineText(text)).toMatchObject({ ok: true, draft: { amount, target: { label } } })
+  })
+
+  it('does not turn "one-off" into a number', () => {
+    expect(parseRoutineText('a one-off gift of 5 euros to cats')).toMatchObject({ ok: true, draft: { interval: 'once', amount: { value: 5 } } })
   })
 })
 

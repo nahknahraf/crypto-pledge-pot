@@ -35,8 +35,15 @@ code { font-size: 0.9em; }
 .grow { flex: 1; }
 
 header.top { display: flex; align-items: center; gap: 1.5rem; padding: 0.8rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; z-index: 5; }
-header.top nav { display: flex; gap: 1.2rem; flex: 1; }
-header.top nav a { color: var(--ink); }
+header.top nav { display: flex; gap: 1.2rem; flex: 1; justify-content: center; align-items: center; flex-wrap: wrap; row-gap: 0.3rem; }
+/* One line per link: a label broken over two or three lines pushed the menu off-centre on narrower windows. */
+header.top nav a { color: var(--ink); white-space: nowrap; }
+@media (max-width: 960px) {
+  /* Not enough room beside the logo and the wallet button: the menu gets its own row and scrolls sideways if needed. */
+  header.top { flex-wrap: wrap; row-gap: 0.4rem; }
+  header.top nav { order: 3; flex-basis: 100%; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; gap: 1rem; padding-bottom: 0.2rem; }
+  header.top > :last-child { margin-left: auto; }
+}
 .logo { font-weight: 800; font-size: 1.3rem; color: var(--ink); }
 .logo span { color: var(--brand); }
 .page { max-width: 1120px; margin: 0 auto; padding: 1.5rem; }

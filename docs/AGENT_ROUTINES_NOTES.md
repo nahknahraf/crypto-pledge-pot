@@ -1,7 +1,7 @@
 # Giving routines: team notes
 
-*"Spende jeden Monat 10 Euro an einen Tierschutzverein."* A user types this in a
-chat, and CryptoPledgePot turns it into a **giving routine**. Whenever it is
+*"Donate 10 euros every month to an animal shelter."* A user types this (in
+English or German) in a chat, and CryptoPledgePot turns it into a **giving routine**. Whenever it is
 due, the routine makes a pledge into a matching campaign's escrow in one of two
 ways:
 - **Manual:** the user approves each gift in their own wallet.
@@ -134,8 +134,8 @@ interface RoutineRun {
 - **Default cap = today's value + 50 %.** It is shown in the confirmation card
   and the user can change it before saving. For sats amounts the cap equals
   the amount.
-- **Target = keywords, optionally a pinned campaign.** "Tierschutzverein"
-  expands to `animal, wildlife, shelter, pet, dog, cat, …`, so it finds an
+- **Target = keywords, optionally a pinned campaign.** "animal shelter"
+  (or the German "Tierschutzverein") expands to `animal, wildlife, shelter, pet, dog, cat, …`, so it finds an
   "elephant tracking" campaign. Each run picks the best **open** match (status
   `active`, deadline not passed; title hits weigh 3×, description hits 1×).
 - **Schedules count from the due date, not the approval date.** A monthly
@@ -273,7 +273,7 @@ start against a `mock` server.
 - **The agent's key is a hot key on that machine.** Anyone with access to
   `data/routine-agent.key` can spend the budget, so keep the budget small and
   top it up as needed.
-- **Matching is keyword-based.** "Tierschutzverein" matches campaigns that
+- **Matching is keyword-based.** "animal shelter" matches campaigns that
   mention animals. It does not check that the campaign is a registered
   charity. Pin a campaign (`target.campaignId`) to be exact.
 - **Exchange rates come from public APIs** (CoinGecko, WhatsOnChain). If they

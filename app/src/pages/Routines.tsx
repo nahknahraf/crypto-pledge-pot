@@ -1,6 +1,6 @@
 /**
  * "Giving routines" (#/routines): tell the giving agent in plain words what to
- * give, e.g. "Spende jeden Monat 10 Euro an einen Tierschutzverein", and manage
+ * give, e.g. "Donate 10 euros every month to an animal shelter", and manage
  * the routines it keeps for you.
  *
  * Flow, and where trust sits:
@@ -53,7 +53,7 @@ interface Pending {
 const DEMO_BUDGET = 1_000_000
 
 const EXAMPLES = [
-  'Spende jeden Monat 10 Euro an einen Tierschutzverein',
+  'Donate 10 euros every month to an animal shelter',
   'Donate 5000 sats every week to school projects',
   'Give $3 once to open-source education'
 ]
@@ -71,7 +71,7 @@ export function Routines () {
 
   const [chat, setChat] = useState<ChatMessage[]>([{
     from: 'agent',
-    text: 'Hi! Tell me what you would like to give, how much and how often, e.g. "Spende jeden Monat 10 Euro an einen Tierschutzverein". ' +
+    text: 'Hi! Tell me what you would like to give, how much and how often, e.g. "Donate 10 euros every month to an animal shelter". ' +
       'Every gift goes into a campaign\'s escrow. You approve each one in your wallet, or let your routine agent run it automatically from a budget you give it.'
   }])
   const [input, setInput] = useState('')
@@ -177,6 +177,7 @@ export function Routines () {
       const de = result.lang === 'de'
       say('agent', [
         describeDraft({ ...result.draft, limits: { ...result.draft.limits, maxSatsPerRun: cap } }, result.lang),
+        result.assumedCurrency === true ? (de ? '(Ohne Währung habe ich Euro angenommen; schreib z. B. „10 sats“ oder „10 $“, wenn du etwas anderes meinst.)' : '(No currency given, so I assumed euros; write e.g. "10 sats" or "$10" if you meant something else.)') : '',
         result.draft.amount.currency === 'SATS' ? '' : estimate !== undefined ? (de ? `Das sind heute etwa ${formatSats(estimate)}.` : `That is about ${formatSats(estimate)} today.`) : (de ? 'Ich konnte keinen Wechselkurs laden; bitte setz die Obergrenze in sats selbst.' : 'I could not load an exchange rate; please set the cap in sats yourself.'),
         preview !== undefined ? (de ? `Passende Kampagne gerade: „${preview.meta.title}“.` : `Matching campaign right now: "${preview.meta.title}".`) : (de ? 'Gerade passt keine offene Kampagne; die Routine wartet, bis eine passt.' : 'No open campaign matches right now; the routine waits until one does.'),
         de ? 'Prüf die Details unten und bestätige.' : 'Check the details below and confirm.'
@@ -310,7 +311,7 @@ export function Routines () {
         </div>
 
         <form className="chat-input" onSubmit={e => { void send(e) }}>
-          <input value={input} maxLength={280} placeholder='e.g. "Spende jeden Monat 10 Euro an einen Tierschutzverein"' onChange={e => setInput(e.target.value)} aria-label="Message to the giving agent" />
+          <input value={input} maxLength={280} placeholder='e.g. "Donate 10 euros every month to an animal shelter"' onChange={e => setInput(e.target.value)} aria-label="Message to the giving agent" />
           <button type="submit" className="primary" disabled={thinking || input.trim() === ''}>Send</button>
         </form>
         <div className="presets">

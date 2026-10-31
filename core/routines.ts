@@ -122,15 +122,35 @@ export const ROUTINE_LIMITS = { text: 280, label: 80, keywords: 16, keyword: 32,
 // ───────────────────────────── interpretation ─────────────────────────────
 
 export type ParseResult =
-  | { ok: true, draft: Omit<RoutineDraft, 'limits'> & { limits: Omit<RoutineLimits, 'maxSatsPerRun'> }, lang: 'de' | 'en' }
+  | {
+    ok: true
+    draft: Omit<RoutineDraft, 'limits'> & { limits: Omit<RoutineLimits, 'maxSatsPerRun'> }
+    lang: 'de' | 'en'
+    /** The message named a number but no currency ("give 10 to …"): euros were assumed; say so. */
+    assumedCurrency?: boolean
+  }
   | { ok: false, error: string, lang: 'de' | 'en' }
 
-const CURRENCY_WORDS: Array<[RegExp, RoutineCurrency | 'BSV']> = [
+/** Currency words after a number. CENT is hundredths of a euro ("50 cents"). */
+const CURRENCY_WORDS: Array<[RegExp, RoutineCurrency | 'BSV' | 'CENT']> = [
   [/^(€|eur|euro|euros)$/, 'EUR'],
-  [/^(\$|usd|dollar|dollars|dollar)$/, 'USD'],
+  [/^(\$|usd|dollar|dollars|bucks?)$/, 'USD'],
   [/^(sat|sats|satoshi|satoshis)$/, 'SATS'],
-  [/^bsv$/, 'BSV']
+  [/^bsv$/, 'BSV'],
+  [/^(cent|cents|ct)$/, 'CENT']
 ]
+
+/** Spelled-out amounts, replaced by digits only when a currency word follows ("ten euros", "zehn Euro"). */
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  fifteen: 15, twenty: 20, thirty: 30, forty: 40, fifty: 50, hundred: 100,
+  eins: 1, zwei: 2, drei: 3, vier: 4, fünf: 5, fuenf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, elf: 11, zwölf: 12,
+  fünfzehn: 15, zwanzig: 20, dreißig: 30, vierzig: 40, fünfzig: 50, hundert: 100
+}
+const NUMBER_WORD = new RegExp(`(?<![\\p{L}])(${Object.keys(NUMBER_WORDS).join('|')})(?=\\s+(?:€|eur|euros?|\\$|usd|dollars?|bucks?|sats?|satoshis?|cents?)\\b)`, 'gu')
+
+/** Verbs that may sit between the amount and the cause ("I want TO DONATE 15 € to …"): never the start of a cause. */
+const LEADING_VERB = /^(donate|give|spend|pay|send|support|spende|spenden|geben|zahlen|unterstützen)\b/
 
 const INTERVAL_PATTERNS: Array<[RegExp, RoutineInterval]> = [
   [/\b(jeden|jede|jedes|pro|every|each|per|a|im)\s+(monat|month)\b|\bmonatlich\b|\bmonthly\b/, 'monthly'],
@@ -165,7 +185,17 @@ const STOPWORDS = new Set([
 // Words that only appear in German instructions ("an" and "mal" are English too, so they are not hints).
 const GERMAN_HINT = /\b(spende|spenden|jeden|jede|jedes|monat|woche|tag|jahr|monatlich|wöchentlich|täglich|einmalig|für|einen|eine|verein|bitte)\b/
 
-const num = (s: string): number => Number(s.replace(/\s/g, '').replace(',', '.'))
+/**
+ * "10" → 10, "2,50" / "2.50" → 2.5, and thousands separators: "10.000" / "10,000"
+ * / "1.000.000" → whole numbers (a separator followed by exactly three digits,
+ * not after a leading 0). `decimal` forces a decimal point (BSV: "1.500 bsv" is 1.5).
+ */
+const num = (s: string, decimal = false): number => {
+  const t = s.replace(/\s/g, '')
+  if (!decimal && /^[1-9]\d{0,2}([.,]\d{3})+$/.test(t)) return Number(t.replace(/[.,]/g, ''))
+  return Number(t.replace(',', '.'))
+}
+const NUMBER = String.raw`\d+(?:[.,]\d+)*`
 
 /**
  * Turn a message such as "Spende jeden Monat 10 Euro an einen Tierschutzverein"
@@ -177,32 +207,33 @@ const num = (s: string): number => Number(s.replace(/\s/g, '').replace(',', '.')
  */
 export function parseRoutineText (input: string): ParseResult {
   const text = input.trim().slice(0, ROUTINE_LIMITS.text)
-  const lower = ` ${text.toLowerCase()} `
+  const lower = ` ${text.toLowerCase()} `.replace(NUMBER_WORD, w => String(NUMBER_WORDS[w]))
   const lang: 'de' | 'en' = GERMAN_HINT.test(lower) ? 'de' : 'en'
   const ask = (de: string, en: string): ParseResult => ({ ok: false, error: lang === 'de' ? de : en, lang })
 
-  // Amount: "10 euro", "10€", "€10", "2,50 EUR", "5000 sats", "0.001 bsv".
+  // Amount with a currency: "10 euro", "10€", "€10", "2,50 EUR", "10.000 sats", "0.001 bsv", "50 cents", "5 bucks".
   let amount: RoutineAmount | undefined
+  let assumedCurrency = false
   let rest = lower
-  const after = /(\d+(?:[.,]\d+)?)\s*(€|\$|[a-zäöü]+)/g
-  for (const m of lower.matchAll(after)) {
+  for (const m of lower.matchAll(new RegExp(`(${NUMBER})\\s*(€|\\$|[a-zäöü]+)`, 'g'))) {
     const cur = CURRENCY_WORDS.find(([re]) => re.test(m[2]))?.[1]
     if (cur === undefined) continue
-    amount = cur === 'BSV' ? { value: Math.round(num(m[1]) * 100_000_000), currency: 'SATS' } : { value: num(m[1]), currency: cur }
+    const n = num(m[1], cur === 'BSV')
+    amount = cur === 'BSV'
+      ? { value: Math.round(n * 100_000_000), currency: 'SATS' }
+      : cur === 'CENT'
+        ? { value: n / 100, currency: 'EUR' }
+        : { value: n, currency: cur }
     rest = rest.replace(m[0], ' ')
     break
   }
   if (amount === undefined) {
-    const before = /(€|\$)\s*(\d+(?:[.,]\d+)?)/.exec(lower)
+    const before = new RegExp(`(€|\\$)\\s*(${NUMBER})`).exec(lower)
     if (before !== null) {
       amount = { value: num(before[2]), currency: before[1] === '€' ? 'EUR' : 'USD' }
       rest = rest.replace(before[0], ' ')
     }
   }
-  if (amount === undefined || !Number.isFinite(amount.value) || amount.value <= 0) {
-    return ask('Wie viel möchtest du spenden? Zum Beispiel „10 Euro“ oder „5000 sats“.', 'How much would you like to give? For example "10 euros" or "5000 sats".')
-  }
-  if (amount.currency === 'SATS') amount.value = Math.round(amount.value)
 
   // Interval; one-off when none is named.
   let interval: RoutineInterval = 'once'
@@ -219,9 +250,28 @@ export function parseRoutineText (input: string): ParseResult {
     rest = rest.replace(count[0], ' ')
   }
 
-  // Cause: what follows "an"/"to" (or "für"/"for"), minus filler words.
-  const cause = /\s(?:an|to|für|fuer|for|towards)\s+(.+)$/.exec(rest.replace(/\s+/g, ' '))
-  const found = (cause?.[1] ?? '')
+  // A number without a currency ("give 10 every week to schools"): assume euros and say so,
+  // rather than asking again. Run counts and intervals are already removed from `rest`.
+  if (amount === undefined) {
+    const bare = new RegExp(`(?<![\\w.,])(${NUMBER})(?![\\w.,])`).exec(rest)
+    if (bare !== null) {
+      amount = { value: num(bare[1]), currency: 'EUR' }
+      assumedCurrency = true
+      rest = rest.replace(bare[0], ' ')
+    }
+  }
+  if (amount === undefined || !Number.isFinite(amount.value) || amount.value <= 0) {
+    return ask('Wie viel möchtest du spenden? Zum Beispiel „10 Euro“ oder „5000 sats“.', 'How much would you like to give? For example "10 euros" or "5000 sats".')
+  }
+  if (amount.currency === 'SATS') amount.value = Math.round(amount.value)
+
+  // Cause: what follows "an"/"to" (or "für"/"for"), minus filler words. Skip a "to"
+  // that only introduces a verb ("I want to donate … to a dog shelter").
+  const flat = rest.replace(/\s+/g, ' ')
+  const cause = [...flat.matchAll(/\s(?:an|to|für|fuer|for|towards)\s+/g)]
+    .map(m => flat.slice((m.index ?? 0) + m[0].length))
+    .find(c => !LEADING_VERB.test(c))
+  const found = (cause ?? '')
     .replace(/^(?:(?:einen|eine|ein|einem|einer|den|die|das|dem|der|a|an|the|some)\s+)+/, '')
     .replace(/[.!?,;:]+\s*$/, '')
     .trim()
@@ -232,7 +282,12 @@ export function parseRoutineText (input: string): ParseResult {
     return ask('An wen soll die Spende gehen? Zum Beispiel „an einen Tierschutzverein“.', 'Who should receive it? For example "to an animal shelter".')
   }
 
-  return { ok: true, lang, draft: { text, amount, interval, target: { label, keywords: keywordsFor(label) }, limits: { maxRuns, maxTotalSats: null } } }
+  return {
+    ok: true,
+    lang,
+    ...(assumedCurrency ? { assumedCurrency } : {}),
+    draft: { text, amount, interval, target: { label, keywords: keywordsFor(label) }, limits: { maxRuns, maxTotalSats: null } }
+  }
 }
 
 /** Search terms for a cause: its own meaningful words plus the synonyms of every topic it mentions. */
