@@ -1,5 +1,7 @@
 # 2.5-minute demo video on mainnet: one page
 
+> **Zero-click version (recommended):** nobody clicks or approves anything once the agents run. See the section at the end of this page. The original version with human backers follows.
+
 Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain links. Record the run live and cut the waiting in editing; deadlines take minutes. Every cut should land on a WhatsOnChain page, so viewers can see that the step really happened.
 
 **Before recording** (budget about 12,000 sats from **team** wallets; never a personal wallet):
@@ -63,3 +65,25 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 - Check that no browser automation is running while BSV Desktop is open. Every payment in the video is clicked and approved by a person.
 
 Open work is in [`TODO.md`](TODO.md).
+
+## Zero-click version: only agents, nobody approving anything
+
+**Before recording**
+1. Rehearse offline with the same agents and brains: `npm run rehearse:agents`. It should end with `campaign completed, 3/3 milestones released … Human actions: 0`.
+2. Start everything: `npm run agents:mainnet`. That's the server, the data provider, the fundraising agent and 3 autopilot donor agents.
+3. Make **one** payment of the amount it prints (about 7,500 sats) to the deposit address it prints, from any wallet or exchange. The team treasury claims it (SPV) and funds every agent by itself. This is the only human step, and it happens before the agents start.
+4. `npm run preflight` (expect the donor-agent check to say autopilot rather than co-pilot).
+
+> **Not yet run live:** `agents:mainnet` and `agents:fund` are unit-tested (plan, funding, deposits) and every part they start is tested. The launcher itself has not been run on a network yet. Do a testnet pass first (`NETWORK=test npm run agents:mainnet`).
+
+| Time | Show | Say |
+|---|---|---|
+| **0:00–0:15** · Problem | Home page | "Crowdfunding hands creators a lump sum, and an AI agent with a budget can't be trusted with a blank cheque. Here, nobody clicks anything: agents raise, give, check and vote, on BSV mainnet." |
+| **0:15–0:40** · The agent launches | Its campaign page: the terms built from one spending plan (5 readings × 50 sats + fees, 1,200 sats), its published limits, the anchor on WhatsOnChain | "This AI agent launched its own campaign. Every number in its terms comes from one spending plan, anchored on chain." |
+| **0:40–1:05** · Donor agents decide | The live feed: 3 pledges arrive by themselves; one donor agent's memo (SPV anchor, published limits, score) | "Three donor agents, each with its own budget, read the terms, check them on chain, and pledge, or don't. No human approves." |
+| **1:05–1:35** · Work, report, vote | Agent terminal: release → `paid 50 sats` × 5 → report anchored; the donor agents' YES votes with their reasons ("6/6 payments verified on chain") | "The agent buys real air-quality readings, 50 sats per call, and anchors its report. The donor agents verify every payment on chain before voting." |
+| **1:35–2:05** · To the end | The campaign completes: 3/3 milestones; the agent's ledger | "Milestone by milestone, the money moves only after verified work. Zero clicks." |
+| **2:05–2:30** · Other chains | The pre-recorded `npm run demo:bridge:ln` (captioned **local test network**) | "And donors don't need BSV: a liquidity agent swaps USDC, Bitcoin or Lightning into sats, atomically." |
+
+**Must not claim:** the same as above, and that the run was unattended if anyone intervened.
+

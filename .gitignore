@@ -21,3 +21,5 @@ data/lp.key
 data/lp-wallet.sqlite*
 data/lp-swaps*.json*
 data/*.lock
+data/treasury/
+data/donors/

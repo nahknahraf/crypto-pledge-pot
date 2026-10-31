@@ -182,3 +182,22 @@ describe('a large index (D13)', () => {
     expect((await agent.step()).evaluated).toBe(0)
   })
 })
+
+describe('an unfunded autopilot agent waits', () => {
+  it('does not evaluate (or burn pledge retries) until its wallet holds at least the minimum pledge', async () => {
+    let looked = 0
+    const api = { campaigns: async () => { looked++; return [] } } as unknown as CryptoPledgePotApi
+    let balance = 0
+    const lines: string[] = []
+    const agent = new DonorAgent(parseMandate({ name: 'a', mode: 'autopilot', interests: 'x', keywords: ['x'] }), {
+      api, client: {} as any, brain: new MockDonorBrain(), memos: new MemoBook(memoryStore<Memo[]>([])), chainTracker: {} as any, txExists: async () => true,
+      spendable: async () => balance, log: l => lines.push(l)
+    })
+    expect(await agent.step()).toMatchObject({ evaluated: 0, pledged: 0 })
+    expect(looked).toBe(0)
+    expect(lines.join('\n')).toMatch(/waiting for budget/)
+    balance = 5_000 // the treasury funded it
+    await agent.step()
+    expect(looked).toBe(1)
+  })
+})

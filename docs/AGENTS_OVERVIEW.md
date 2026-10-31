@@ -100,11 +100,13 @@ Money can also come in without a swap: **Fund from an exchange** (`client/receiv
 | `fundraising-agent/` | The fundraising agent |
 | `donor-agent/` | The donor agent |
 | `liquidity-agent/` | The liquidity (bridging) agent, its chain adapters (EVM, BTC, Lightning), and the donor-side swap library |
-| `shared/` | Plumbing every agent uses and none owns: the single-process lock, the server wallet, the JSON store |
+| `shared/` | Plumbing every agent uses and none owns: the single-process lock, the server wallet (with its proof monitor), the JSON store, the team treasury (zero-click funding) |
 | `data-provider/` | The paid data API (a service, not an agent) |
 | `server/`, `client/`, `core/`, `app/` | The platform: index and arbiter, client library, contracts and records, web app |
 
 No agent folder imports another agent's folder.
+
+**Zero-click:** in autopilot, every agent acts alone: the fundraising agent launches, buys, reports and releases; donor agents pledge, verify reports on chain, vote and reclaim; the liquidity agent swaps. `npm run rehearse:agents` plays it offline, and `npm run agents:mainnet` runs it for real.
 
 ## Reasoning about failures
 

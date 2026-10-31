@@ -2368,3 +2368,17 @@ Suite: 249 passed, 3 skipped.
   - the same for milestones 2 and 3;
   - completed: 3/3 milestones, 15 purchases (750 sats), **0 human actions**.
 - **Tests updated on purpose:** `agentDemo` (now 5/5/5, 15 calls, 750 sats) and `agent.trust` (15 receipted payments).
+
+**9.23 Zero-click funding and launch.** After the agents start, nobody clicks anything.
+- **`shared/treasury.ts`** (`fundAgents`, `claimDeposits`, `identityFromStatus`): a team treasury server wallet hands out one deposit address (`client/receive.ts`, a BRC-29 derived key). It claims payments with SPV, then pays each agent a BRC-29 top-up through the fund endpoint the agent already has.
+- **State** (`scripts/treasuryStore.ts`, in `data/treasury/`, git-ignored): the deposit address, the claimed txids, and the agents funded by name, so a restart never loses a deposit or pays an agent twice.
+- **Commands:**
+  - `npm run agents:fund`: the treasury on its own;
+  - `npm run agents:mainnet`: the server, the data provider, the fundraising agent, 3 autopilot donor agents (`data/donors/<slug>`, mandates written only if missing), then the treasury. The plan and amounts are in `scripts/zeroClick.ts`.
+- **An unfunded autopilot donor agent now waits** (`DonorDeps.spendable`) instead of failing its pledges and using up its 3 retries before the funding arrives.
+- **Tests:**
+  - `treasury` (mock chain): the deposit is claimed once; the real agent and LP apps are funded; a recipient that's down doesn't stop the others;
+  - `zeroClick`: valid mandates, the owner's mandate files kept, consistent amounts;
+  - `donor.rules`: the unfunded agent waits.
+- **Not done:** the launcher has not been run on a network. It would use the real `data/` folder (the existing agent key and the local DB), and a real run should be the owner's call. The next step is a testnet pass.
+- **The video script** gains a zero-click version.

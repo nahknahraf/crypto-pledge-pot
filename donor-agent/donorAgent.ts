@@ -13,6 +13,7 @@
  * Money rules live in code (screen.ts); the brain only judges. step() is safe
  * to call repeatedly: every campaign is evaluated once, every vote cast once.
  */
+import { MIN_PLEDGE } from '../core/pledge'
 import type { CampaignView } from '../core/api'
 import type { CryptoPledgePot } from '../client/cryptoPledgePot'
 import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
@@ -33,6 +34,8 @@ export interface DonorDeps extends DiligenceDeps {
   log?: (line: string) => void
   /** New campaigns evaluated per step (each costs lookups and a model call); the rest wait for the next step. Default 25. */
   maxEvaluationsPerStep?: number
+  /** Autopilot: the budget wallet's spendable sats. Below the minimum pledge, the agent waits for funding instead of evaluating. */
+  spendable?: () => Promise<number>
 }
 
 export interface StepSummary { evaluated: number, proposed: number, pledged: number, skipped: number, votes: number, refunds: number }
@@ -64,6 +67,11 @@ export class DonorAgent {
 
   async step (): Promise<StepSummary> {
     const s: StepSummary = { evaluated: 0, proposed: 0, pledged: 0, skipped: 0, votes: 0, refunds: 0 }
+    // An unfunded autopilot agent would fail every pledge and use up its retries: wait for the budget to arrive.
+    if (this.mandate.mode === 'autopilot' && this.deps.spendable !== undefined && (await this.deps.spendable()) < MIN_PLEDGE) {
+      this.log('waiting for budget: the wallet is empty (top it up, e.g. with npm run agents:fund)')
+      return s
+    }
     const campaigns = await this.deps.api.campaigns()
     // A proposal the donor never answered expires when its campaign closes: it stops reserving budget.
     const open = new Set(campaigns.filter(c => c.status === 'active').map(c => c.id))

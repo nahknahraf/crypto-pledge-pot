@@ -73,7 +73,7 @@ const fetchTx = async (txid: string): Promise<Transaction> => {
   const bytes = Utils.toArray(await wocBeef(txid, network), 'hex')
   try { return Transaction.fromAtomicBEEF(bytes) } catch { return Transaction.fromBEEF(bytes, txid) }
 }
-const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), memos, chainTracker, txExists, fetchTx })
+const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), memos, chainTracker, txExists, fetchTx, spendable: wallet !== undefined ? async () => await spendable() : undefined })
 
 const spendable = async (): Promise<number> => {
   if (wallet === undefined) return 0

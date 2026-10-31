@@ -51,5 +51,8 @@ Done: `SourceChain.now()` is async; there is an EVM HTLC + viem adapter with the
 - [x] **Decided (owner, 2026-10-31): soften the risk-flag penalty** to −5 per flag, capped at −15. With Claude, a new campaign can now be funded.
 - [x] **The zero-click rehearsal completes with real Claude** (API). The campaign completed with 3/3 milestones, 15 real Open-Meteo purchases and 0 human actions.
 - [x] Wallet monitor started for every server-side wallet (proofs, broadcast retries). Without it, mainnet wallets refuse to build transactions after ~12 chained payments.
-- [ ] Zero-click funding of the agents' wallets (`npm run agents:fund`) and a launcher (`npm run agents:mainnet`).
+- [x] Zero-click funding (`npm run agents:fund`): one deposit, from any wallet or exchange, to the team treasury, which then funds every agent itself. It records each agent it funds, so a re-run never pays one twice. Unit-tested offline.
+- [x] Launcher (`npm run agents:mainnet`): the server, the data provider, the fundraising agent, 3 autopilot donor agents, and the treasury. Unit-tested plan; not yet run live.
+- [x] An unfunded autopilot donor agent waits instead of using up its pledge retries.
+- [ ] **Run it:** `NETWORK=test npm run agents:mainnet` first, then mainnet with about 7,500 team sats.
 
