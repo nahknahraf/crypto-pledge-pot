@@ -2093,3 +2093,12 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
 Also: a timing flake in the "waits for confirmations" test (background mining could finish before the agent looked). Mining now starts only when the flow reports that it's waiting, and it passed 3 runs in a row.
 
 Full suite: **241 passing**, plus 3 opt-in fork tests that pass with `FORK_URL`.
+
+**8.37 Docs brought up to date; Bitcoin is blocked on a permission.**
+- `AGENTS_OVERVIEW`: the donor side of the bridge now lists all three ways to lock USDC (plain, permit, DEX), browser signing, the Bring USDC flow, and Fund from an exchange.
+- `npm run test:happy` now includes `bridge.browser`, `bridge.dex` and `receive` (13 files, 71 tests).
+- **Bitcoin (Phase 3):** to make the BTC HTLC verifiable, I tried to download the official Bitcoin Core 28.1 release (checksum-verified) and run a regtest node. The automated permission check blocked running an external binary. That's the user's call, so BTC and Lightning stay planned. With permission, the steps are:
+  1. a regtest `bitcoind`;
+  2. a P2WSH HTLC with the same sha256 hashlock;
+  3. a `SourceChain` adapter;
+  4. the same swap tests as on EVM.

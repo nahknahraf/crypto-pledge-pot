@@ -74,6 +74,13 @@ The donor side of a swap (`swap/donorSwap.ts`) is a library, not a separate agen
 - it makes the secret and locks the USDC;
 - it **re-checks the BSV lock itself** (SPV, hashlock, its key, amount, timeout) before claiming;
 - it works with the in-process agent or the HTTP `LiquidityClient`, because both implement `LiquidityProvider`.
+- the USDC can be locked three ways:
+  - from USDC the donor holds (`approve` + `lock`);
+  - with a permit, in one transaction;
+  - swapped from another token on a DEX through `SwapAndLock`, in one transaction (`lockAndRequest(…, lockWith)`);
+- in a browser, the donor's own EVM wallet signs (`swap/browserEvm.ts`), and `swap/browserSwap.ts` runs the whole flow for the **Bring USDC** page.
+
+Money can also come in without a swap: **Fund from an exchange** (`client/receive.ts`) gives a fresh deposit address of the user's own wallet.
 
 ## Supporting services (not agents)
 

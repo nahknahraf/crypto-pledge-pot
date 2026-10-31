@@ -3,10 +3,10 @@
 Run every automated happy path in one go:
 
 ```bash
-npm run test:happy     # 10 files, 58 tests, about 80 s, offline
+npm run test:happy     # 13 files, 71 tests, about 2 min, offline
 ```
 
-The files are listed in the `test:happy` script in `package.json`. Some of them also contain edge cases. `npm test` runs everything (198 tests).
+The files are listed in the `test:happy` script in `package.json`. Some of them also contain edge cases. `npm test` runs everything (241 tests; the 3 fork tests need `FORK_URL`).
 
 ## The happy paths
 

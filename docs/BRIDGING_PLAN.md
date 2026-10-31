@@ -192,4 +192,4 @@ What the Phase 1a happy path does **not** do yet, in rough order:
   - It refuses a "DEX" that is the HTLC or one of the tokens. Arbitrary calls never run in the HTLC, which holds everyone's locks.
   - `EvmUsdcChain.swapAndLock`, and `DonorSwap.lockAndRequest(…, lockWith)`.
   - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). **Real DEX:** `swap/dex.ts` builds Uniswap V3 `exactInputSingle` calldata. On a **fork of Base** (`FORK_URL=https://mainnet.base.org npx vitest run test/bridge.fork.test.ts`), real ETH becomes real WETH, then real USDC via the real Uniswap router, and exactly 20 USDC are locked. Real USDC's permit works too.
-- [ ] **Phases 3–5** (BTC, Lightning, on-ramp, wrapped stablecoins): not started. BTC and Lightning need a regtest node, which this machine doesn't have.
+- [ ] **Phases 3–5** (BTC, Lightning, on-ramp, wrapped stablecoins): not started. BTC and Lightning need a regtest node. Downloading and running Bitcoin Core here needs the user's permission (it was not granted in the automated run), so these remain planned.
