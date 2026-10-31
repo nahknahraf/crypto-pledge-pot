@@ -47,7 +47,7 @@ async function main (): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     server.listen(port, (err?: Error) => {
       if (err === undefined) { resolve(); return }
-      reject(new Error(`port ${port} is already in use (${err.message}). Stop the other demo, or start this one on a free port: PORT=8797 npm run demo`))
+      reject(new Error(`port ${port} is already in use (${err.message}). Stop the other demo first (lsof -ti tcp:${port} | xargs kill), or start this one on another port: PORT=${port + 1} npm run demo`))
     })
   })
   const url = `http://localhost:${port}`
