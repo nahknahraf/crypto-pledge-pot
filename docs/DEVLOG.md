@@ -2139,3 +2139,14 @@ Suite: 249 passed, 3 skipped.
 - **Demo:** `npm run demo:bridge:btc`.
 - **Not done yet:** signet or mainnet (an Esplora backend), fee estimation, PSBT in a browser wallet, Lightning.
 - **A flaky test, not a bug.** One full-suite run had `demoWorld.smoke` fail. It passes alone and on reruns. The likely cause is a free-port race between parallel test files, so the regtest node no longer reserves a P2P port.
+
+**9.4 Bitcoin on public networks.**
+- **Data sources.** `BtcChain` now runs over a `BtcBackend` interface with two implementations:
+  - `BitcoindBackend`: your own node.
+  - `EsploraBackend`: mempool.space or blockstream.
+  - **Checked live** (read-only GETs, no keys) against mempool.space mainnet and signet: median time and fee estimates work, Satoshi's 2009 transaction reads correctly, and a fresh segwit spend's witness, prevout value and script all match what the API reports.
+  - **Offline tests** (`btc.esplora`): a stub with the same response shapes.
+- **Fees.** The fee is the backend's rate × the real vsize, with a 2 sat/vB floor. On regtest that comes to about 280 sats, and bitcoind accepts it.
+- **The service.** `npm run lp` takes a Bitcoin source (`BRIDGE_CHAIN=btc…`, `LP_BTC_KEY`, `LP_SATS_PER_BTC`, a node or Esplora). Its state goes in `lp-swaps-btc.json`, and `LP_DATA_DIR` gives each agent its own directory.
+  - **Checked** against a regtest node with a throwaway wallet in a scratch directory: `/api/lp` reports the BTC asset, and quotes are refused for lack of BSV inventory, as expected.
+  - **Fixed along the way:** `/api/lp` divided limits by the USDC unit. It now uses the source asset's unit and reports `asset`.

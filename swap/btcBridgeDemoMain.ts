@@ -12,7 +12,7 @@ import type { Wallet } from '@bsv/wallet-toolbox'
 import { createMockChain } from '../test/helpers/mockchain'
 import { startRegtest } from './bitcoind'
 import { btcPublicKey } from './btc'
-import { bitcoindWalletFunder, BtcChain } from './btcChain'
+import { BitcoindBackend, bitcoindWalletFunder, BtcChain } from './btcChain'
 import type { SpendFinder } from './bsv'
 import { DonorSwap } from './donorSwap'
 import { DEFAULT_LIQUIDITY, LiquidityAgent } from './liquidityAgent'
@@ -24,7 +24,7 @@ const node = await startRegtest()
 const chain = await createMockChain()
 try {
   const donorBtc = PrivateKey.fromRandom(); const lpBtc = PrivateKey.fromRandom()
-  const btc = new BtcChain({ rpc: node.rpc, network: 'regtest', signers: [donorBtc, lpBtc], funder: bitcoindWalletFunder(node.rpc, node.wallet) })
+  const btc = new BtcChain({ backend: new BitcoindBackend(node.rpc), network: 'regtest', signers: [donorBtc, lpBtc], funder: bitcoindWalletFunder(node.rpc, node.wallet) })
   const spendable = async (w: Wallet): Promise<number> => (await w.listOutputs({ basket: 'default', limit: 1000 })).outputs.filter(o => o.spendable).reduce((s, o) => s + o.satoshis, 0)
   const findSpend: SpendFinder = async (txid, vout) => {
     const storage = (chain.services as any).storage

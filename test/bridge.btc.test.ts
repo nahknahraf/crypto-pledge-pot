@@ -8,7 +8,7 @@ import { Hash, PrivateKey, Transaction, Utils } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox'
 import { bitcoindBinary, startRegtest, type Regtest } from '../swap/bitcoind'
 import { btcPublicKey, claimTx, htlcScript, p2wpkh, parseHtlcScript, refundTx, segwitAddress, serializeTx, type BtcTx } from '../swap/btc'
-import { bitcoindWalletFunder, BtcChain } from '../swap/btcChain'
+import { BitcoindBackend, bitcoindWalletFunder, BtcChain } from '../swap/btcChain'
 import type { SpendFinder } from '../swap/bsv'
 import { DonorSwap } from '../swap/donorSwap'
 import { DEFAULT_LIQUIDITY, LiquidityAgent } from '../swap/liquidityAgent'
@@ -42,7 +42,7 @@ const findSpend: SpendFinder = async (txid, vout) => {
 describe.skipIf(bitcoindBinary() === undefined)('bridge on a real Bitcoin node (regtest)', () => {
   beforeAll(async () => {
     node = await startRegtest()
-    btc = new BtcChain({ rpc: node.rpc, network: 'regtest', signers: [donorBtc, lpBtc], funder: bitcoindWalletFunder(node.rpc, node.wallet) })
+    btc = new BtcChain({ backend: new BitcoindBackend(node.rpc), network: 'regtest', signers: [donorBtc, lpBtc], funder: bitcoindWalletFunder(node.rpc, node.wallet) })
     chain = await createMockChain()
     lpWallet = await chain.makeWallet(); await chain.fund(lpWallet, 50_000_000)
   }, 120_000)
@@ -76,7 +76,9 @@ describe.skipIf(bitcoindBinary() === undefined)('bridge on a real Bitcoin node (
     expect(h).toMatchObject({ state: 'claimed', secret: r.secret })
     expect(Utils.toHex(Hash.sha256(Utils.toArray(h!.secret!, 'hex')))).toBe(r.hashlock)
     await node.mine(1)
-    expect(await btc.account(btcPublicKey(lpBtc)).balance()).toBe(10_000 - 1_000) // minus the claim's miner fee
+    // Minus the claim's miner fee: regtest has no fee history, so the 2 sat/vB floor × ~140 vB.
+    const fee = 10_000 - await btc.account(btcPublicKey(lpBtc)).balance()
+    expect(fee).toBeGreaterThan(250); expect(fee).toBeLessThan(350)
   }, 120_000)
 
   it('a lock for the wrong amount is rejected, and the donor refunds the BTC only after the timeout (bitcoind enforces CLTV)', async () => {
@@ -103,6 +105,7 @@ describe.skipIf(bitcoindBinary() === undefined)('bridge on a real Bitcoin node (
     await swap.refundSource(r)
     await node.mine(1)
     expect((await btc.htlc(r.sourceHtlcId!))!.state).toBe('refunded')
-    expect(await btc.account(btcPublicKey(donorBtc)).balance()).toBe(9_000 - 1_000)
+    const fee = 9_000 - await btc.account(btcPublicKey(donorBtc)).balance()
+    expect(fee).toBeGreaterThan(200); expect(fee).toBeLessThan(350)
   }, 120_000)
 })

@@ -25,10 +25,16 @@ LP_EVM_KEY=
 BRIDGE_HTLC=
 BRIDGE_TOKEN=
 
-# --- Bitcoin leg (regtest by default; see docs/BRIDGING_PLAN.md) ---
+# --- Bitcoin leg: npm run lp with BRIDGE_CHAIN=btc-signet (or btc, btc-regtest) ---
+# The agent's BTC key (hex), fresh and signet-only to start with. Never a key holding real funds.
+LP_BTC_KEY=
+LP_SATS_PER_BTC=
+# Either your own node (with -txindex)…
 BTC_RPC_URL=
 BTC_RPC_USER=
 BTC_RPC_PASSWORD=
+# …or an Esplora API (default https://mempool.space[/signet]/api)
+BTC_ESPLORA_URL=
 
 # --- Optional: server-side BSV root keys (otherwise generated into data/*.key) ---
 AGENT_ROOT_KEY=

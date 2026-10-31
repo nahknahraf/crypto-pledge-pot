@@ -116,10 +116,13 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
     - bitcoind itself refuses an early refund (non-final), a wrong secret, and a claim signed with the wrong key;
     - mutation check: a wrong sighash fails both swap tests.
   - **The difference from the EVM version:** nothing on chain stops a claim after T1, so the LP must claim well before it (it claims right after the donor's BSV claim).
+  - **Backends:**
+    - `BitcoindBackend`: your own node, with `-txindex`;
+    - `EsploraBackend`: mempool.space or blockstream, on mainnet, signet or testnet. Checked live (read-only) against mempool.space: outputs, confirmations, the outspend witness, median time and fee estimates.
+  - **Fees** are estimated from the backend's rate × the spend's real vsize, with a 2 sat/vB floor.
+  - **`npm run lp`** takes `BRIDGE_CHAIN=btc|btc-signet|btc-testnet|btc-regtest`. I started it against a regtest node with a throwaway wallet: it serves `/api/lp` with the BTC asset and refuses quotes until it holds BSV.
   - **Still open:**
-    - signet or mainnet;
-    - an Esplora backend instead of a node with `-txindex`;
-    - fee estimation (currently a flat 1,000 sats);
+    - a funded signet or mainnet run;
     - PSBT signing in a browser wallet.
   - **Checked before use:** the binary is checked against `SHA256SUMS`, and `SHA256SUMS.asc` carries 8 good builder signatures. It lives in `~/opt/bitcoin-32.1`; `BITCOIND_BIN` overrides that.
 - **Lightning:** the LP runs a node that supports hold invoices (e.g. LND `AddHoldInvoice`).
@@ -209,5 +212,5 @@ What the Phase 1a happy path does **not** do yet, in rough order:
   - `EvmUsdcChain.swapAndLock`, and `DonorSwap.lockAndRequest(…, lockWith)`.
   - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). **Real DEX:** `swap/dex.ts` builds Uniswap V3 `exactInputSingle` calldata. On a **fork of Base** (`FORK_URL=https://mainnet.base.org npx vitest run test/bridge.fork.test.ts`), real ETH becomes real WETH, then real USDC via the real Uniswap router, and exactly 20 USDC are locked. Real USDC's permit works too.
 - [x] **BTC on-chain (Phase 3a):** the happy path and the refund work on a Bitcoin Core regtest node; see §4.
-- [ ] **BTC on signet or mainnet:** needs an Esplora backend or a node, plus fee estimation.
+- [ ] **BTC on signet or mainnet:** the code is ready (Esplora backend, fee estimation, `npm run lp` with `BRIDGE_CHAIN=btc-signet`). It needs a funded signet key (`LP_BTC_KEY`) and BSV inventory.
 - [ ] **Lightning (Phase 3b), on-ramp and wrapped stablecoins (Phases 4–5):** not started. Lightning needs an LND node with hold invoices.

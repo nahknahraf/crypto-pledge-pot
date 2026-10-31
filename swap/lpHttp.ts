@@ -13,7 +13,7 @@
  */
 import express, { type Request, type Response } from 'express'
 import type { LiquidityAgent } from './liquidityAgent'
-import { USDC } from './usdcChain'
+import { assetOf, unitOf } from './usdcChain'
 
 export function createLiquidityApp (lp: LiquidityAgent): express.Express {
   const app = express()
@@ -21,14 +21,17 @@ export function createLiquidityApp (lp: LiquidityAgent): express.Express {
   const handle = (fn: (req: Request) => Promise<unknown>) => async (req: Request, res: Response): Promise<void> => {
     try { res.json(await fn(req)) } catch (e) { res.status(400).json({ error: (e as Error).message }) }
   }
+  // Amounts are in whole units of the source asset (USDC, BTC). The *Usdc names are kept for existing clients.
+  const unit = unitOf(lp.source)
   app.get('/api/lp', handle(async () => ({
     sourceChain: lp.source.name,
+    asset: assetOf(lp.source),
     lpAddress: lp.address,
     satsPerUsdc: lp.config.satsPerUsdc,
-    maxUsdc: lp.config.maxUsdc / USDC,
+    maxUsdc: lp.config.maxUsdc / unit,
     quoteValiditySeconds: lp.config.quoteValidity,
     minSourceWindowSeconds: lp.config.minSourceWindow,
-    swaps: lp.all().map(s => ({ id: s.quote.id, state: s.state, usdc: s.quote.usdc / USDC, sats: s.quote.sats, note: s.note }))
+    swaps: lp.all().map(s => ({ id: s.quote.id, state: s.state, usdc: s.quote.usdc / unit, sats: s.quote.sats, note: s.note }))
   })))
   app.get('/api/lp/swaps/:quoteId', handle(async req => {
     const lock = await lp.lockFor(String(req.params.quoteId))
