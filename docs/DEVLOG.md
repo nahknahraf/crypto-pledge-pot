@@ -1984,3 +1984,7 @@ No jsdom or Testing Library dependency was needed. The app build is unchanged.
   - **end to end, the donor agent votes NO on the edited report and YES on the anchored original**. With the rule switched off, this test fails.
 
 **What broke while testing:** my first `fetchTx` returned the raw transaction without its merkle proof, so SPV said "unverifiable". The test now mines a block and attaches the proof, as WhatsOnChain would serve it.
+
+**8.27 A failed pledge is retried** (D12). **A real gap, fixed.** In autopilot, a pledge that failed (wallet offline, broadcast error) got a `failed` memo, and the step marked the campaign as decided. It was **never tried again**, although nothing had been spent. Now a failed pledge is retried on later steps, up to 3 attempts in all. Failed memos never counted against the budget, so the retry can't overspend.
+
+Test (`donor.e2e`): offline once gives `[failed]`; the next step gives `[failed, executed]`; a third step adds nothing. A campaign whose pledge keeps failing stops at 3 attempts.

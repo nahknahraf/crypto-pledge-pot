@@ -225,6 +225,31 @@ describe('co-pilot: the agent proposes, the donor approves and pays', () => {
     expect(await checkAnchor(real, { ...deps, chainTracker: lyingHeaders })).toMatchObject({ ok: false })
   })
 
+  it('a pledge that failed (wallet offline) is retried on the next step, at most 3 times in all (D12)', async () => {
+    clock = T0 + 16 * DAY
+    const fresh = await chain.makeWallet(); await chain.fund(fresh, 50_000)
+    const id = (await as(fresh).launch(campaign({ title: 'Water tank for a school', description: 'One tank; we publish the water test.' }))).campaignId
+    const budgetWallet = await chain.makeWallet(); await chain.fund(budgetWallet, 30_000)
+    const real = as(budgetWallet)
+    let offline = 1
+    const flaky = { donate: async (...a: Parameters<CryptoPledgePot['donate']>) => { if (offline-- > 0) throw new Error('wallet offline'); return await real.donate(...a) } } as unknown as CryptoPledgePot
+    const book = new MemoBook(memoryStore<Memo[]>([]))
+    const a = new DonorAgent(parseMandate({ name: 'x', mode: 'autopilot', keywords: ['water'], budget: { totalSats: 12_000, perPledgeMaxSats: 6_000, perCreatorMaxPct: 100 } }),
+      { api: new CryptoPledgePotApi(url, budgetWallet), client: flaky, brain: new MockDonorBrain(), memos: book, chainTracker: chain.chainTracker, txExists, now: () => clock, log: () => {} })
+    await a.step()
+    expect(book.all().filter(m => m.campaignId === id).map(m => m.status)).toEqual(['failed'])
+    await a.step()
+    expect(book.all().filter(m => m.campaignId === id).map(m => m.status)).toEqual(['failed', 'executed'])
+    await a.step()
+    expect(book.all().filter(m => m.campaignId === id)).toHaveLength(2) // pledged once, never twice
+
+    // A campaign whose pledge keeps failing is given up after 3 attempts.
+    const id2 = (await as(fresh).launch(campaign({ title: 'Water pump repair', description: 'Fix one pump; publish the flow test.' }))).campaignId
+    offline = 99
+    for (let i = 0; i < 5; i++) await a.step()
+    expect(book.all().filter(m => m.campaignId === id2).map(m => m.status)).toEqual(['failed', 'failed', 'failed'])
+  })
+
   it('refuses autopilot without a budget wallet', () => {
     expect(() => new DonorAgent(parseMandate({ name: 'x', mode: 'autopilot', keywords: ['water'] }), { api: new CryptoPledgePotApi(url), brain: new MockDonorBrain(), memos, chainTracker: chain.chainTracker, txExists })).toThrow(/needs a wallet client/)
   })

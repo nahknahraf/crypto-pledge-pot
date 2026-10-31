@@ -71,7 +71,11 @@ export class DonorAgent {
       this.deps.memos.update(m.id, { status: 'declined', reasons: [...m.reasons, 'expired: the campaign closed before you approved'] })
       this.log(`proposal for "${m.campaignTitle}" expired`)
     }
-    const seen = new Set(this.deps.memos.all().filter(m => m.kind === 'pledge' || m.kind === 'skip').map(m => m.campaignId))
+    // Decided campaigns are not looked at again; a pledge that FAILED (wallet offline, broadcast error)
+    // is retried on later steps, up to 3 attempts, since it spent nothing.
+    const memos = this.deps.memos.all()
+    const failures = (id: string): number => memos.filter(m => m.campaignId === id && m.kind === 'pledge' && m.status === 'failed').length
+    const seen = new Set(memos.filter(m => m.kind === 'skip' || (m.kind === 'pledge' && (m.status !== 'failed' || failures(m.campaignId) >= 3))).map(m => m.campaignId))
     for (const c of campaigns) {
       if (seen.has(c.id) || c.status !== 'active') continue
       if (s.evaluated >= (this.deps.maxEvaluationsPerStep ?? 25)) break // bounded cost per round
