@@ -23,3 +23,5 @@ data/lp-swaps*.json*
 data/*.lock
 data/treasury/
 data/donors/
+# Run folders (CPP_DATA_DIR): keys, wallets, state. Never commit.
+data/*/

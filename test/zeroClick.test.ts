@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { parseMandate } from '../donor-agent/mandate'
 import { MIN_PLEDGE } from '../core/pledge'
 import { depositNeeded, ensureDonorMandate, fundTargets, totalFunding, ZERO_CLICK } from '../scripts/zeroClick'
+import { planCampaign } from '../fundraising-agent/campaignPlan'
 
 describe('zero-click plan', () => {
   it('writes a valid autopilot mandate per donor agent, and never overwrites one the owner wrote', () => {
@@ -27,5 +28,10 @@ describe('zero-click plan', () => {
     expect(totalFunding()).toBe(fundTargets().reduce((s, t) => s + t.sats, 0))
     expect(depositNeeded()).toBeGreaterThan(totalFunding())
     expect(new Set(fundTargets().map(t => t.fundUrl)).size).toBe(fundTargets().length) // every agent on its own port
+  })
+  it('the goal is reachable if any 2 of the 3 donor agents say yes at a passing score (mainnet run 1 needed all 3)', () => {
+    const goal = planCampaign({ readingsPerMilestone: 5, pricePerReading: 50, feeAllowancePerMilestone: 150 }).goal
+    const atPassingScore = Math.floor(ZERO_CLICK.donorBudget.perPledgeMaxSats * 0.5 / 100) * 100 // screen.ts amountFor, score 60–74
+    expect(2 * atPassingScore).toBeGreaterThanOrEqual(goal)
   })
 })

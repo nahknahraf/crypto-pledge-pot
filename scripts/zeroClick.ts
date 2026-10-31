@@ -16,8 +16,10 @@ export const ZERO_CLICK = {
   /** The fundraising agent's fee float. Its campaign goal is derived separately (1,200 sats). */
   agentFunding: 2_000,
   agentFeeReserve: 500,
-  donorFunding: 1_500,
-  donorBudget: { totalSats: 1_000, perPledgeMaxSats: 1_000, perCreatorMaxPct: 100 },
+  // Sized so ANY 2 of the 3 donor agents at a passing score (60–74 → half of perPledgeMax) reach the 1,200-sat goal.
+  // Mainnet run 1 (2026-10-31) used 1,000: two said yes, one declined (score 55), and 1,000 < 1,200 failed the goal.
+  donorFunding: 2_000,
+  donorBudget: { totalSats: 1_600, perPledgeMaxSats: 1_600, perCreatorMaxPct: 100 },
   donors: [
     { slug: 'ai-accountability', name: 'AI-accountability donor', interests: 'autonomous AI agents that publish every payment and stay within their published spending limits', port: 8792 },
     { slug: 'micropayments', name: 'Micropayments donor', interests: 'machine-to-machine micropayments on BSV: agents paying per API call, every payment on chain', port: 8794 },
