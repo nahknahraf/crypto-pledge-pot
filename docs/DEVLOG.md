@@ -2024,3 +2024,10 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
 **What broke:** `tx.verify` *throws* on an invalid merkle path instead of returning false, so the forged-proof case surfaced as a raw SDK error. `claimReceived` now reports it as an SPV failure. I also found that `wocBeef` returns plain BEEF, hence `atomicBeefOf`.
 
 **Not done:** a withdrawal from a real exchange.
+
+**8.31 Container restarts, and limits we accept** (§8, D2, D5, reorgs).
+- **Persistence, checked:** I built the `app` image and ran the server with a named volume. Recreating the container from scratch gave the **same arbiter key** (hash `6843c89d…`), the DB was still there, and the log showed no "generated a new key". The check image and volume were removed afterwards.
+- **Accepted, written in TODO:**
+  - **D2:** one creator under two identity keys looks like two creators.
+  - **D5:** a creator's track record (completed/failed counts) comes from the server. Everything that moves money is checked on chain: terms (8.13), anchors, reports (8.26). In this design the server is also the arbiter anyway, and refunds never depend on it.
+  - **Reorgs:** a spend is recorded once it has a proof.

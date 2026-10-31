@@ -21,19 +21,19 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [ ] Two pledges released in one transaction; `unlockLength` equals the real size (§1).
 - [x] `validateCampaign` table: 21 cases (§3).
 - [x] Swap secrets of 0, 31 and 33 bytes (§2).
-- [x] WhatsOnChain 429/500/timeout in the watcher: one failure no longer aborts the round; a 429 ends it (§5). Reorgs are still open.
+- [x] WhatsOnChain 429/500/timeout in the watcher: one failure no longer aborts the round; a 429 ends it (§5). Reorgs: accepted for now (a spend is recorded once it has a proof; BSV reorgs deeper than a block are rare).
 
 ## Edge cases: client, web app and ops
 
 - [x] A lost server reply after the broadcast: `registerWalletPledges` and "Find my pledges" (§6). The user cancelling and too few sats fail in the wallet before anything is broadcast.
 - [x] The wallet gate as plain functions, with tests: mock never constructs a wallet; network mismatch; no wallet; the prompt (§7). SSE reconnect and empty pages remain.
-- [ ] Container restart keeps the DB and keys; `/@fs` and `data/` are unreachable via the share URL (§8).
+- [x] A container recreated on the same volume keeps the arbiter key and the DB (checked with Podman: same key hash, no new key generated) (§8). Still open: a curl check that `/@fs` and `data/` are unreachable via the share URL.
 - [x] A smoke test for `npm run demo` (§9).
 
 ## Edge cases: agents
 
 - [x] Fundraising agent F1–F14. Tested: F1–F6, F8, F12 and F14 (F1, F5 and F14 were real gaps, fixed). By design: F7 (report text is posted as written; the limits are in code), F9 and F13 (no release means it waits; a refused or failed step is caught by `npm run agent` and retried next interval), F10 and F11 (a failed campaign stops it; an unreachable server fails the step cleanly).
-- [ ] Donor agent: D2 (two identities, one name) and D5 (recompute raised and status from chain) are open. Done: D1, D3, D4, D6, D8 (stale proposals withdrawn after a mandate change), D9–D13. In co-pilot without `donorIdentityKey`, approve cannot check who paid; `npm run donor` warns at start-up.
+- [x] Donor agent D1–D13. Done: D1, D3, D4, D6, D8–D13 (D4, D11 and D12 were real gaps, fixed). **Accepted limits:** D2 (one creator under two identity keys looks like two creators); D5 (a creator's track record comes from the server's statuses, while terms, anchors and reports are checked on chain, and in this design the server is also the arbiter, a trust assumption that refunds never depend on).
 - [x] Liquidity agent S1–S11: all done (S5 and the crash window were real holes, fixed); see DEVLOG 8.5–8.25.
 - [ ] A live-model eval: the harness is built and verified (`npm run eval:agents`, 15 scenarios, `EVAL_RUNS=3`); it needs a run with `ANTHROPIC_API_KEY` to write `docs/AGENT_EVAL_RESULTS.md`.
 
