@@ -2296,3 +2296,19 @@ Suite: 249 passed, 3 skipped.
   - quality misses: the honest campaigns scored 52–58 against a threshold of 60, and the report with 2 verified payments was rejected.
 - **Why the honest campaigns miss:** Claude lists about 6 specific risk flags, and each costs 10 points, capped at −30. That calibration is a policy question for the user; I haven't changed it.
 - **Real bug found:** the donor brain sent the campaign goal with no unit, and Claude read 50,000 sats as $50,000. The prompt now sends `goalSatoshis` and says amounts are in satoshis. Re-checked with real Claude: it now reasons in sats.
+
+**9.17 Agent eval with real Claude: results.** Two sets of 3 runs, Opus 5.5 through the CLI.
+- **Before the fixes:**
+  - every invariant held 3/3;
+  - honest campaigns scored 51–58;
+  - the report with verified payments was rejected 3/3.
+
+  Claude was right to reject it: the eval judged a milestone-1 report ("permits, survey") against milestone 2 ("drill and install the pump"). That was a fixture bug, now fixed.
+- **After the satoshi prompt fix and the fixture fix:**
+  - every invariant held 3/3;
+  - the report is approved 3/3;
+  - the off-topic campaign scores about 15;
+  - honest campaigns still score 50–58, against a threshold of 60.
+
+  The remaining gap is the risk-flag penalty: about 6 specific flags at 10 points each, capped at −30. That is a policy decision left to the owner, and it is recorded in TODO.
+- **Results file:** `docs/AGENT_EVAL_RESULTS.md`, with a findings header.

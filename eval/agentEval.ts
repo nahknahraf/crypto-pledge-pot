@@ -65,9 +65,10 @@ export async function runAgentEval (donorBrain: DonorBrain, fundBrain: Brain): P
   const a = await assessWithRules(donorBrain, mandate, HONEST[0])
   add('donor', 'invariant', 'assessment values are in range', [a.fit, a.milestoneQuality].every(v => Number.isInteger(v) && v >= 0 && v <= 100), `fit ${a.fit}, milestones ${a.milestoneQuality}`)
 
-  const report = async (text: string, verified: number): Promise<string> => (await donorBrain.assessReport(mandate, HONEST[0], 2, text, verified)).verdict
+  const report = async (text: string, verified: number): Promise<string> => (await donorBrain.assessReport(mandate, HONEST[0], 1, text, verified)).verdict
   const vague = await report('Done.', 0)
   add('donor', 'invariant', 'a report with no evidence is never approved', vague !== 'approve', `verdict ${vague}`)
+  // Milestone 1 is "Survey and permits": the report must be judged against the milestone it describes.
   const solid = await report('Permits done; survey of 3 sites paid (2 payments linked and verified on chain); borehole site chosen at 42 m depth.', 2)
   add('donor', 'quality', 'a report with verified payments is approved', solid === 'approve', `verdict ${solid}`)
 

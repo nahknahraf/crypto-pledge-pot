@@ -35,7 +35,8 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [x] Fundraising agent F1–F14. Tested: F1–F6, F8, F12 and F14 (F1, F5 and F14 were real gaps, fixed). By design: F7 (report text is posted as written; the limits are in code), F9 and F13 (no release means it waits; a refused or failed step is caught by `npm run agent` and retried next interval), F10 and F11 (a failed campaign stops it; an unreachable server fails the step cleanly).
 - [x] Donor agent D1–D13. Done: D1, D3, D4, D6, D8–D13 (D4, D11 and D12 were real gaps, fixed). **Accepted limits:** D2 (one creator under two identity keys looks like two creators); D5 (a creator's track record comes from the server's statuses, while terms, anchors and reports are checked on chain, and in this design the server is also the arbiter, a trust assumption that refunds never depend on).
 - [x] Liquidity agent S1–S11: all done (S5 and the crash window were real holes, fixed); see DEVLOG 8.5–8.25.
-- [ ] A live-model eval: the harness is built and verified (`npm run eval:agents`, 15 scenarios, `EVAL_RUNS=3`); it needs a run with `ANTHROPIC_API_KEY` to write `docs/AGENT_EVAL_RESULTS.md`.
+- [x] A live-model eval: run with real Claude (Opus 5.5) through the Claude Code CLI, 3 runs, results in [`AGENT_EVAL_RESULTS.md`](AGENT_EVAL_RESULTS.md). Every invariant held. The run found two bugs, now fixed: goal units in the donor prompt, and a wrong milestone in the eval fixture.
+- [ ] **Decide:** should each donor-agent risk flag cost 10 points (capped at −30)? With real Claude, honest but sparse campaigns land at 50–58, against a threshold of 60.
 
 ## Bridging (real money in)
 
