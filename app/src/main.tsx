@@ -31,8 +31,8 @@ function Header () {
         <a href="#/donor">My donor agent</a>
       </nav>
       {identityKey !== undefined
-        ? <span className="chip" title={identityKey}>● {network === 'testnet' ? 'testnet · ' : ''}{short(identityKey)}</span>
-        : <button className="primary" disabled={connecting || serverNetwork === 'mock'} title={serverNetwork === 'mock' ? 'Disabled in the offline demo' : undefined} onClick={() => { void connect() }}>{connecting ? 'Connecting…' : 'Connect wallet'}</button>}
+        ? <span className="chip" title={identityKey}>● {network === 'testnet' ? 'testnet · ' : network === 'demo' ? 'demo wallet · ' : ''}{short(identityKey)}</span>
+        : <button className="primary" disabled={connecting} title={serverNetwork === 'mock' ? 'Offline demo: a simulated wallet with demo funds' : undefined} onClick={() => { void connect() }}>{connecting ? 'Connecting…' : serverNetwork === 'mock' ? 'Use demo wallet' : 'Connect wallet'}</button>}
     </header>
   )
 }
@@ -60,7 +60,7 @@ function DemoBanner () {
           <div className="story-bar"><div style={{ width: `${(story.step / Math.max(1, story.total)) * 100}%` }} /></div>
         </div>
       )}
-      <span className="small">Offline demo: campaigns and payments are simulated. Wallet actions are disabled, so your real wallet is never contacted.</span>
+      <span className="small">Offline demo: campaigns and payments are simulated. You get a demo wallet with play money, and your real wallet is never contacted.</span>
     </div>
   )
 }

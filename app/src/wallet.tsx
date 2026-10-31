@@ -5,9 +5,10 @@
  *
  * Safety (after a real incident, see docs/DEVLOG.md): the app first asks the
  * server which network it indexes.
- *  - 'mock' (offline demo): the wallet is NEVER contacted. Demo campaigns are
- *    simulated, and a real payment into them could only come back via the
- *    timelocked refund.
+ *  - 'mock' (offline demo): the real wallet is NEVER contacted. Demo campaigns
+ *    are simulated, and a real payment into them could only come back via the
+ *    timelocked refund. Instead the app uses a simulated, funded wallet on the
+ *    demo server's mock chain (demoWallet.ts), so launching and donating work.
  *  - otherwise the wallet's network must match the server's, or nothing happens.
  * Every spending action also asks for an explicit in-app confirmation first,
  * because a wallet with auto-approval turns one click into a payment.
@@ -16,6 +17,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { WalletClient } from '@bsv/sdk'
 import { CryptoPledgePot } from '../../client/cryptoPledgePot'
 import { CryptoPledgePotApi } from '../../client/cryptoPledgePotApi'
+import { demoWalletSubstrate } from './demoWallet'
 
 export const api = new CryptoPledgePotApi(window.location.origin)
 
@@ -35,9 +37,12 @@ interface WalletState {
 
 const Ctx = createContext<WalletState | undefined>(undefined)
 
+/** Set once the server says it is the offline demo: payments are then simulated. */
+let demoMode = false
+
 /** Ask before anything that moves money. Returns false if the user cancels. */
 export const confirmSpend = (what: string): boolean =>
-  window.confirm(`${what}\n\nThis is a real BSV transaction from your wallet. Continue?`)
+  window.confirm(`${what}\n\n${demoMode ? 'Offline demo: a simulated transaction from your demo wallet, no real BSV.' : 'This is a real BSV transaction from your wallet.'} Continue?`)
 
 export function WalletProvider ({ children }: { children: ReactNode }) {
   const [cryptopledgepot, setCryptoPledgePot] = useState<CryptoPledgePot>()
@@ -48,6 +53,7 @@ export function WalletProvider ({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string>()
 
   useEffect(() => { api.health().then(h => setServerNetwork(h.network ?? 'main'), () => setServerNetwork(undefined)) }, [])
+  useEffect(() => { demoMode = serverNetwork === 'mock' }, [serverNetwork])
 
   const connect = useCallback(async () => {
     if (cryptopledgepot !== undefined) return cryptopledgepot
@@ -59,12 +65,20 @@ export function WalletProvider ({ children }: { children: ReactNode }) {
         return undefined
       }
     }
-    if (server === 'mock') {
-      setError('This is the offline demo: campaigns are simulated, so wallet actions are disabled and your wallet is never contacted.')
-      return undefined
-    }
+    demoMode = server === 'mock'
     setConnecting(true)
     try {
+      if (server === 'mock') {
+        // Offline demo: a simulated wallet on the demo server; the real wallet is never contacted.
+        const wallet = new WalletClient(demoWalletSubstrate(window.location.origin))
+        const { publicKey } = await wallet.getPublicKey({ identityKey: true })
+        api.connect(wallet)
+        const client = new CryptoPledgePot(wallet, api)
+        setCryptoPledgePot(client)
+        setIdentityKey(publicKey)
+        setNetwork('demo')
+        return client
+      }
       const wallet = new WalletClient('auto')
       await wallet.waitForAuthentication({})
       const { network } = await wallet.getNetwork({})
@@ -80,6 +94,7 @@ export function WalletProvider ({ children }: { children: ReactNode }) {
       setNetwork(network)
       return client
     } catch (e) {
+      if (server === 'mock') { setError(`The demo wallet is unavailable: ${(e as Error).message}`); return undefined }
       setError(`Could not reach a BRC-100 wallet. Open and unlock BSV Desktop, then retry. (${(e as Error).message})`)
       return undefined
     } finally {

@@ -2,8 +2,9 @@
  * Offline demo: the real CryptoPledgePot server on wallet-toolbox's mock chain, seeded
  * with campaigns in every state by real (mock-chain) wallets running the same
  * client code as the browser. Lets you browse the UI and API with no wallet
- * or funds. Browser wallet actions need `npm run server` (mainnet) instead,
- * because a real wallet's transactions do not exist on the mock chain.
+ * or funds. A real wallet's transactions do not exist on the mock chain, so
+ * "Connect wallet" in the browser opens a simulated, funded demo wallet
+ * instead (server/demoWallet.ts); real wallets need `npm run server`.
  *
  *   npm run demo        # API on :8787, then `npm run app` → http://localhost:5174
  */
@@ -18,8 +19,10 @@ import { createDataProviderApp, serveDataProvider } from '../agent/dataProvider'
 import { createAgentApp } from '../agent/http'
 import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../agent/ledger'
 import { createCappedPayer } from '../agent/pay402'
+import express from 'express'
 import { createCryptoPledgePotApp } from './app'
 import { CryptoPledgePotDb } from './db'
+import { createDemoWalletRouter } from './demoWallet'
 
 const port = Number(process.env.PORT ?? 8787)
 const DAY = 86_400
@@ -32,7 +35,15 @@ async function main (): Promise<void> {
   const realNow = (): number => Math.floor(Date.now() / 1000)
   let offset = 0 // seed campaigns "in the past" by shifting the server clock
   const app = createCryptoPledgePotApp({ wallet: arbiter, db, network: 'mock', chainTracker: chain.chainTracker, now: () => realNow() + offset })
-  await new Promise<void>(resolve => { app.listen(port, () => resolve()) })
+  const server = express()
+  // One simulated, funded wallet per browser visitor (mock chain only).
+  server.use('/api/demo-wallet', createDemoWalletRouter(async () => {
+    const w = await chain.makeWallet()
+    await chain.fund(w, 10_000_000)
+    return w
+  }))
+  server.use(app)
+  await new Promise<void>(resolve => { server.listen(port, () => resolve()) })
   const url = `http://localhost:${port}`
 
   const people = await Promise.all(Array.from({ length: 6 }, async () => await chain.makeWallet()))
