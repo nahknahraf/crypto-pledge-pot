@@ -1778,3 +1778,72 @@ Full suite: **149 passing** (23 files); both type-checks clean.
 **What broke:** nothing. While checking, I found that the old script's "milestone one: 40 %" was right for the mainnet agent (2 milestones). Only the offline AirWatch story uses 30/40/30. I corrected my superseded note accordingly.
 
 **Merge:** with 156 tests passing, both typechecks clean and the app build OK, `master` was fast-forwarded to `docs-plans`. `cross-chain-swap`, `donor-agent` and `judging-prep` were already contained in `master`. Nothing was pushed.
+
+## Step 8: the API3 price guard (branch `feature/api3-price-guard`)
+
+**What:** the USDC → BSV swap's Solidity HTLC now checks the swap rate on
+chain, for the API3 track "Real-world data. Checked by your contract."
+
+- `evm/contracts/PriceGuardedHTLC.sol` extends `HashedTimelockERC20`.
+  `lockWithPrice(…, quotedSats, timestamp, data, signature)` verifies a
+  BSV/USD response signed by CoinPaprika's Airnode on AirnodeHub:
+  - the signer and the request hash, both stored at deployment, never taken
+    from the caller;
+  - the response's age (5 min) and the price's own age (15 min);
+  - the rate: ±2% of `fairSats`.
+  The plain `lock()` reverts. Every check is stored in `priceChecks[id]` and
+  emitted as `PriceChecked`.
+- `evm/contracts/api3/` holds API3's `AirnodeV2Attestation`, `ProjectedJson`
+  and `IsoTimestamp`, copied unchanged from the hackathon starter (MIT). They
+  compile with OpenZeppelin 5.6.1 and Solady 0.1.26, which are in a new
+  `evm/package.json`. `compile.cjs` now resolves imports like the starter's
+  remappings and walks sub-folders.
+- `swap/api3Price.ts` provides:
+  - the request (with a projection to `price` and `updatedAt`);
+  - `deriveRequestHash` (ported from the starter);
+  - fetching, with an x402 paying fetch for Base Sepolia aUSD;
+  - off-chain verification;
+  - test signing.
+- **Swap integration:**
+  - The liquidity agent can quote from a signed price (`priceSource`,
+    `spreadBps`). The quote carries the proof.
+  - `DonorSwap` passes `quotedSats` and `priceProof` to `lock`.
+  - The viem adapter calls `lockWithPrice` when `priceGuarded`.
+  - `evm:deploy` deploys the guarded contract with `BRIDGE_PRICE_GUARD=api3`.
+- `npm run api3:price` prints the request and its hash. With
+  `API3_PAYER_KEY` it fetches a live, paid, signed price.
+- `docs/API3_CROSSCHAIN_SWAP_GUARD.md` is the write-up for the judges.
+
+**Why this design:**
+- **AirnodeHub's signed responses instead of a push feed:** API3's free
+  first-party Nodary feeds have no BSV/USD (`/BSV~1USD/value` does not
+  exist). The AirnodeHub resolver points to CoinPaprika and CoinGecko.
+- **CoinPaprika:** it is cheaper and includes `last_updated`, so the contract
+  can check the price's own age.
+- **Tolerance in both directions:** a too-high quote is also a sign of bad
+  data on one side.
+- **USDC = 1 USD:** a stated assumption. A free Nodary USDC/USD response could
+  add a depeg check, and the contract can already read Nodary's millisecond
+  timestamps.
+
+**Tests:** `test/api3.guard.evm.test.ts` has 9 tests on Anvil:
+- the guard's checks: fair passes; ±3%, stale response, stale price, wrong
+  signer, another request, tampered data and plain `lock()` all refused;
+- **a real response signed by API3's Nodary Airnode**, recorded as a fixture
+  and verified by the contract on a chain started at its timestamp, plus a
+  check that our request hash equals the Airnode's;
+- the full swap with an honest agent (passes) and a greedy one (refused
+  before the donor's USDC move).
+
+The existing bridge tests still pass.
+
+**What broke:**
+- The local `node_modules` predated the bridge commit (no viem, solc or
+  Anvil). Installed them with pnpm, keeping its layout and the working
+  `better-sqlite3`.
+- The adapter decoded a guarded contract's `UseLockWithPrice` as an unknown
+  error, because it used the base ABI. It now uses the guarded ABI, a
+  superset, for both paths.
+
+**Not run yet:** a paid live fetch and a Base Sepolia deployment. Both need
+funded testnet keys.

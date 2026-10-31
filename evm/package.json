@@ -1,0 +1,18 @@
+{
+  "name": "crypto-pledge-pot-evm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Solidity sources of the EVM half of the swap and their compile-time libraries (API3 AirnodeHub attestation needs OpenZeppelin and Solady). The compiled artifact evm/artifacts.json is committed, so the app and tests do not need this; the x402 client is only needed to pay for live AirnodeHub calls.",
+  "scripts": {
+    "compile": "node compile.cjs"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "solady": "0.1.26"
+  },
+  "dependencies": {
+    "@x402/evm": "^2.28.0",
+    "@x402/fetch": "^2.28.0"
+  },
+  "license": "MIT"
+}

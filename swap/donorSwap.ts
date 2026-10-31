@@ -63,7 +63,8 @@ export class DonorSwap {
   /** Lock the USDC (refundable to the donor after T1) and tell the agent; returns the agent's BSV lock. */
   async lockAndRequest (lp: LiquidityAgent, r: SwapRecord): Promise<SwapRecord> {
     const refundAfter = Math.max((await this.source.now()) + this.options.sourceWindow, r.quote.minSourceRefundAfter)
-    r.sourceHtlcId = await this.usdc.lock({ receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter })
+    // On a price-guarded chain the contract re-checks the quoted sats against the signed API3 price in the quote.
+    r.sourceHtlcId = await this.usdc.lock({ receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter, quotedSats: r.quote.sats, priceProof: r.quote.priceProof })
     r.state = 'source-locked'
     r.steps.push(`locked ${formatUsdc(r.quote.usdc)} on ${this.source.name}, refundable to you after the timeout`)
     try {

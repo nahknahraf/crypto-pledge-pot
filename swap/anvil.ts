@@ -36,11 +36,17 @@ export async function freePort (): Promise<number> {
   })
 }
 
-export async function startAnvil (port?: number): Promise<Anvil> {
+/**
+ * `opts.timestamp`: the genesis block's time (unix seconds). Tests that verify a
+ * real, recorded oracle response start the chain at that response's time, so
+ * the contract's freshness checks see it as fresh.
+ */
+export async function startAnvil (port?: number, opts: { timestamp?: number } = {}): Promise<Anvil> {
   port ??= await freePort()
   const bin = anvilBinary()
   if (bin === undefined) throw new Error('anvil not found: npm install (dev dependency @foundry-rs/anvil) or set ANVIL_BIN')
-  const proc: ChildProcess = spawn(bin, ['--port', String(port), '--silent', '--chain-id', '31337'], { stdio: 'ignore' })
+  const args = ['--port', String(port), '--silent', '--chain-id', '31337', ...(opts.timestamp !== undefined ? ['--timestamp', String(opts.timestamp)] : [])]
+  const proc: ChildProcess = spawn(bin, args, { stdio: 'ignore' })
   const rpcUrl = `http://127.0.0.1:${port}`
   const exited = new Promise<void>(resolve => proc.once('exit', () => resolve()))
   for (let i = 0; i < 100; i++) {

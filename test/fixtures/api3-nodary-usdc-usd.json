@@ -1,0 +1,20 @@
+{
+  "note": "A real response that the Nodary Airnode v2 (API3 AirnodeHub, first-party) signed. Fetched 2026-10-31T01:47:12.000Z with POST https://airnode-nodary.fly.dev/ and the request below. Used to check that PriceGuardedHTLC verifies genuine API3 signatures.",
+  "request": {
+    "operation": "latestFeeds",
+    "parameters": {
+      "name": "USDC/USD"
+    },
+    "responseProjection": {
+      "price": "/USDC~1USD/value",
+      "updatedAt": "/USDC~1USD/timestamp"
+    }
+  },
+  "response": {
+    "airnode": "0xE70f1e8b22a21e4Bb5188918a3033341b281E4c0",
+    "requestHash": "0x1e48b74ff3f1ecc03021f5995066862e7e2d623c4e5f6e23e1f6fb2061205378",
+    "timestamp": "1793411232",
+    "data": "{\"price\":1.001,\"updatedAt\":1793411221497}",
+    "signature": "0xf5cd7fc020af7f396abb3fb6aec599f4049b43cd7b1268dbbdb950702940900229588ffda5cf0ef7656ea0b025d200391b36c21a1400941c9d53b7fcc6b4bd3f1b"
+  }
+}

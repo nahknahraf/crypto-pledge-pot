@@ -17,6 +17,7 @@
 import type { WalletInterface } from '@bsv/sdk'
 import { secretFromClaim } from '../core/swap'
 import { lockSats, newSwapKey, refundSats, type BsvLock, type SpendFinder } from './bsv'
+import { readPrice, type SignedResponse } from './api3Price'
 import { formatUsdc, USDC, type SourceAccount, type SourceChain } from './usdcChain'
 
 export interface LiquidityConfig {
@@ -32,6 +33,13 @@ export interface LiquidityConfig {
   minSourceWindow: number
   /** Our BSV timeout ends this long before the donor's (seconds): the donor's time to claim safely. */
   safetyMargin: number
+  /**
+   * Price from API3 instead of the fixed satsPerUsdc: a signed BSV/USD response (AirnodeHub). The quote is
+   * derived from it and carries it, so the donor can hand it to a PriceGuardedHTLC, which re-checks the rate.
+   */
+  priceSource?: () => Promise<SignedResponse>
+  /** With a priceSource: the agent's margin below the market rate, in basis points (default 50 = 0.5%). */
+  spreadBps?: number
 }
 
 export const DEFAULT_LIQUIDITY: LiquidityConfig = { satsPerUsdc: 21_500, maxUsdc: 500 * USDC, feeReserve: 5_000, quoteValidity: 120, minSourceWindow: 4 * 3600, safetyMargin: 2 * 3600 }
@@ -47,6 +55,8 @@ export interface Quote {
   expiresAt: number
   /** The donor's USDC lock must not refund before this. */
   minSourceRefundAfter: number
+  /** The signed API3 BSV/USD response the quote is based on (with a priceSource). */
+  priceProof?: SignedResponse
 }
 
 interface Swap { quote: Quote, sourceHtlcId?: string, lock?: BsvLock, senderKeyID?: string, state: 'quoted' | 'locked' | 'settled' | 'refunded' | 'rejected', note?: string }
@@ -73,11 +83,18 @@ export class LiquidityAgent {
     if (!Number.isSafeInteger(usdc) || usdc <= 0) throw new Error('amount must be positive')
     if (usdc > this.config.maxUsdc) throw new Error(`above this agent's limit of ${formatUsdc(this.config.maxUsdc)}`)
     if (!/^0[23][0-9a-f]{64}$/.test(donorBsvKey)) throw new Error('donor key must be a compressed public key')
-    const sats = Math.floor((usdc / USDC) * this.config.satsPerUsdc)
+    let satsPerUsdc = this.config.satsPerUsdc
+    let priceProof: SignedResponse | undefined
+    if (this.config.priceSource !== undefined) {
+      priceProof = await this.config.priceSource()
+      // 1 USDC = 1 USD; sats per USD = 1e8 / (USD per BSV); keep the agent's spread.
+      satsPerUsdc = (1e8 / readPrice(priceProof).usd) * (1 - (this.config.spreadBps ?? 50) / 10_000)
+    }
+    const sats = Math.floor((usdc / USDC) * satsPerUsdc)
     const openExposure = [...this.swaps.values()].filter(s => s.state === 'quoted' || s.state === 'locked').reduce((t, s) => t + s.quote.sats, 0)
     if ((await this.spendable()) - openExposure - sats < this.config.feeReserve) throw new Error('not enough BSV inventory for this swap right now')
     const now = await this.source.now()
-    const q: Quote = { id: `q${this.swaps.size + 1}`, usdc, sats, lpAddress: this.usdc.address, donorBsvKey, expiresAt: now + this.config.quoteValidity, minSourceRefundAfter: now + this.config.minSourceWindow }
+    const q: Quote = { id: `q${this.swaps.size + 1}`, usdc, sats, lpAddress: this.usdc.address, donorBsvKey, expiresAt: now + this.config.quoteValidity, minSourceRefundAfter: now + this.config.minSourceWindow, ...(priceProof !== undefined ? { priceProof } : {}) }
     this.swaps.set(q.id, { quote: q, state: 'quoted' })
     this.say(`quoted ${formatUsdc(usdc)} → ${sats.toLocaleString('en-US')} sats (${q.id})`)
     return q

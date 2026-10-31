@@ -10,6 +10,7 @@
  * Amounts are integer micro-USDC (6 decimals, like USDC on Base).
  */
 import { Hash, Utils } from '@bsv/sdk'
+import type { SignedResponse } from './api3Price'
 
 export interface SourceHtlc {
   id: string
@@ -26,7 +27,11 @@ export interface SourceHtlc {
 export interface SourceAccount {
   address: string
   balance: () => Promise<number>
-  lock: (a: { receiver: string, amount: number, hashlock: string, refundAfter: number }) => Promise<string>
+  /**
+   * Lock tokens for the receiver. On a price-guarded chain (PriceGuardedHTLC) the lock also needs the sats the
+   * liquidity agent quoted and a signed API3 price response; the contract refuses a quote too far from that price.
+   */
+  lock: (a: { receiver: string, amount: number, hashlock: string, refundAfter: number, quotedSats?: number, priceProof?: SignedResponse }) => Promise<string>
   claim: (id: string, secret: string) => Promise<void>
   refund: (id: string) => Promise<void>
 }
