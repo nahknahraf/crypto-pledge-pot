@@ -56,3 +56,23 @@ a refreshed usage note add +1.
 Done since this report was first written: the README pitch and the
 feature → BRC/package → code table; the usage note's status (both agents,
 swaps, real data, 149 tests).
+
+## Added since (31 October 2026, branch `finja-and-louisas-branches`)
+
+The scores above are not re-rated; this is what was built after them.
+**237 tests** pass now, both type-checks clean.
+
+- **NGO payment plans and the compliance agent:** a signed plan per
+  milestone, releases gated on SPV-checked spending, grace period, pro-rata
+  repayment, breach records and early refunds (39 tests).
+- **Donor agent:** campaign search from a few words; giving plans on a
+  schedule that ask the donor when nothing fits (24 more tests).
+- **Real EVM side of the swap** on a local chain (Solidity HTLC + viem), and
+  the **API3 price guard**: the contract checks the rate against signed
+  BSV/USD data; judges can re-run a tamper test with their own response
+  (13 tests). Base Sepolia is still to do.
+- **zk-SNARK agent authorization** at the paid data API (Groth16, checked
+  before payment; 5 tests with snarkjs mocked, no real proof generated yet).
+
+None of these changes the gate verdict: the mainnet run R1, the link table
+and the video are still open.

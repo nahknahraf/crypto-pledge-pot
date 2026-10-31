@@ -10,9 +10,13 @@ On CryptoPledgePot, donations go into **sCrypt escrow contracts**, not to the cr
 Creators are paid **milestone by milestone**, as the goal is met and donors
 vote. If a campaign fails, donors **take their sats back from the script
 itself**. Fees are a fraction of a cent, so tiny donations are practical.
-Two AI agents use it: a **fundraising agent** that raises its own budget and
-pays for data per call, and a **donor agent** that gives on someone's behalf
-after doing the due diligence.
+Four AI agents use it: a **fundraising agent** that raises its own budget and
+pays for data per call, a **donor agent** that gives on someone's behalf
+after doing the due diligence, a **compliance agent** that holds NGOs to a
+signed payment plan, and a **liquidity agent** that swaps USDC from another
+chain into sats. On the other chain, the swap's Solidity lock checks the rate
+against **API3** signed data; at the paid data API, agents can be required to
+prove with a **zk-SNARK** that they are enrolled.
 
 ![Campaign page](screenshots/funded.png)
 
@@ -38,7 +42,18 @@ after doing the due diligence.
 | Agent pays per API call | BRC-121 HTTP 402 (`@bsv/402-pay`), capped payer | `agent/pay402.ts`, `agent/dataProvider.ts` |
 | Budget top-ups to agents | BRC-29 payments | `agent/http.ts`, `donor/http.ts` |
 | Donor's pledges tracked in their wallet | BRC-46 baskets with custom instructions | `client/cryptoPledgePot.ts` |
-| Public, rebuildable records | OP_RETURN (campaigns, memos, agent report hashes) | `core/campaign.ts` |
+| Public, rebuildable records | OP_RETURN (campaigns, memos, agent report hashes, payment-plan breach records) | `core/campaign.ts` |
+| NGO payment plan signed into the campaign | BRC-100 `createSignature` over the plan hash, verified by anyone | `core/paymentPlan.ts`, `client/cryptoPledgePot.ts` |
+| Plan spending checked by SPV | BEEF of the NGO's payments to its plan's payees | `core/compliance.ts`, `server/app.ts` |
+
+**Beyond BSV**
+
+| Feature | Technology | Where |
+|---|---|---|
+| The other chain's half of a swap | Solidity HTLC (`HashedTimelockERC20`), viem, Foundry's Anvil locally | `evm/contracts/`, `swap/evmChain.ts` |
+| Fair swap rate, checked on chain | API3 AirnodeHub, Airnode v2 signed responses (CoinPaprika BSV/USD), verified in `PriceGuardedHTLC` | `evm/contracts/PriceGuardedHTLC.sol`, `swap/api3Price.ts` |
+| Proof for judges | deployment record, Sourcify verification, tamper test as `eth_call`s | `swap/api3Proof.ts`, `npm run api3:judge` |
+| Only enrolled agents at a paid API | zk-SNARK (Groth16), circom circuit with a Poseidon commitment, snarkjs | `circuits/agentSecret.circom`, `agent/zkAuth.ts` |
 
 Team: Farhan · Finja · Louisa
 
@@ -46,6 +61,9 @@ Team: Farhan · Finja · Louisa
 **Use cases:** 20 scenarios for agents raising and giving: [`docs/USE_CASES.md`](USE_CASES.md). The donor agent: [section 6](#6-the-donor-agent-an-ai-that-gives-for-you).
 **Self-assessment against the track criteria:** [`docs/JUDGING_REPORT.md`](JUDGING_REPORT.md).
 **AI agent payments:** an autonomous agent raises its own budget on CryptoPledgePot and spends it on a pay-per-call API, one micropayment per call. See [section 5](#5-ai-agent-service-agentic-payments).
+**NGO payment plans and the compliance agent:** [section 6b](#6b-ngo-payment-plans-and-the-compliance-agent) and [`docs/NGO_PAYMENT_PLAN.md`](NGO_PAYMENT_PLAN.md).
+**API3 track** (the swap contract checks the rate against signed data): [section 7b](#7b-api3-price-guard-the-contract-checks-the-rate) and [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](API3_CROSSCHAIN_SWAP_GUARD.md).
+**zk-SNARK agent authorization:** [section 5](#5-ai-agent-service-agentic-payments) and [`docs/ZK_AGENT_AUTH.md`](ZK_AGENT_AUTH.md).
 
 ---
 
@@ -85,6 +103,7 @@ from the chain: campaigns and memos are `OP_RETURN` records (`core/campaign.ts`)
 | `funded` | deadline passed, goal met | milestone 1 releases; later milestones need a creator update + YES from donors holding > 50% of pledged sats |
 | `failed` | deadline passed, goal missed | arbiter co-signs immediate refunds |
 | `completed` | all milestones released | nothing left in escrow |
+| `breached` | an NGO's off-plan spending was not fixed within the grace period | no more releases; the arbiter co-signs early refunds of everything still escrowed |
 | any | after `refundAfter` | donors reclaim whatever is still escrowed, **alone** |
 
 ### Trust model (honest version)
@@ -228,7 +247,14 @@ server); the share command serves only the built app.
 | `client/cryptoPledgePot.ts` · `client/cryptoPledgePotApi.ts` | wallet flows · HTTP/AuthFetch API client |
 | `server/` | indexer + arbiter (`app.ts`, `policy.ts`, `db.ts`), `main.ts`, `demo.ts` |
 | `app/` | React frontend |
-| `agent/` | AI agent service: loop (`agent.ts`), Claude brain (`brain.ts`), capped 402 payer (`pay402.ts`), spend ledger, paid data API, status endpoint |
+| `core/paymentPlan.ts` · `core/compliance.ts` | NGO payment plan (validation, hash, signature) · spending checks, grace period, breach |
+| `agent/` | AI agent service: loop (`agent.ts`), Claude brain (`brain.ts`), capped 402 payer (`pay402.ts`), spend ledger, paid data API, status endpoint, zk-SNARK authorization (`zkAuth.ts`) |
+| `circuits/` · `scripts/deriveAgentCommitment.ts` | circom circuit for agent enrollment · its public commitment |
+| `donor/` | donor agent: due diligence (`diligence.ts`, `screen.ts`, `score.ts`), brains, campaign search (`search.ts`), giving plans (`givingPlan.ts`), memos and inbox, local HTTP API |
+| `compliance/` | compliance agent: notices, reminders, breach records (`complianceAgent.ts`, `main.ts`) |
+| `swap/` | liquidity agent, donor-side swap, simulated and EVM source chains, API3 price and judge proof, EVM deploy and verify |
+| `evm/` | Solidity: `HashedTimelockERC20`, `PriceGuardedHTLC`, the API3 libraries; `compile.cjs` → committed `artifacts.json` |
+| `deployments/` | `api3-price-guard.json`, written by `npm run evm:deploy` (after the Base Sepolia deployment) |
 | `test/pledge.script.test.ts` · `test/cryptoPledgePot.e2e.test.ts` | contract tests · end-to-end flows |
 | `docs/DEVLOG.md` | engineering log: decisions, what broke, fixes |
 | `overlay/`, `client/token.ts`, `web/`… | the BSV-21 token kit this project started from (still tested) |
@@ -324,13 +350,13 @@ to enrolled agents, without learning or storing their secret.
 
 Setup (circuit, trusted setup, keys): [`docs/ZK_AGENT_AUTH.md`](ZK_AGENT_AUTH.md).
 
-**Tests** (offline, real wallet-toolbox wallets):
+**Tests** (offline, real wallet-toolbox wallets; 36 in all):
 - `test/agent.pay402.test.ts`: price cap and allow-list.
 - `test/agent.brain.test.ts`: hostile plans are sanitized; refusals fail safe.
 - `test/agent.e2e.test.ts`: the full cycle with exact sat accounting, a greedy
   brain held to budget, an overpriced API refused, and the underfunded case.
 - `test/agent.http.test.ts`: status, ledger, top-ups.
-- `test/agent.zkAuth.test.ts`: proof headers never contain the secret, a matching commitment passes, a mismatched one is refused, and the headers go out with the first BRC-121 request.
+- `test/agent.zkAuth.test.ts` (snarkjs mocked: the wiring, not a real proof): proof headers never contain the secret, a matching commitment passes, a mismatched one is refused, and the headers go out with the first BRC-121 request.
 
 Build log: `docs/DEVLOG.md` (agent steps 0–6).
 
@@ -359,6 +385,37 @@ terms (budget, interests, limits), and does the due diligence.
 - **A 0–100 score with reasons.** Campaign text that tries to instruct AI
   agents **disqualifies** the campaign.
 
+- **Payment plans:** it votes NO on more money for an NGO that has not
+  accounted for the last tranche, counts a breach against the creator's
+  record, and reclaims escrow from breached campaigns.
+
+**Find campaigns from a few words:** "children in need" → the open campaigns
+that fit, best first, each with a two-sentence summary of what it does, how
+far it is funded, how long is left, and warnings from code (e.g. text that
+tries to steer AI agents). Claude ranks and summarises when
+`ANTHROPIC_API_KEY` is set; otherwise an offline keyword and theme matcher is
+used. The model can only pick campaigns from the index.
+
+```bash
+npm run donor:search -- children in need                 # from the terminal (read-only, no wallet)
+```
+
+**Giving plans:** "every month for a year, 5000 sats to children in need; if
+nothing fits, ask me". The agent turns this into a draft you confirm, then:
+
+- **Good match** (≥ 70% relevance): it gives on its own, within your
+  mandate's hard rules, due diligence and budget.
+- **Only a weaker match:** it does what the plan says. It asks you (the
+  default, with the top options), gives to the closest match on its own, or
+  skips.
+- **Nothing similar:** it asks you, or skips and tells you. A question you
+  don't answer within 72 h is skipped, or goes to the closest match if the
+  plan says so.
+
+In co-pilot, each installment is a proposal you approve. Messages and
+questions appear on the **My donor agent** page. With `DONOR_NOTIFY_URL` they
+are also pushed to your phone, e.g. through an `https://ntfy.sh/<topic>` URL.
+
 ```bash
 cp donor-mandate.example.json data/donor-mandate.json   # your terms; "mode": "copilot" or "autopilot"
 npm run donor                                            # your agent, on 127.0.0.1:8792 (personal: never exposed)
@@ -367,7 +424,44 @@ npm run app                                              # → My donor agent
 
 ![Donor agent, co-pilot](screenshots/donor-copilot.png)
 
-Design: [`docs/DONOR_AGENT_PLAN.md`](DONOR_AGENT_PLAN.md).
+**Tests:** 48 (`donor.rules`, `donor.e2e`, `donor.http`, `donor.search`,
+`donor.givingPlan`). Design: [`docs/DONOR_AGENT_PLAN.md`](DONOR_AGENT_PLAN.md).
+
+---
+
+## 6b. NGO payment plans and the compliance agent
+
+NGOs sign a **payment plan** before launch: for each milestone, the budget
+lines, who gets paid and what share. They also accept a 10% tolerance, 30 days
+to report and a 7-day grace period. The plan is fixed into the campaign id and
+every escrow, and the creator's signature over it is checked by anyone.
+
+- After a release, the NGO pays vendors from its wallet (`payPlanLine`,
+  checked by SPV) or reports auditor-signed invoices.
+- **The next milestone is co-signed only once the last one's spending matches
+  the plan.**
+- Off-plan spending starts a 7-day grace period: fix it, or pay the
+  unaccounted sats back to the donors pro rata, in one transaction.
+- After the grace period the campaign is **in breach**: no more releases, and
+  early refunds of all remaining escrow. The compliance agent writes a
+  breach record on chain.
+
+The arbiter enforces these rules even if the compliance agent is down; the
+agent tells the NGO what to spend and by when, sends reminders, opens the
+grace period publicly and notifies donors at a breach. The web app has a plan
+builder (Create), a compliance view and repayments (Campaign page).
+
+```bash
+npm run compliance       # watches every plan campaign: notices at http://127.0.0.1:8793/api/compliance
+```
+
+**What the chain cannot do:** money already released is in the NGO's wallet,
+and no script can pull it back. The plan adds a repayment window, a permanent
+breach record, a worse track record with every donor agent, and signed terms
+as the basis for a claim.
+
+**Tests:** 39 (`paymentPlan`, `paymentPlan.e2e`, `compliance`,
+`compliance.e2e`). Design and limits: [`docs/NGO_PAYMENT_PLAN.md`](NGO_PAYMENT_PLAN.md).
 
 ---
 
@@ -393,12 +487,38 @@ both sides complete, or each refunds its own money after its timeout.
 
 ```bash
 npm run demo:swap      # "Fay has only USDC": narrated, offline, ~30 s (DEMO_PACE_S=2)
+npm run demo:bridge    # the same with a real Solidity HTLC on a local EVM chain (Anvil)
 ```
 
 **Honest scope:** the BSV side is real (sCrypt, real wallets, the mock
-chain validates every script). **The USDC side is a simulated HTLC ledger**,
-behind a `SourceChain` interface a real viem/Base adapter can replace (plan:
-[`docs/CROSS_CHAIN_PLAN.md`](CROSS_CHAIN_PLAN.md)).
+chain validates every script). The USDC side has two implementations behind
+one `SourceChain` interface: a simulated HTLC ledger (`demo:swap`) and a
+**real Solidity HTLC** (`evm/contracts/HashedTimelockERC20.sol`) driven with
+viem on a local EVM chain (`demo:bridge`, `swap/evmChain.ts`). A public
+testnet is not run yet. Plans: [`docs/CROSS_CHAIN_PLAN.md`](CROSS_CHAIN_PLAN.md),
+[`docs/BRIDGING_PLAN.md`](BRIDGING_PLAN.md).
+
+### 7b. API3 price guard: the contract checks the rate
+
+Hash locks make a swap atomic, not fair. `PriceGuardedHTLC` closes that gap:
+the donor's USDC can only be locked if the sats the liquidity agent quoted are
+within ±2% of a BSV/USD price that CoinPaprika's Airnode on **API3
+AirnodeHub** signed moments ago.
+
+- The contract verifies the Airnode v2 signature against the Airnode address
+  and request hash fixed at deployment, then the response's and the price's
+  age, then the rate. There is no owner and no unchecked `lock()`.
+- The liquidity agent pays 0.001 aUSD per signed price (x402) and quotes from
+  it, so an honest quote always passes; a greedy one never locks the donor's
+  money.
+- A real Nodary-signed API3 response passes the same verification code.
+- **Proof for judges:** `npm run api3:judge` sends a judge's own signed
+  response and four manipulations to the deployed contract as free
+  `eth_call`s: 1 accepted, 4 rejected (`NotSignedByAirnode` ×3,
+  `RateOutsideTolerance`). `--local` runs it offline on Anvil.
+
+**Tests:** 13 (`api3.guard.evm`, `api3.proof.evm`). Details, design decisions
+and the judges' guide: [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](API3_CROSSCHAIN_SWAP_GUARD.md).
 
 ### Known limitations
 - Not yet exercised with a real BSV Desktop wallet on mainnet; the identical
@@ -411,6 +531,13 @@ behind a `SourceChain` interface a real viem/Base adapter can replace (plan:
   reached 35 KB, so paid APIs (and any proxy in front) need a raised header
   limit (`serveDataProvider` uses 1 MB).
 - The arbiter is a single key; an M-of-N guardian set is the next step.
+- `PriceGuardedHTLC` is not deployed on Base Sepolia yet, and no paid live
+  AirnodeHub fetch has run (both need testnet keys).
+- zk-SNARK proofs are not bound to a request, so one can be replayed while
+  the commitment is enrolled; the circuit needs its own trusted setup.
+- Money an NGO has already been paid cannot be pulled back by a script; a
+  payment plan makes breaches public and refundable only for what is still
+  escrowed.
 - If a refund or release is not reported to `/api/spends`, the index stays
   stale until someone reports it; a chain watcher (Arcade/WoC spent lookups)
   would close that gap.

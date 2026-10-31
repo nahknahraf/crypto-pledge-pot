@@ -8,6 +8,8 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [ ] Record the video ([`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md)).
 - [ ] Point ngrok at port 8081, not 80.
 - [ ] Decide whether to keep the rate limits (asked, not answered).
+- [ ] API3 track: deploy `PriceGuardedHTLC` on Base Sepolia, `npm run evm:verify`, run `npm run api3:judge` with a live response, commit `deployments/api3-price-guard.json` and fill in the address in [`API3_CROSSCHAIN_SWAP_GUARD.md` § 0.1](API3_CROSSCHAIN_SWAP_GUARD.md). Needs Base Sepolia ETH and aUSD from the AirnodeHub faucet.
+- [ ] Record the API3 add-on clip ([`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md), last section).
 
 ## Edge cases: server and contracts
 
@@ -35,6 +37,8 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [ ] Donor agent D1–D13. First D3, D4, D5 (the chain beats a lying server; needs code). D10 is partly done: the agent-addressing rule now runs in code for every brain, over the title, the description and the milestone titles, plus reports.
 - [ ] Liquidity agent S1–S11. S4 (LP restart) needs **persisted swap state**: today it lives in memory only. S10 needs confirmations on the source chain.
 - [ ] A live-model eval: 20 scenarios × 3 runs, saved to `AGENT_EVAL_RESULTS.md`.
+- [ ] zk-SNARK authorization: bind each proof to the request (a nonce or the request hash as a public input) so it cannot be replayed; build the circuit and keys in CI or document a reproducible setup.
+- [ ] Compliance agent: run it against a mainnet campaign with a payment plan.
 
 ## Bridging (real money in)
 

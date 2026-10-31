@@ -25,13 +25,13 @@ and refuses the lock if the rate is more than 2% off or the data is stale.
 | | |
 |---|---|
 | Network | Base Sepolia (chain id 84532) |
-| `PriceGuardedHTLC` | _pending deployment: `npm run evm:deploy` writes it to [`deployments/api3-price-guard.json`](../deployments/api3-price-guard.json)_ |
+| `PriceGuardedHTLC` | _pending deployment: `npm run evm:deploy` writes it to `deployments/api3-price-guard.json`_ |
 | Deploy transaction | _pending_ |
 | Source | verified on Sourcify (`npm run evm:verify`), so Blockscout and Basescan show it |
 | Airnode it trusts | CoinPaprika on AirnodeHub, `0xB8b7816a39A0bF55eF2ae9A282A1502ce35ff732` |
 | Request it accepts | `0xd38b25988cb891a7b9cdc8d37a34b6c759156c8e1c42c7f205f91ae7cf057baf` = `getTickersById(bsv-bitcoin-sv, USD)` with the `price`/`updatedAt` projection |
 
-[`deployments/api3-price-guard.json`](../deployments/api3-price-guard.json)
+`deployments/api3-price-guard.json`
 is the machine-readable record: network, address, deploy transaction, block,
 settings and a public RPC. `npm run api3:judge` does not trust it: it reads
 `airnode`, `requestHash` and `maxDeviationBps` back from the chain and stops
