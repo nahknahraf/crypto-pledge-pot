@@ -1,0 +1,30 @@
+{
+  "contract": "PriceGuardedHTLC",
+  "network": "Base Sepolia",
+  "chainId": 84532,
+  "rpcUrl": "https://sepolia.base.org",
+  "address": "0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673",
+  "deployTx": "0xae6376a077b68dcd9f217361fd0de7895d128ea0e98b120fbf1a5c4082f545da",
+  "blockNumber": 52629532,
+  "deployer": "0x6439E2623B641e3d1f890A66c6Fcf6832fBC2991",
+  "deployedAt": "2026-10-31T11:56:18.855Z",
+  "explorer": "https://sepolia.basescan.org/address/0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673",
+  "token": "0x6f97f5190fc3ca133f76350ca7350c49bf7cc5cb",
+  "testToken": true,
+  "airnode": "0xB8b7816a39A0bF55eF2ae9A282A1502ce35ff732",
+  "requestHash": "0xd38b25988cb891a7b9cdc8d37a34b6c759156c8e1c42c7f205f91ae7cf057baf",
+  "request": {
+    "operation": "getTickersById",
+    "parameters": {
+      "coin_id": "bsv-bitcoin-sv",
+      "quotes": "USD"
+    },
+    "responseProjection": {
+      "price": "/quotes/USD/price",
+      "updatedAt": "/last_updated"
+    }
+  },
+  "maxDeviationBps": 200,
+  "maxResponseAge": 300,
+  "maxPriceAge": 900
+}

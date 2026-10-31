@@ -9,6 +9,9 @@
  * 200 = 2%) away from it. API3_AIRNODE / API3_REQUEST_HASH override the
  * signer and request (defaults: CoinPaprika, BSV_USD_REQUEST).
  *
+ * API3_TEST_TOKEN=1 also deploys TestUSDC (anyone can mint it) and records it
+ * as the token to lock, so the tamper test's real lock needs no USDC faucet.
+ *
  * The guarded deployment is recorded in deployments/api3-price-guard.json
  * (network, address, deploy tx, settings, a public RPC): commit it, it is the
  * proof judges check with `npm run api3:judge` and `npm run evm:verify`.
@@ -37,7 +40,8 @@ const priceGuard: PriceGuardSettings | undefined = env.BRIDGE_PRICE_GUARD === 'a
     }
   : undefined
 const deployer = privateKeyToAccount(key as Hex)
-const { htlc, htlcTx, htlcBlock } = await deployBridgeContracts(rpc, chain, deployer, { withTestToken: false, priceGuard, confirmations: chain.id === anvil.id ? 1 : 2 })
+const withTestToken = priceGuard !== undefined && env.API3_TEST_TOKEN === '1'
+const { htlc, htlcTx, htlcBlock, token: testToken } = await deployBridgeContracts(rpc, chain, deployer, { withTestToken, priceGuard, confirmations: chain.id === anvil.id ? 1 : 2 })
 console.log(`${priceGuard !== undefined ? 'PriceGuardedHTLC' : 'HashedTimelockERC20'} deployed on ${chain.name}: ${htlc} (tx ${htlcTx})`)
 if (priceGuard !== undefined) {
   console.log(`  airnode ${priceGuard.airnode} · request ${priceGuard.requestHash} · max deviation ${priceGuard.maxDeviationBps / 100}%`)
@@ -53,7 +57,8 @@ if (priceGuard !== undefined) {
     deployer: deployer.address,
     deployedAt: new Date().toISOString(),
     explorer: pub !== undefined ? pub.explorer + htlc : undefined,
-    token: (env.BRIDGE_TOKEN ?? pub?.usdc ?? '0x0000000000000000000000000000000000000000') as Address,
+    token: (testToken ?? env.BRIDGE_TOKEN ?? pub?.usdc ?? '0x0000000000000000000000000000000000000000') as Address,
+    testToken: testToken !== undefined ? true : undefined,
     airnode: priceGuard.airnode,
     requestHash: priceGuard.requestHash,
     request: BSV_USD_REQUEST,

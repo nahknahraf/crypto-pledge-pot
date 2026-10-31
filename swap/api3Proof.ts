@@ -42,6 +42,8 @@ export interface Api3Deployment {
   explorer?: string
   /** The stablecoin lockWithPrice is meant for (Circle's test USDC on Base Sepolia). */
   token: Address
+  /** True when `token` is the project's TestUSDC (6 decimals, anyone can mint), deployed with the guard. */
+  testToken?: boolean
   airnode: Address
   requestHash: Hex
   request: AirnodeV2Request
@@ -129,8 +131,10 @@ export interface TamperInputs {
   stale?: SignedResponse
   /** A real response from the contract's Airnode to a different request (e.g. BTC_USD_REQUEST). */
   otherRequest?: SignedResponse
-  /** Signed by a key that is not the Airnode's. Default: valid's exact payload, re-signed by a fresh random key. */
+  /** Signed by a key that is not the Airnode's (e.g. one the judge signed). Default: valid's exact payload, re-signed by a fresh random key. */
   wrongSigner?: SignedResponse
+  /** A real response with one value edited (e.g. by the judge). Default: valid with its price halved. */
+  edited?: SignedResponse
 }
 
 export interface TamperTestOptions {
@@ -198,9 +202,13 @@ export async function runTamperTest (client: PublicClient, htlc: Address, token:
     add({ name: 'Valid, timely response', expected: 'locked', got: why, detail: /TooOld|Future/.test(why) ? 'outside the freshness window: fetch a fresh response' : why === 'NotSignedByAirnode' ? 'not signed by this contract\'s Airnode for its request' : 'the contract refused it' })
   }
 
-  // 2. One value edited: the price halved, the quote halved to match, so the swap would look fair.
-  const fakePrice = Number(JSON.parse(inputs.valid.data).price) / 2
-  add({ name: 'Real response, one value edited', expected: 'NotSignedByAirnode', ...await reject(honest / 2n, { ...inputs.valid, data: withPrice(inputs.valid.data, fakePrice) }), detail: `"price" changed to ${fakePrice} after signing` })
+  // 2. One value edited: by default the price halved, the quote halved to match, so the swap would look fair.
+  if (inputs.edited !== undefined) {
+    add({ name: 'Real response, one value edited', expected: 'NotSignedByAirnode', ...await reject(honest, inputs.edited), detail: `your edited response: ${inputs.edited.data.slice(0, 60)}` })
+  } else {
+    const fakePrice = Number(JSON.parse(inputs.valid.data).price) / 2
+    add({ name: 'Real response, one value edited', expected: 'NotSignedByAirnode', ...await reject(honest / 2n, { ...inputs.valid, data: withPrice(inputs.valid.data, fakePrice) }), detail: `"price" changed to ${fakePrice} after signing` })
+  }
 
   // 3. Too old: genuinely signed, by the right Airnode, for the right request, but outside maxResponseAge.
   if (inputs.stale !== undefined) {

@@ -35,6 +35,7 @@
     "evm:compile": "npm install --prefix evm && node evm/compile.cjs",
     "api3:price": "vite-node --config vitest.config.ts swap/api3PriceMain.ts",
     "api3:judge": "vite-node --config vitest.config.ts swap/api3JudgeMain.ts --",
+    "api3:setup": "vite-node --config vitest.config.ts swap/api3SetupMain.ts",
     "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts",
     "evm:verify": "npm install --prefix evm && vite-node --config vitest.config.ts swap/evmVerifyMain.ts"
   },

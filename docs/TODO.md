@@ -8,7 +8,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [ ] Record the video ([`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md)).
 - [ ] Point ngrok at port 8081, not 80.
 - [ ] Decide whether to keep the rate limits (asked, not answered).
-- [ ] API3 track: deploy `PriceGuardedHTLC` on Base Sepolia, `npm run evm:verify`, run `npm run api3:judge` with a live response, commit `deployments/api3-price-guard.json` and fill in the address in [`API3_CROSSCHAIN_SWAP_GUARD.md` § 0.1](API3_CROSSCHAIN_SWAP_GUARD.md). Needs Base Sepolia ETH and aUSD from the AirnodeHub faucet.
+- [x] API3 track: `PriceGuardedHTLC` deployed on Base Sepolia, verified on Sourcify, tamper test run live ([`API3_CROSSCHAIN_SWAP_GUARD.md` § 0](API3_CROSSCHAIN_SWAP_GUARD.md)).
 - [ ] Record the API3 add-on clip ([`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md), last section).
 
 ## Edge cases: server and contracts

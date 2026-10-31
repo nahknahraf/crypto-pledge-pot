@@ -28,12 +28,12 @@ From the track's qualification requirements and "What to submit"
 | Requirement | Status | Where |
 |---|---|---|
 | AirnodeHub is essential to a core workflow; removing it must impair the app | ✅ | The USDC → BSV swap's lock **is** the price check: `lockWithPrice` is the only way in (`lock()` reverts), and the liquidity agent quotes from the same signed price. Without AirnodeHub no donor from another chain can lock funds. [§1](#1-the-problem-it-solves), [§3](#3-the-flow-with-the-guard) |
-| A deployed contract verifies the expected signer, the intended request and timing | ✅ code · 🟡 **deployment pending** | Checks 1–5 in [§2](#2-how-the-contract-verifies-api3-data-on-chain); address and network in [0.1](#01-deployed-contract) once deployed |
+| A deployed contract verifies the expected signer, the intended request and timing | ✅ on Base Sepolia | Checks 1–5 in [§2](#2-how-the-contract-verifies-api3-data-on-chain); address and network in [0.1](#01-deployed-contract) |
 | A value bound to the exact signed response drives an on-chain action | ✅ | The signed price → `fairSats` → the lock goes through or reverts; what was checked is stored in `priceChecks[id]` and emitted as `PriceChecked` ([§2](#2-how-the-contract-verifies-api3-data-on-chain)) |
 | Protection against duplicate execution | ✅ | A swap's hashlock can lock only once (`HashlockAlreadyUsed`); test in `test/api3.proof.evm.test.ts` |
-| **Deployed contract address and network** | 🟡 pending | [0.1](#01-deployed-contract) and `deployments/api3-price-guard.json` |
+| **Deployed contract address and network** | ✅ | Base Sepolia, [`0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673`](https://sepolia.basescan.org/address/0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673); [0.1](#01-deployed-contract) and [`deployments/api3-price-guard.json`](../deployments/api3-price-guard.json) |
 | **A way for judges to submit their own responses** | ✅ | `npm run api3:judge` with your own response files, or live; or the explorer's *Read contract* tab ([0.2](#02-submit-your-own-responses)) |
-| **Tamper test in the video: one valid, four rejected** | ✅ tool and tests · 🟡 video and Base Sepolia run pending | [0.3](#03-the-tamper-test-one-valid-four-rejected); clip in [`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md) |
+| **Tamper test in the video: one valid, four rejected** | ✅ tool, tests and a live run on Base Sepolia · 🟡 video pending | [0.3](#03-the-tamper-test-one-valid-four-rejected); clip in [`VIDEO_SCRIPT.md`](VIDEO_SCRIPT.md) |
 | **Description: who relies on the data, what goes wrong if forged, data we could not find** | ✅ text ready | [0.4](#04-for-the-devfolio-description) |
 
 ### 0.1 Deployed contract
@@ -41,60 +41,76 @@ From the track's qualification requirements and "What to submit"
 | | |
 |---|---|
 | Network | Base Sepolia (chain id 84532) |
-| `PriceGuardedHTLC` | _pending deployment: `npm run evm:deploy` writes it to `deployments/api3-price-guard.json`_ |
-| Deploy transaction | _pending_ |
-| Source | verified on Sourcify (`npm run evm:verify`), so Blockscout and Basescan show it |
+| `PriceGuardedHTLC` | [`0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673`](https://sepolia.basescan.org/address/0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673) |
+| Deploy transaction | [`0xae6376a0…5c4082f545da`](https://sepolia.basescan.org/tx/0xae6376a077b68dcd9f217361fd0de7895d128ea0e98b120fbf1a5c4082f545da) (block 52629532) |
+| Source | verified on Sourcify, **exact match**: [repo.sourcify.dev/84532/0x4d83ed0b…](https://repo.sourcify.dev/84532/0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673); also on [Blockscout](https://base-sepolia.blockscout.com/address/0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673?tab=contract) |
+| Token it locks | `TestUSDC` [`0x6f97f5190fc3ca133f76350ca7350c49bf7cc5cb`](https://sepolia.basescan.org/address/0x6f97f5190fc3ca133f76350ca7350c49bf7cc5cb) (6 decimals, anyone can `mint`), deployed with the guard so judges can lock without a USDC faucet |
 | Airnode it trusts | CoinPaprika on AirnodeHub, `0xB8b7816a39A0bF55eF2ae9A282A1502ce35ff732` |
 | Request it accepts | `0xd38b25988cb891a7b9cdc8d37a34b6c759156c8e1c42c7f205f91ae7cf057baf` = `getTickersById(bsv-bitcoin-sv, USD)` with the `price`/`updatedAt` projection |
 
-`deployments/api3-price-guard.json` is the machine-readable record: network,
+[`deployments/api3-price-guard.json`](../deployments/api3-price-guard.json) is the machine-readable record: network,
 address, deploy transaction, block, settings and a public RPC.
 `npm run api3:judge` does not trust it: it reads `airnode`, `requestHash`
 and `maxDeviationBps` back from the chain and stops if anything differs.
 
 ### 0.2 Submit your own responses
 
-The tamper test needs four real responses from CoinPaprika's Airnode: a fresh
-BSV/USD one, an older BSV/USD one, and one to a different request (BTC/USD).
-Each costs 0.001 aUSD; the
-[AirnodeHub faucet](https://api3dao.github.io/airnodehub-hackathon/faucet/)
-gives aUSD to any Base Sepolia address, and the payer needs no ETH.
+You need Node.js ≥ 22 and a Base Sepolia key with a little ETH (for the aUSD
+mint and the lock) and aUSD (0.001 per AirnodeHub call; mint it on the
+[aUSD faucet](https://api3dao.github.io/airnodehub-hackathon/faucet/)).
 
 ```bash
-npm install
-API3_PAYER_KEY=0x… npm run api3:judge          # fetches BSV/USD and BTC/USD live, then runs the test
+git clone https://github.com/nahknahraf/crypto-pledge-pot && cd crypto-pledge-pot && npm install
+API3_PAYER_KEY=0x… API3_LOCKER_KEY=0x… npm run api3:judge -- --send-rejections
 ```
 
-Every live response is saved in `deployments/api3-responses/`. The "too old"
-case needs a BSV/USD response signed more than 5 minutes earlier: run the
-command again after 5 minutes, or use one already saved there.
+That fetches a fresh BSV/USD response and a BTC/USD response ("a different
+request") from CoinPaprika's Airnode, locks 1 TestUSDC with the fresh one, and
+sends the four tampered responses as transactions, so every result is on the
+explorer. Run it twice, 5 minutes apart: each live response is saved in
+`deployments/api3-responses/`, and the second run uses the first run's
+BSV/USD response as the "too old" one. The repository already contains
+responses from our own runs, so the "too old" case works on your first run
+too.
 
-With responses you fetched yourself (POST the request that `npm run api3:price`
-prints to `https://airnode-coinpaprika.fly.dev/`):
+**Your own files** (for example a response you edited, or one you signed with
+your own key):
 
 ```bash
-npm run api3:judge -- fresh.json --stale old.json --other btc.json
+npm run api3:judge -- fresh.json --stale old.json --other btc.json --edited edited.json --wrong mine.json
 ```
 
-Without `--stale` and `--other`, the tool uses the newest suitable responses in
-`deployments/api3-responses/`. The wrong-signer response is always made on the
-spot: your fresh response's exact payload, re-signed by a random key.
+Every flag is optional; without one, the tool uses a saved response or, for
+`--edited` and `--wrong`, makes it (fresh response with the price halved;
+fresh payload re-signed by a random key).
+
+**Which route.** Fetch with `POST /` and the exact body that
+`npm run api3:price` prints:
+
+```json
+{"operation":"getTickersById","parameters":{"coin_id":"bsv-bitcoin-sv","quotes":"USD"},"responseProjection":{"price":"/quotes/USD/price","updatedAt":"/last_updated"}}
+```
+
+to `https://airnode-coinpaprika.fly.dev/` (it answers `402` until paid with
+x402). The AirnodeHub website and MCP server use the passthrough route, which
+hashes the same request differently, so the contract treats those responses
+as "a different request" and refuses them.
 
 **Who sends what:**
-- Without a key, case 1 is a read-only check (`checkedPrice`, `fairSats`,
-  `withinTolerance`), and cases 2–5 are `eth_call`s of `lockWithPrice`.
-- With `API3_LOCKER_KEY` (a Base Sepolia key holding
-  [test USDC](https://faucet.circle.com) and a little ETH), case 1 **locks
-  1 USDC for real**, so the on-chain action is a transaction you can open on
-  the explorer.
-- Add `--send-rejections` to send cases 2–5 as transactions too. Their reverts
-  are then on the explorer as well.
+- `API3_LOCKER_KEY` locks for real. It needs TestUSDC: anyone can call
+  `mint(address,uint256)` on
+  [`0x6f97…7cc5cb`](https://sepolia.basescan.org/address/0x6f97f5190fc3ca133f76350ca7350c49bf7cc5cb).
+  Without the key, case 1 is a read-only check (`checkedPrice`, `fairSats`,
+  `withinTolerance`), and cases 2–5 are `eth_call`s.
+- `--send-rejections` sends cases 2–5 as transactions, so their reverts are on
+  the explorer as well.
 
-**Without cloning anything:** open the contract on the block explorer,
-*Read contract* → `checkedPrice(timestamp, data, signature)`. Paste your
-response's `timestamp`, `data` as hex bytes (`0x` + the UTF-8 bytes of the
-string) and `signature`. A genuine, fresh response returns the price with 18
-decimals; change one character of `data` and it reverts with
+**Without cloning anything:** open the contract on
+[Blockscout](https://base-sepolia.blockscout.com/address/0x4d83ed0bd9d4361ac1d46bd87f50a88dae996673?tab=read_write_contract)
+or Basescan, *Read contract* → `checkedPrice(timestamp, data, signature)`.
+Paste your response's `timestamp`, `data` as hex bytes (`0x` + the UTF-8 bytes
+of the string) and `signature`. A genuine, fresh response returns the price
+with 18 decimals; change one character of `data` and it reverts with
 `NotSignedByAirnode`.
 
 ### 0.3 The tamper test: one valid, four rejected
@@ -165,19 +181,18 @@ from the data provider.
 
 ### 0.5 Deploying and verifying (team)
 
-`data/api3-team.key` is a Base Sepolia **testnet** key (git-ignored). Fund
-its address with Base Sepolia ETH, aUSD from the
-[AirnodeHub faucet](https://api3dao.github.io/airnodehub-hackathon/faucet/)
-and test USDC from the [Circle faucet](https://faucet.circle.com), then:
+`data/api3-team.key` is a Base Sepolia **testnet** key (git-ignored, address
+`0x6439E2623B641e3d1f890A66c6Fcf6832fBC2991`). It only needs Base Sepolia ETH
+from a faucet: `npm run api3:setup` mints aUSD from API3's faucet contract and
+TestUSDC for the lock.
 
 ```bash
-BRIDGE_PRICE_GUARD=api3 BRIDGE_RPC_URL=https://sepolia.base.org BRIDGE_DEPLOYER_KEY=$(cat data/api3-team.key) npm run evm:deploy   # writes deployments/api3-price-guard.json
-npm run evm:verify                                                                    # publishes the exact source on Sourcify (no API key)
-API3_PAYER_KEY=$(cat data/api3-team.key) API3_LOCKER_KEY=$(cat data/api3-team.key) npm run api3:judge -- --send-rejections
+npm run api3:setup                                   # balances; mints aUSD (and TestUSDC after deploying)
+API3_TEST_TOKEN=1 BRIDGE_PRICE_GUARD=api3 BRIDGE_RPC_URL=https://sepolia.base.org BRIDGE_DEPLOYER_KEY=$(cat data/api3-team.key) npm run evm:deploy
+npm run evm:verify                                   # the exact source on Sourcify (no API key)
+npm run api3:judge -- --send-rejections              # uses the team key; run twice, 5 minutes apart
 ```
 
-Run the last command twice, 5 minutes apart: the second run has a genuinely
-old response for case 3. Commit `deployments/` and fill in the table in 0.1.
 `evm/artifacts.json` is compiled from exactly the Standard JSON input that
 `evm:verify` sends (`evm/compile.cjs`, `standardInput()`), so Sourcify gets a
 byte-for-byte match.
@@ -365,15 +380,19 @@ BRIDGE_PRICE_GUARD=api3 BRIDGE_RPC_URL=https://sepolia.base.org BRIDGE_DEPLOYER_
   Airnode: it answers `402 Payment Required`. An invalid one gets `400`.
 - ✅ The API3 tamper test (one valid response locks, an edited, a too-old,
   an other-request and a wrong-signer response are rejected) passes on a
-  local chain (`npm run api3:judge -- --local`, `test/api3.proof.evm.test.ts`).
+  local chain (`npm run api3:judge -- --local`, `test/api3.proof.evm.test.ts`)
+  and **live on Base Sepolia** with CoinPaprika's own signed responses
+  ([0.3](#03-the-tamper-test-one-valid-four-rejected)).
+- ✅ Deployed on Base Sepolia and verified on Sourcify with an exact match
+  ([0.1](#01-deployed-contract)). Paid live fetches over x402 work (0.001 aUSD
+  each).
 - ✅ One swap's hashlock can lock only once (`HashlockAlreadyUsed`).
-- 🟡 **Not run yet:**
-  - a paid live fetch (needs a Base Sepolia key with aUSD);
-  - a deployment on Base Sepolia, its Sourcify verification and the tamper
-    test against it (section 0.4).
-
-  The commands are above. The code paths are the same as in the tests: only
-  the RPC URL and the Airnode address change.
+- 🟡 The deployment locks the project's TestUSDC, so judges need no USDC
+  faucet; the swap flow itself works with any 6-decimal stablecoin.
+- 🟡 The contract accepts responses from the `POST /` route only (the hash
+  it stores). The AirnodeHub website and MCP server use the passthrough
+  route, whose hash differs, so their responses count as "a different
+  request".
 - 🟡 The adapter signs with local keys (tests, demo). In a browser, the
   donor's own EVM wallet would sign, as for the rest of the bridge
   (`docs/BRIDGING_PLAN.md`).

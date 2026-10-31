@@ -3,8 +3,9 @@
  * PriceGuardedHTLC, with your own signed responses.
  *
  *   API3_PAYER_KEY=0x… npm run api3:judge                 fetch live responses (BSV/USD and BTC/USD, 0.001 aUSD each)
- *   npm run api3:judge -- fresh.json [--stale old.json] [--other btc.json]
- *                                                         responses you fetched yourself (- reads fresh from stdin)
+ *   npm run api3:judge -- fresh.json [--stale old.json] [--other btc.json] [--edited e.json] [--wrong w.json]
+ *                                                         responses you fetched (or edited, or signed) yourself;
+ *                                                         - reads fresh from stdin
  *   API3_LOCKER_KEY=0x… …                                 also send the valid lock as a real transaction
  *                                                         (Base Sepolia key holding test USDC and a little ETH)
  *   … --send-rejections                                   send the four rejected ones as transactions too
@@ -14,6 +15,14 @@
  * the lock; then a real response with one value edited, a real response that
  * is too old, a real response to a different request, and a response signed
  * by a key that is not the Airnode's are each rejected before the lock.
+ *
+ * Responses must come from the POST / route (the request that `npm run
+ * api3:price` prints): the AirnodeHub website and its MCP server use the
+ * passthrough route, which hashes the same request differently, so the
+ * contract refuses those as "a different request".
+ *
+ * Without API3_PAYER_KEY / API3_LOCKER_KEY, the team key in data/api3-team.key
+ * is used if it exists (the team's own runs; judges pass their own keys).
  *
  * Every live response is saved in deployments/api3-responses/, so a later run
  * (or a judge) has a genuinely old response and a response to another request
@@ -32,6 +41,9 @@ import { DEFAULT_PRICE_GUARD, deployBridgeContracts, mintTestUsdc } from './evmC
 const RESPONSES_DIR = path.join('deployments', 'api3-responses')
 const args = process.argv.slice(2)
 const flag = (name: string): string | undefined => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined }
+const FILE_FLAGS = ['--stale', '--other', '--edited', '--wrong']
+const TEAM_KEY = path.join('data', 'api3-team.key')
+const envKey = (name: string): string => process.env[name] ?? (fs.existsSync(TEAM_KEY) ? fs.readFileSync(TEAM_KEY, 'utf8').trim() : '')
 const readResponse = (file: string): SignedResponse => {
   const raw = JSON.parse(file === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(file, 'utf8')) as SignedResponse | { response: SignedResponse }
   return 'response' in raw ? raw.response : raw
@@ -96,9 +108,9 @@ if (args.includes('--local')) {
   console.log(problems.length === 0 ? '  ✓ read back from the chain: the contract has exactly these settings\n' : problems.map(p => `  ✗ ${p}`).join('\n') + '\n')
   if (problems.length > 0) process.exit(1)
 
-  const payer = process.env.API3_PAYER_KEY ?? ''
+  const payer = envKey('API3_PAYER_KEY')
   const paying = payer !== '' ? await createPayingFetch(payer as Hex) : undefined
-  const file = args.find((a, i) => !a.startsWith('--') && !['--stale', '--other'].includes(args[i - 1] ?? ''))
+  const file = args.find((a, i) => !a.startsWith('--') && !FILE_FLAGS.includes(args[i - 1] ?? ''))
   let valid: SignedResponse
   if (file !== undefined) {
     valid = readResponse(file)
@@ -120,8 +132,8 @@ if (args.includes('--local')) {
     ? readResponse(flag('--stale')!)
     : saved(d.requestHash).filter(x => Number(x.r.timestamp) + d.maxResponseAge < now).at(-1)?.r
   if (stale === undefined) console.log(`No BSV/USD response older than ${d.maxResponseAge / 60} min yet: run again in ${d.maxResponseAge / 60} minutes (this one is saved), or pass --stale.\n`)
-  inputs = { valid, stale, otherRequest }
-  const key = process.env.API3_LOCKER_KEY ?? ''
+  inputs = { valid, stale, otherRequest, edited: flag('--edited') !== undefined ? readResponse(flag('--edited')!) : undefined, wrongSigner: flag('--wrong') !== undefined ? readResponse(flag('--wrong')!) : undefined }
+  const key = envKey('API3_LOCKER_KEY')
   if (key !== '') locker = privateKeyToAccount(key as Hex)
 }
 
