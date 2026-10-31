@@ -12,7 +12,10 @@
  * Env: CRYPTOPLEDGEPOT_URL (http://localhost:8787), NETWORK=main|test,
  *      DONOR_PORT (8792, bound to 127.0.0.1), DONOR_INTERVAL_S (60),
  *      DONOR_MANDATE (data/donor-mandate.json), ANTHROPIC_API_KEY (Claude;
- *      otherwise a deterministic brain), DONOR_ROOT_KEY.
+ *      otherwise a deterministic brain), DONOR_ROOT_KEY,
+ *      DONOR_NOTIFY_URL (optional: every message and question from your agent
+ *      is POSTed there as plain text, e.g. an https://ntfy.sh/<your-topic> URL
+ *      for push notifications on your phone).
  */
 import fs from 'node:fs'
 import type { WalletInterface } from '@bsv/sdk'
@@ -23,6 +26,9 @@ import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/ar
 import { fileStore } from '../agent/ledger'
 import { createToolboxWallet, loadOrCreateKey } from '../agent/wallet'
 import { defaultDonorBrain } from './brain'
+import { defaultSearchBrain } from './search'
+import { defaultPlanParser, GivingPlanner, type GivingPlan } from './givingPlan'
+import { Inbox, type Message } from './inbox'
 import { DonorAgent, type StepSummary } from './donorAgent'
 import { createDonorApp } from './http'
 import { parseMandate } from './mandate'
@@ -60,7 +66,19 @@ if (mandate.mode === 'autopilot') {
 }
 const api = new CryptoPledgePotApi(serverUrl, wallet)
 const memos = new MemoBook(fileStore<Memo[]>(path.join(dataDir, 'donor-memos.json'), []))
-const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), memos, chainTracker, txExists })
+const agent = new DonorAgent(mandate, { api, client, brain: defaultDonorBrain(), searchBrain: defaultSearchBrain(), memos, chainTracker, txExists })
+
+const notifyUrl = process.env.DONOR_NOTIFY_URL
+const planner = new GivingPlanner(agent, {
+  plans: fileStore<GivingPlan[]>(path.join(dataDir, 'donor-plans.json'), []),
+  inbox: new Inbox(fileStore<Message[]>(path.join(dataDir, 'donor-inbox.json'), [])),
+  notify: notifyUrl === undefined
+    ? undefined
+    : async (m) => {
+      const res = await fetch(notifyUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain; charset=utf-8', Title: m.kind === 'question' ? 'Your donor agent has a question' : 'Your donor agent' }, body: m.text })
+      if (!res.ok) throw new Error(`webhook answered HTTP ${res.status}`)
+    }
+})
 
 const spendable = async (): Promise<number> => {
   if (wallet === undefined) return 0
@@ -72,11 +90,16 @@ let running = false
 const runStep = async (): Promise<StepSummary> => {
   if (running) return last ?? { evaluated: 0, proposed: 0, pledged: 0, skipped: 0, votes: 0, refunds: 0 }
   running = true
-  try { last = await agent.step(); return last } finally { running = false }
+  try {
+    last = await agent.step()
+    const p = await planner.step()
+    if (p.due > 0) console.log(`[plans] round: ${JSON.stringify(p)}`)
+    return last
+  } finally { running = false }
 }
 
 const port = Number(process.env.DONOR_PORT ?? 8792)
-createDonorApp({ agent, wallet, chainTracker, spendable, lastStep: () => last, runStep }).listen(port, '127.0.0.1', () => {
+createDonorApp({ agent, wallet, chainTracker, spendable, lastStep: () => last, runStep, planner, planParser: defaultPlanParser() }).listen(port, '127.0.0.1', () => {
   console.log(`[donor] "${mandate.name}" · ${mandate.mode} · budget ${mandate.budget.totalSats} sats · brain ${agent.deps.brain.name} · http://127.0.0.1:${port}/api/donor`)
 })
 const intervalMs = Number(process.env.DONOR_INTERVAL_S ?? 60) * 1000

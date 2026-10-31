@@ -5,7 +5,8 @@
  * Co-pilot: proposals wait here with a short memo; "Approve & pay" pays from
  * the donor's own wallet, then tells the agent which pledge it was (the agent
  * verifies it). Autopilot: read-only record of what the agent did, plus a
- * budget top-up.
+ * budget top-up. Both: "Find campaigns" searches from a few words; giving
+ * plans give on a schedule, and the agent's questions are answered here.
  */
 import { useCallback, useEffect, useState } from 'react'
 import { createBrc29Payment } from '../../../client/payments'
@@ -23,6 +24,117 @@ interface Status {
   budget: { totalSats: number, perPledgeMaxSats: number, pledged: number, reserved: number, left: number, reclaimed: number },
   donorIdentityKey: string | null, wallet: { identityKey: string, balance: number | null } | null,
   counts: { proposals: number, pledges: number, skipped: number, votes: number, refunds: number }
+}
+
+interface Match {
+  campaignId: string, title: string, relevance: number, why: string, summary: string, warnings: string[],
+  facts: { raisedSats: number, goalSats: number, fundedPercent: number, donors: number, daysLeft: number, milestones: string[] }
+}
+
+/** "children in need" → the open campaigns that fit, each in a few lines. */
+function FindCampaigns () {
+  const [query, setQuery] = useState('')
+  const [result, setResult] = useState<{ query: string, matches: Match[] }>()
+  const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  async function search (e: { preventDefault: () => void }) {
+    e.preventDefault()
+    setBusy(true); setError(undefined)
+    try { setResult(await donorApi('/api/donor/search', { query })) } catch (err) { setError((err as Error).message) } finally { setBusy(false) }
+  }
+  return (
+    <div className="card">
+      <h2>Find campaigns</h2>
+      <form className="row" onSubmit={e => { void search(e) }}>
+        <input value={query} maxLength={200} placeholder="e.g. children in need, clean water, animals" onChange={e => setQuery(e.target.value)} style={{ flex: 1 }} />
+        <button className="primary" disabled={busy || query.trim() === ''}>{busy ? 'Searching…' : 'Find'}</button>
+      </form>
+      {error !== undefined && <Notice kind="err">{error}</Notice>}
+      {result !== undefined && result.matches.length === 0 && <p className="muted">Nothing open matches "{result.query}" right now.</p>}
+      {result?.matches.map(m => (
+        <div className="memo" key={m.campaignId}>
+          <div className="row between"><a href={`#/c/${m.campaignId}`}><h3>{m.title}</h3></a><span className="score">{m.relevance}% match</span></div>
+          <p>{m.summary}</p>
+          <p className="muted small">{formatSats(m.facts.raisedSats)} of {formatSats(m.facts.goalSats)} ({m.facts.fundedPercent}%) · {m.facts.donors} donor(s) · {m.facts.daysLeft} day(s) left · {m.why}</p>
+          {m.warnings.map((w, i) => <Notice key={i} kind="err">{w}</Notice>)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+interface Installment { n: number, dueAt: number, status: string, campaignId?: string, campaignTitle?: string, amount?: number, note?: string }
+interface Plan { id: string, cause: string, status: string, description: string, installments: Installment[] }
+interface Question { id: string, at: number, kind: 'question' | 'info', status: string, text: string, options?: Array<{ campaignId: string, title: string, relevance: number, summary: string }> }
+
+/** "Every month for a year, 5000 sats to children in need": draft from plain words, confirm, follow, answer questions. */
+function GivingPlans ({ onChange }: { onChange: () => void }) {
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [inbox, setInbox] = useState<Question[]>([])
+  const [text, setText] = useState('')
+  const [draft, setDraft] = useState<{ draft: unknown, description: string }>()
+  const [msg, setMsg] = useState<{ ok: boolean, text: string }>()
+  const load = useCallback(async () => {
+    try { setPlans(await donorApi<Plan[]>('/api/donor/plans')); setInbox(await donorApi<Question[]>('/api/donor/inbox')) } catch { /* plans not enabled */ }
+  }, [])
+  useEffect(() => { void load(); const t = setInterval(() => { void load() }, 5_000); return () => clearInterval(t) }, [load])
+  async function act (fn: () => Promise<string>) {
+    setMsg(undefined)
+    try { setMsg({ ok: true, text: await fn() }); await load(); onChange() } catch (e) { setMsg({ ok: false, text: (e as Error).message }) }
+  }
+  const questions = inbox.filter(q => q.kind === 'question' && q.status === 'open')
+  const date = (t: number): string => new Date(t * 1000).toISOString().slice(0, 10)
+  return (
+    <>
+      {questions.length > 0 && <h2>Your agent asks ({questions.length})</h2>}
+      {questions.map(q => (
+        <div className="card memo" key={q.id}>
+          <p>{q.text.split(' Where should')[0]}</p>
+          {q.options?.map(o => (
+            <div className="row between" key={o.campaignId}>
+              <span><a href={`#/c/${o.campaignId}`}>{o.title}</a> <span className="muted small">({o.relevance}% match) {o.summary}</span></span>
+              <button className="primary" onClick={() => { void act(async () => { await donorApi(`/api/donor/inbox/${q.id}/answer`, { choice: o.campaignId }); return `Going to "${o.title}".` }) }}>Give here</button>
+            </div>
+          ))}
+          <button className="secondary" onClick={() => { void act(async () => { await donorApi(`/api/donor/inbox/${q.id}/answer`, { choice: 'skip' }); return 'Skipped this installment.' }) }}>Skip this one</button>
+        </div>
+      ))}
+      <div className="card">
+        <h2>Giving plans</h2>
+        <form className="row" onSubmit={e => { e.preventDefault(); void act(async () => { const d = await donorApi<{ draft: unknown, description: string }>('/api/donor/plans/draft', { text }); setDraft(d); return 'Check the plan below, then confirm.' }) }}>
+          <input value={text} maxLength={1000} placeholder="e.g. every month for a year, 5000 sats to children in need; if nothing fits, ask me" onChange={e => setText(e.target.value)} style={{ flex: 1 }} />
+          <button disabled={text.trim() === ''}>Draft</button>
+        </form>
+        {draft !== undefined && (
+          <div className="memo">
+            <p>{draft.description}</p>
+            <button className="primary" onClick={() => { void act(async () => { await donorApi('/api/donor/plans', draft.draft); setDraft(undefined); setText(''); return 'Plan started.' }) }}>Confirm plan</button>
+          </div>
+        )}
+        {msg !== undefined && <Notice kind={msg.ok ? 'ok' : 'err'}>{msg.text}</Notice>}
+        {plans.map(p => {
+          const given = p.installments.filter(i => i.status === 'given')
+          const next = p.installments.find(i => i.status === 'due')
+          return (
+            <div className="memo" key={p.id}>
+              <div className="row between"><h3>{p.cause}</h3><span className="badge">{p.status}</span></div>
+              <p className="small">{p.description}</p>
+              <p className="muted small">{given.length}/{p.installments.length} given ({formatSats(given.reduce((s, i) => s + (i.amount ?? 0), 0))}){next !== undefined && p.status === 'active' ? ` · next ${date(next.dueAt)}` : ''}</p>
+              <ul className="memo-list">{p.installments.filter(i => i.status !== 'due').map(i => (
+                <li key={i.n} className={i.status === 'given' ? 'executed' : i.status}><span className="tag">{i.status}</span>{i.campaignId !== undefined ? <a href={`#/c/${i.campaignId}`}>{i.campaignTitle}</a> : <span />}<span>{i.amount !== undefined ? formatSats(i.amount) : ''}</span><span className="muted small">{i.note ?? ''}</span></li>
+              ))}</ul>
+              {(p.status === 'active' || p.status === 'paused') && (
+                <div className="row">
+                  <button className="secondary" onClick={() => { void act(async () => { await donorApi(`/api/donor/plans/${p.id}/${p.status === 'active' ? 'pause' : 'resume'}`, {}); return p.status === 'active' ? 'Paused.' : 'Resumed.' }) }}>{p.status === 'active' ? 'Pause' : 'Resume'}</button>
+                  <button className="secondary" onClick={() => { void act(async () => { await donorApi(`/api/donor/plans/${p.id}/cancel`, {}); return 'Cancelled.' }) }}>Cancel</button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
 }
 
 const donorApi = async <T,>(path: string, body?: unknown): Promise<T> => {
@@ -124,6 +236,9 @@ export function Donor () {
         {msg !== undefined && <Notice kind={msg.ok ? 'ok' : 'err'}>{msg.text}</Notice>}
         {identityKey === undefined && status.mode === 'copilot' && proposals.length > 0 && <p className="muted small">Connect your wallet to approve proposals.</p>}
       </div>
+
+      <FindCampaigns />
+      <GivingPlans onChange={() => { void load() }} />
 
       {status.mode === 'copilot' && (
         <>

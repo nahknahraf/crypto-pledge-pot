@@ -27,6 +27,7 @@
     "demo:agent": "vite-node --config vitest.config.ts server/agentDemoMain.ts",
     "typecheck:mock": "tsc --noEmit -p tsconfig.mock.json",
     "donor": "vite-node --config vitest.config.ts donor/main.ts",
+    "donor:search": "vite-node --config vitest.config.ts donor/searchMain.ts --",
     "demo:swap": "vite-node --config vitest.config.ts swap/swapDemoMain.ts"
   },
   "dependencies": {
