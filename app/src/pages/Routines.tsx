@@ -14,17 +14,25 @@
  *     The agent never signs anything and never holds funds.
  *  4. The run is reported to the server, which checks it against the routine's
  *     limits; every run links to its transaction.
+ *
+ * Automatic execution (no approval per gift): the user switches a routine to
+ * "Automatic", which delegates it to THEIR routine agent (agent/routineAgent.ts,
+ * running on their machine with its own wallet and a budget they moved into it).
+ * The agent then runs it when due, within the routine's caps and its budget.
+ * The user's own keys are still never involved, and "Manual" revokes it at once.
+ * In the offline demo a simulated agent does the same with simulated runs.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import type { CampaignView } from '../../../core/api'
 import { MIN_PLEDGE } from '../../../core/pledge'
 import {
-  amountText, describeDraft, intervalText, isDue, matchCampaigns, totalGiven,
+  amountText, describeDraft, intervalText, isAutomatic, isDue, matchCampaigns, totalGiven,
   type ParseResult, type Routine, type RoutineDraft, type RoutineStatus
 } from '../../../core/routines'
+import { agentApi, RoutineAgentCard, type AgentActivity, type AgentStatus } from '../components/RoutineAgentCard'
 import { Notice } from '../components/ui'
 import { dateTime, formatSats, short, WOC_TX } from '../format'
-import { bsvPrice, executeRoutine, LocalRoutineStore, now, planRun, ServerRoutineStore, simulateRoutine, type RoutineStore, type RunPlan } from '../routines'
+import { bsvPrice, DEMO_AGENT_KEY, executeRoutine, LocalRoutineStore, now, planRun, ServerRoutineStore, simulateRoutine, type RoutineStore, type RunPlan } from '../routines'
 import { api, confirmSpend, useWallet } from '../wallet'
 
 interface ChatMessage { from: 'user' | 'agent', text: string }
@@ -37,7 +45,12 @@ interface Pending {
   cap: number
   maxRuns: number | null
   preview?: CampaignView
+  /** Delegate to the routine agent right after saving. */
+  auto: boolean
 }
+
+/** The offline demo's stand-in agent: a fixed simulated budget. */
+const DEMO_BUDGET = 1_000_000
 
 const EXAMPLES = [
   'Spende jeden Monat 10 Euro an einen Tierschutzverein',
@@ -59,7 +72,7 @@ export function Routines () {
   const [chat, setChat] = useState<ChatMessage[]>([{
     from: 'agent',
     text: 'Hi! Tell me what you would like to give, how much and how often, e.g. "Spende jeden Monat 10 Euro an einen Tierschutzverein". ' +
-      'I only propose: every donation is approved by you, in your own wallet, and goes into a campaign\'s escrow.'
+      'Every gift goes into a campaign\'s escrow. You approve each one in your wallet, or let your routine agent run it automatically from a budget you give it.'
   }])
   const [input, setInput] = useState('')
   const [thinking, setThinking] = useState(false)
@@ -70,6 +83,9 @@ export function Routines () {
   const [busy, setBusy] = useState<string>()
   const [msg, setMsg] = useState<{ ok: boolean, text: string, txid?: string }>()
   const chatEnd = useRef<HTMLDivElement>(null)
+  // undefined = still looking, null = no routine agent reachable.
+  const [agent, setAgent] = useState<AgentStatus | null>()
+  const [demoActivity, setDemoActivity] = useState<AgentActivity[]>([])
 
   const say = (from: ChatMessage['from'], text: string) => setChat(c => [...c, { from, text }])
 
@@ -79,14 +95,53 @@ export function Routines () {
     try { setRoutines(await store.list()) } catch (e) { setMsg({ ok: false, text: `Could not load your routines: ${(e as Error).message}` }) }
   }, [store])
   useEffect(() => { void load() }, [load])
+
+  // The user's routine agent: polled through the local dev server's /routine-agent proxy; simulated in the offline demo.
+  const loadAgent = useCallback(async () => {
+    if (serverNetwork === undefined) return
+    if (offline) {
+      const spent = demoActivity.reduce((sum, a) => sum + (a.sats ?? 0), 0)
+      setAgent({ identityKey: DEMO_AGENT_KEY, balance: DEMO_BUDGET - spent, ownerIdentityKey: null, activity: demoActivity, simulated: true })
+      return
+    }
+    try { setAgent(await agentApi<AgentStatus>('/api/routine-agent')) } catch { setAgent(null) }
+  }, [offline, serverNetwork, demoActivity])
+  useEffect(() => {
+    void loadAgent()
+    const t = setInterval(() => { void loadAgent(); void load() }, 10_000)
+    return () => clearInterval(t)
+  }, [loadAgent, load])
+
+  // Offline demo: the simulated agent runs automatic routines as soon as they are due (a real agent checks every minute).
+  useEffect(() => {
+    if (!offline || store === undefined) return
+    const tick = async (): Promise<void> => {
+      const todo = (await store.list()).filter(r => isAutomatic(r) && isDue(r, now()))
+      if (todo.length === 0) return
+      const all = await api.campaigns()
+      for (const r of todo) {
+        try {
+          const plan = await planRun(r, all)
+          await simulateRoutine(store, r, plan)
+          setDemoActivity(a => [{ at: now(), routineId: r.id, label: r.target.label, kind: 'paid', sats: plan.sats, campaignId: plan.campaign.id, text: `${formatSats(plan.sats)} into the escrow of "${plan.campaign.meta.title}" (simulated)` }, ...a])
+        } catch (e) {
+          const text = (e as Error).message
+          setDemoActivity(a => a[0]?.routineId === r.id && a[0].text === text ? a : [{ at: now(), routineId: r.id, label: r.target.label, kind: 'skipped', text }, ...a])
+        }
+      }
+      await load()
+    }
+    const t = setInterval(() => { void tick() }, 4_000)
+    return () => clearInterval(t)
+  }, [offline, store, load])
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'nearest' }) }, [chat, pending])
 
-  // For every due routine: work out where it would go and how much, so the user sees it before approving.
+  // For every due MANUAL routine: work out where it would go and how much, so the user sees it before approving.
   useEffect(() => {
     let stale = false
     void (async () => {
       const next: Record<string, RunPlan | string> = {}
-      for (const r of routines.filter(r => isDue(r, now()))) {
+      for (const r of routines.filter(r => isDue(r, now()) && !isAutomatic(r))) {
         try { next[r.id] = await planRun(r, campaigns) } catch (e) { next[r.id] = (e as Error).message }
       }
       if (!stale) setPlans(next)
@@ -118,7 +173,7 @@ export function Routines () {
       // Default cap: the amount now plus 50% headroom for exchange-rate moves. The user can change it.
       const cap = estimate === undefined ? 0 : result.draft.amount.currency === 'SATS' ? estimate : Math.max(MIN_PLEDGE, Math.ceil(estimate * 1.5))
       const preview = matchCampaigns(result.draft.target, campaigns, now())[0]?.campaign
-      setPending({ parsed: result, estimate, cap, maxRuns: result.draft.limits.maxRuns, preview })
+      setPending({ parsed: result, estimate, cap, maxRuns: result.draft.limits.maxRuns, preview, auto: agent != null })
       const de = result.lang === 'de'
       say('agent', [
         describeDraft({ ...result.draft, limits: { ...result.draft.limits, maxSatsPerRun: cap } }, result.lang),
@@ -142,10 +197,18 @@ export function Routines () {
       const { draft } = pending.parsed
       const full: RoutineDraft = { ...draft, limits: { maxSatsPerRun: pending.cap, maxRuns: draft.interval === 'once' ? 1 : pending.maxRuns, maxTotalSats: null } }
       const r = await s.create(full)
+      const auto = pending.auto && agent != null
+      if (auto) await s.setExecutor(r.id, agent.identityKey)
       setPending(undefined)
-      say('agent', pending.parsed.lang === 'de'
-        ? `Gespeichert. Die erste Spende ist jetzt fällig – du findest sie unten unter „${r.target.label}“ und gibst sie mit deinem Wallet frei.`
-        : `Saved. The first gift is due now: approve it below under "${r.target.label}" with your wallet.`)
+      const de = pending.parsed.lang === 'de'
+      say('agent', auto
+        ? (de
+            ? `Gespeichert. Dein Routine-Agent führt „${r.target.label}“ ab jetzt automatisch aus, höchstens ${formatSats(full.limits.maxSatsPerRun)} pro Mal, aus seinem Budget. Die erste Spende ist sofort fällig.`
+            : `Saved. Your routine agent now runs "${r.target.label}" automatically, at most ${formatSats(full.limits.maxSatsPerRun)} each time, from its budget. The first gift is due now.`)
+        : (de
+            ? `Gespeichert. Die erste Spende ist jetzt fällig – du findest sie unten unter „${r.target.label}“ und gibst sie mit deinem Wallet frei.`
+            : `Saved. The first gift is due now: approve it below under "${r.target.label}" with your wallet.`))
+      void loadAgent()
       if (store === undefined) return // the wallet just connected: the store memo updates and reloads
       await load()
     } catch (e) {
@@ -177,7 +240,20 @@ export function Routines () {
     return status === 'paused' ? 'Paused. Nothing is proposed until you resume it.' : status === 'active' ? 'Resumed.' : 'Routine stopped.'
   })
 
-  const due = routines.filter(r => isDue(r, now()))
+  /** Switch a routine between Automatic (delegated to the routine agent) and Manual (approve each gift). */
+  const setAuto = (r: Routine, on: boolean) => act(r.id, async () => {
+    if (!on) {
+      await store!.setExecutor(r.id, null)
+      return `"${r.target.label}" is manual again: the agent can no longer run it. You approve each gift.`
+    }
+    if (agent == null) throw new Error('Start your routine agent first (npm run routine-agent).')
+    if (!window.confirm(`Let your routine agent run "${r.target.label}" automatically?\n\nIt may pledge up to ${formatSats(r.limits.maxSatsPerRun)} ${intervalText(r.interval)}, from its own budget (now ${formatSats(agent.balance)}), into a matching campaign's escrow, without asking you each time. Switch back to Manual at any time.`)) return 'Kept manual.'
+    await store!.setExecutor(r.id, agent.identityKey)
+    return `"${r.target.label}" now runs automatically.`
+  })
+
+  const due = routines.filter(r => isDue(r, now()) && !isAutomatic(r))
+  const autoCount = routines.filter(r => isAutomatic(r) && (r.status === 'active' || r.status === 'paused')).length
 
   return (
     <>
@@ -187,9 +263,9 @@ export function Routines () {
           <span className="badge agent">AI agent</span>
         </div>
         <p className="small">
-          Tell the agent what to give and how often. It finds a matching campaign each time and prepares the pledge.
-          <strong> You approve every payment in your own wallet</strong>; the sats go into the campaign's escrow, never to the agent.
-          Each routine has a hard cap per run that the server also enforces.
+          Tell the agent what to give and how often. Each time, it finds a matching campaign and pledges into its escrow.
+          Either <strong>you approve every gift in your own wallet</strong>, or you switch a routine to <strong>Automatic</strong> and
+          your routine agent runs it from a budget you gave it. Each routine has a hard cap per run that the server also enforces.
         </p>
         {offline && <Notice kind="info">Offline demo: routines are kept in this browser and runs are simulated. No wallet is contacted.</Notice>}
         {!offline && identityKey === undefined && (
@@ -213,6 +289,10 @@ export function Routines () {
               <div className="row">
                 <label className="small">Cap per run (sats)
                   <input type="number" min={MIN_PLEDGE} value={pending.cap || ''} onChange={e => setPending({ ...pending, cap: Math.floor(Number(e.target.value)) })} style={{ width: '9rem' }} />
+                </label>
+                <label className="small checkbox">
+                  <input type="checkbox" checked={pending.auto} disabled={agent == null} onChange={e => setPending({ ...pending, auto: e.target.checked })} />
+                  Run automatically{agent == null ? ' (start your routine agent first)' : ' with my routine agent'}
                 </label>
                 {pending.parsed.draft.interval !== 'once' && (
                   <label className="small">Number of runs (empty = until stopped)
@@ -242,6 +322,8 @@ export function Routines () {
           </Notice>
         )}
       </div>
+
+      <RoutineAgentCard agent={agent} autoCount={autoCount} onChange={() => { void loadAgent(); void load() }} />
 
       {due.length > 0 && (
         <>
@@ -296,11 +378,20 @@ export function Routines () {
                   <td>{amountText(r.amount)}<div className="muted small">cap {formatSats(r.limits.maxSatsPerRun)}</div></td>
                   <td>{intervalText(r.interval)}{r.limits.maxRuns !== null && r.interval !== 'once' && <div className="muted small">{r.runs.length}/{r.limits.maxRuns} runs</div>}</td>
                   <td>
-                    <span className={`badge routine-${r.status}`}>{isDue(r, now()) ? 'Due' : STATUS_LABEL[r.status]}</span>
+                    <span className={`badge routine-${r.status}`}>{isDue(r, now()) ? (isAutomatic(r) ? 'Due · agent' : 'Due') : STATUS_LABEL[r.status]}</span>
+                    {isAutomatic(r) && (
+                      <div className="small">
+                        <span className="badge agent">Automatic</span>
+                        {agent != null && r.executor!.identityKey !== agent.identityKey && <span className="err"> delegated to another agent key</span>}
+                      </div>
+                    )}
                     {r.status === 'active' && r.nextRunAt !== null && !isDue(r, now()) && <div className="muted small">next {dateTime(r.nextRunAt)}</div>}
                   </td>
                   <td>{formatSats(totalGiven(r))}</td>
                   <td className="actions">
+                    {(r.status === 'active' || r.status === 'paused') && (isAutomatic(r)
+                      ? <button className="secondary" disabled={busy !== undefined} onClick={() => { void setAuto(r, false) }}>Manual</button>
+                      : <button className="secondary" disabled={busy !== undefined || agent == null} title={agent == null ? 'Start your routine agent first' : undefined} onClick={() => { void setAuto(r, true) }}>Automatic</button>)}
                     {r.status === 'active' && <button className="secondary" disabled={busy !== undefined} onClick={() => { void setStatus(r, 'paused') }}>Pause</button>}
                     {r.status === 'paused' && <button className="secondary" disabled={busy !== undefined} onClick={() => { void setStatus(r, 'active') }}>Resume</button>}
                     {(r.status === 'active' || r.status === 'paused') && <button className="secondary" disabled={busy !== undefined} onClick={() => { void setStatus(r, 'cancelled') }}>Stop</button>}

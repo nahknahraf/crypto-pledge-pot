@@ -181,3 +181,6 @@ blockquote, .description, .feed li p { overflow-wrap: anywhere; }
 .badge.routine-paused { background: #fff1d6; color: var(--warn); }
 .badge.routine-cancelled { background: #f9e5e3; color: var(--err); }
 .badge.routine-completed { background: var(--line); color: var(--ink); }
+.bubble.draft label.checkbox { flex-direction: row; align-items: center; gap: 0.4rem; }
+.activity li.skipped { color: var(--muted); }
+.activity li.failed { color: var(--err); }

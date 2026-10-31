@@ -1,6 +1,6 @@
 /**
- * Browser side of giving routines: where routines are stored, exchange rates,
- * and how a due routine turns into a pledge.
+ * Browser side of giving routines: where routines are stored, and how a due
+ * routine turns into a pledge (the shared logic is in client/routineRunner.ts).
  *
  * Two stores behind one interface:
  *  - ServerRoutineStore: the CryptoPledgePot server (authenticated with the
@@ -9,16 +9,23 @@
  *  - LocalRoutineStore: browser storage, used only in the offline demo (where
  *    the wallet is never contacted). Runs there are simulated and marked so.
  *
- * Neither store can move money. Only `executeRoutine` does, and only through
- * the user's own wallet (`CryptoPledgePot.donate`), after the user confirmed.
+ * Neither store can move money. Money moves only through a wallet:
+ *  - manual runs: the user's own wallet, after the user confirmed;
+ *  - automatic runs: the user's routine agent (agent/routineAgent.ts), from the
+ *    budget the user moved into it, for routines the user delegated to it.
  */
-import type { CampaignView } from '../../core/api'
 import {
-  applyRun, canSetStatus, checkRun, matchCampaigns, newRoutine, parseRoutineText, satsFor,
-  type ParseResult, type Routine, type RoutineCurrency, type RoutineDraft, type RoutineRun, type RoutineStatus
+  applyRun, canSetStatus, checkRun, newRoutine, parseRoutineText,
+  type ParseResult, type Routine, type RoutineDraft, type RoutineRun, type RoutineStatus
 } from '../../core/routines'
-import type { CryptoPledgePot } from '../../client/cryptoPledgePot'
 import type { CryptoPledgePotApi } from '../../client/cryptoPledgePotApi'
+import { nowS, type RunPlan } from '../../client/routineRunner'
+
+export { bsvPrice, executeRoutine, planRun, type RunPlan } from '../../client/routineRunner'
+export const now = nowS
+
+/** Identity the offline demo uses for its simulated routine agent. */
+export const DEMO_AGENT_KEY = '02' + 'de'.repeat(32)
 
 export interface RoutineStore {
   readonly kind: 'server' | 'local'
@@ -26,6 +33,8 @@ export interface RoutineStore {
   list: () => Promise<Routine[]>
   create: (draft: RoutineDraft) => Promise<Routine>
   setStatus: (id: string, status: RoutineStatus) => Promise<Routine>
+  /** Delegate automatic execution to this identity key (the user's routine agent), or revoke it with null. */
+  setExecutor: (id: string, identityKey: string | null) => Promise<Routine>
   /** Record an execution. The server only needs the pledge id; it reads the rest from its own index. */
   recordRun: (id: string, run: RoutineRun) => Promise<Routine>
 }
@@ -37,6 +46,7 @@ export class ServerRoutineStore implements RoutineStore {
   list = async () => await this.api.routines()
   create = async (draft: RoutineDraft) => await this.api.createRoutine(draft)
   setStatus = async (id: string, status: RoutineStatus) => await this.api.setRoutineStatus(id, status)
+  setExecutor = async (id: string, identityKey: string | null) => await this.api.setRoutineExecutor(id, identityKey)
   recordRun = async (id: string, run: RoutineRun) => await this.api.recordRoutineRun(id, run.pledgeId)
 }
 
@@ -76,57 +86,9 @@ export class LocalRoutineStore implements RoutineStore {
     return { ...r, status, nextRunAt: status === 'cancelled' ? null : status === 'active' ? Math.min(r.nextRunAt ?? now(), now()) : r.nextRunAt }
   })
 
+  setExecutor = async (id: string, identityKey: string | null) => this.update(id, r => ({ ...r, executor: identityKey === null ? null : { identityKey, since: now() } }))
+
   recordRun = async (id: string, run: RoutineRun) => this.update(id, r => { checkRun(r, run.sats, now()); return applyRun(r, run) })
-}
-
-export const now = (): number => Math.floor(Date.now() / 1000)
-
-// ───────────────────────────── exchange rates ─────────────────────────────
-
-const rates = new Map<RoutineCurrency, Promise<number | undefined>>()
-
-/** Fiat per 1 BSV (cached per page load). USD from WhatsOnChain, EUR from CoinGecko. Undefined if unreachable. */
-export async function bsvPrice (currency: RoutineCurrency): Promise<number | undefined> {
-  if (currency === 'SATS') return undefined
-  if (!rates.has(currency)) {
-    const get = async (url: string, pick: (j: any) => unknown): Promise<number | undefined> => {
-      try {
-        const r = await fetch(url)
-        const n = Number(pick(await r.json()))
-        return r.ok && Number.isFinite(n) && n > 0 ? n : undefined
-      } catch { return undefined }
-    }
-    rates.set(currency, currency === 'USD'
-      ? get('https://api.whatsonchain.com/v1/bsv/main/exchangerate', j => j.rate)
-      : get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin-cash-sv&vs_currencies=eur', j => j['bitcoin-cash-sv']?.eur))
-  }
-  return await rates.get(currency)!
-}
-
-// ─────────────────────────────── execution ───────────────────────────────
-
-export interface RunPlan { campaign: CampaignView, sats: number, price?: number }
-
-/** What a run of this routine would do right now: which campaign, how many sats. Throws if it can't run. */
-export async function planRun (r: Routine, campaigns: CampaignView[]): Promise<RunPlan> {
-  const best = matchCampaigns(r.target, campaigns, now())[0]
-  if (best === undefined) throw new Error(`No open campaign matches "${r.target.label}" right now (looked for: ${r.target.keywords.slice(0, 6).join(', ')}).`)
-  const price = await bsvPrice(r.amount.currency)
-  const sats = satsFor(r.amount, price)
-  checkRun(r, sats, now())
-  return { campaign: best.campaign, sats, price }
-}
-
-/**
- * Execute one due routine with the user's wallet: a normal pledge into the
- * campaign's escrow (one wallet approval), then report it so the routine's
- * history shows it. If reporting fails, the pledge still exists on chain and
- * in the campaign; only the routine's bookkeeping is missing.
- */
-export async function executeRoutine (store: RoutineStore, client: CryptoPledgePot, r: Routine, plan: RunPlan): Promise<{ routine: Routine, txid: string }> {
-  const pledge = await client.donate(plan.campaign.meta, plan.sats, { message: `Giving routine: ${r.target.label}`.slice(0, 280) })
-  const routine = await store.recordRun(r.id, { at: now(), campaignId: plan.campaign.id, campaignTitle: plan.campaign.meta.title, sats: pledge.amount, pledgeId: pledge.id })
-  return { routine, txid: pledge.id.split('.')[0] }
 }
 
 /** Offline demo: the same plan, recorded as a simulated run (no wallet, no transaction). */

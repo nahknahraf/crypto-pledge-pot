@@ -17,3 +17,6 @@ data/donor.key
 data/donor-wallet.sqlite*
 data/donor-memos.json*
 data/donor-mandate.json
+data/routine-agent.key
+data/routine-agent-wallet.sqlite*
+data/routine-agent.json*

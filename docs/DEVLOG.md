@@ -1595,3 +1595,53 @@ passes except `test/keys.test.ts`'s file-mode check, which fails on Windows
 with or without this change (Windows has no Unix file permissions).
 
 **Notes:** [`docs/AGENT_ROUTINES_NOTES.md`](AGENT_ROUTINES_NOTES.md).
+
+## Giving routines run automatically: the routine agent
+
+**Ask:** routines should run without approving every gift by hand.
+
+**The constraint:** something has to sign without asking. AGENTS.md rules out
+a platform server key that controls users' assets.
+
+**Solution:** each user runs their own **routine agent**
+(`npm run routine-agent`, `agent/routineAgent*.ts`), with its own wallet:
+- **Budget:** the user tops it up with a BRC-29 payment. The first funder
+  becomes its owner, and "Withdraw all" can only pay that owner.
+- **Delegation:** the owner sets `executor = agent identity key` on a routine
+  (`POST /api/routines/:id/executor`).
+- **Execution:** the agent lists its delegated routines
+  (`GET /api/routines/delegated`), plans each due one with the same
+  `planRun` as the browser (moved to `client/routineRunner.ts`), pledges from
+  its own wallet and reports the run.
+- **Server checks:** `POST /runs` now accepts the owner **or** the delegated
+  executor, and still checks that the pledge is the caller's, on target,
+  within the limits, and counted once.
+
+**Limits, in layers:**
+1. the routine's caps (checked by the agent and the server);
+2. a per-round cap in the agent;
+3. its budget;
+4. it only serves its owner's routines;
+5. revocation is immediate.
+
+**Trade-offs:**
+- Automatic giving only happens while the agent's machine is on.
+- The agent's key is a hot key, so the budget should stay small.
+- Pledges belong to the agent's wallet, so refunds of failed campaigns go back
+  into its budget.
+- A hosted, still trustless alternative would be an sCrypt standing-order
+  covenant (listed as an idea in the notes).
+
+**Offline demo:** the page simulates the agent (1,000,000 sats budget,
+simulated runs within ~4 s) for the video. The real agent refuses to start
+against a mock server.
+
+**Tests:** 6 more end-to-end tests on the mock chain:
+- no delegation, no run;
+- only the owner delegates;
+- the agent pays from its wallet while alice's balance is unchanged;
+- revocation is refused at once;
+- strangers' routines are ignored;
+- too small a budget leads to a skip.
+
+The routine tests total 36; tsc is clean.

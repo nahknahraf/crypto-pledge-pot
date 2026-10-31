@@ -123,6 +123,10 @@ export class CryptoPledgePotDb {
         t.integer('created_at').notNullable()
       })
     }
+    if (!(await k.schema.hasColumn('routines', 'executor'))) {
+      // The routine agent a routine is delegated to (its identity key), so the agent can list its work.
+      await k.schema.alterTable('routines', t => { t.string('executor', 66).index() })
+    }
   }
 
   // ── campaigns ──
@@ -221,8 +225,8 @@ export class CryptoPledgePotDb {
 
   // ── giving routines ──
   async putRoutine (r: Routine): Promise<void> {
-    await this.knex('routines').insert({ id: r.id, owner: ownerKey(r.owner), data: JSON.stringify(r), created_at: r.createdAt })
-      .onConflict('id').merge(['data'])
+    await this.knex('routines').insert({ id: r.id, owner: ownerKey(r.owner), executor: r.executor?.identityKey ?? null, data: JSON.stringify(r), created_at: r.createdAt })
+      .onConflict('id').merge(['data', 'executor'])
   }
 
   async routine (id: string): Promise<Routine | undefined> {
@@ -232,6 +236,11 @@ export class CryptoPledgePotDb {
 
   async routinesOf (owner: string): Promise<Routine[]> {
     return (await this.knex('routines').where({ owner }).orderBy('created_at', 'desc')).map(r => JSON.parse(r.data))
+  }
+
+  /** Routines delegated to this routine agent (identity key). */
+  async routinesExecutedBy (executor: string): Promise<Routine[]> {
+    return (await this.knex('routines').where({ executor }).orderBy('created_at', 'asc')).map(r => JSON.parse(r.data))
   }
 
   async transaction<T> (fn: (db: CryptoPledgePotDb) => Promise<T>): Promise<T> {

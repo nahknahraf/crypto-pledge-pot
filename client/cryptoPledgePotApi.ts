@@ -93,6 +93,10 @@ export class CryptoPledgePotApi {
   routines = async (): Promise<Routine[]> => await this.authGet('/api/routines')
   createRoutine = async (draft: RoutineDraft): Promise<Routine> => await this.post('/api/routines', { draft })
   setRoutineStatus = async (id: string, status: RoutineStatus): Promise<Routine> => await this.post(`/api/routines/${id}/status`, { status })
+  /** Owner: let this identity (your routine agent) run the routine automatically, or revoke with null. */
+  setRoutineExecutor = async (id: string, identityKey: string | null): Promise<Routine> => await this.post(`/api/routines/${id}/executor`, { identityKey })
+  /** Routine agent: the routines delegated to the authenticated wallet. */
+  delegatedRoutines = async (): Promise<Routine[]> => await this.authGet('/api/routines/delegated')
   /** Report that a pledge (already registered via registerPledge) executed this routine. */
   recordRoutineRun = async (id: string, pledgeId: string): Promise<Routine> => await this.post(`/api/routines/${id}/runs`, { pledgeId })
 

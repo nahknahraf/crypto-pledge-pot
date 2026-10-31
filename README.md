@@ -331,14 +331,24 @@ The lightest way to give regularly, on the **Giving routines** page
 - **Chat:** type a sentence in German or English. The app reads it (Claude on
   the server if configured, otherwise a rule parser) and shows what it
   understood. You set a **hard cap per run in sats** and save.
-- **When a routine is due:** the page proposes the best matching open campaign
-  and the amount in sats. You approve it, and **your own wallet** makes a
-  normal escrow pledge.
-- **The server:** records the run only if it is your pledge, on target and
-  within the limits.
+- **Manual:** when a routine is due, the page proposes the best matching open
+  campaign and the amount in sats. You approve it, and **your own wallet**
+  makes a normal escrow pledge.
+- **Automatic:** switch a routine to **Automatic** and your own **routine
+  agent** runs it without asking. The agent runs on your machine with its own
+  wallet. It can spend only the budget you moved into it, only on routines you
+  delegated to it, and only within their caps. "Manual" revokes it at once, and
+  "Withdraw all" can only pay you.
+- **The server:** records a run only if the pledge is yours or your delegated
+  agent's, on target and within the limits.
 
-The agent never holds keys or money. Runs need you to be present to approve
-them. The API is ready for ZK identities (`x-zk-proof`).
+The platform server never holds keys or money. The API is ready for ZK
+identities (`x-zk-proof`).
+
+```bash
+npm run routine-agent   # your routine agent, on 127.0.0.1:8793 (personal: never exposed)
+npm run app             # → Giving routines: top up its budget, switch routines to Automatic
+```
 
 Team notes: [`docs/AGENT_ROUTINES_NOTES.md`](docs/AGENT_ROUTINES_NOTES.md).
 

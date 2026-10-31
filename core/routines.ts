@@ -13,6 +13,10 @@
  *  - Limits are fixed when the routine is created (`maxSatsPerRun`, optional
  *    `maxRuns` / `maxTotalSats`). The app refuses to propose more, and the server
  *    refuses to record a run that breaks them.
+ *  - Automatic execution is a DELEGATION, not custody: the owner may name an
+ *    `executor` (the identity key of their own routine agent, which holds only
+ *    a budget the owner moved into it). The executor may run the routine within
+ *    its limits and nothing else; the owner can revoke it at any time.
  *  - Owners are an `OwnerRef`, not a bare identity key, so a zero-knowledge
  *    identity (x-zk-proof header, snarkjs/Groth16 branch) can own routines later
  *    without changing the data model.
@@ -94,9 +98,18 @@ export interface RoutineRun {
   simulated?: boolean
 }
 
+/**
+ * Who may execute a routine without asking each time: the owner's routine agent
+ * (agent/routineAgent.ts), identified by its wallet's identity key. null = only
+ * the owner, with a wallet approval per run.
+ */
+export interface RoutineExecutor { identityKey: string, since: number }
+
 export interface Routine extends RoutineDraft {
   id: string
   owner: OwnerRef
+  /** Delegated automatic execution (see RoutineExecutor). Missing on routines saved before it existed = null. */
+  executor?: RoutineExecutor | null
   status: RoutineStatus
   createdAt: number
   /** Unix seconds when the next run is due; null once the routine is final. */
@@ -268,7 +281,7 @@ export function validateDraft (d: RoutineDraft): RoutineDraft {
 
 /** A fresh routine. Its first run is due immediately. */
 export function newRoutine (id: string, owner: OwnerRef, draft: RoutineDraft, now: number): Routine {
-  return { ...validateDraft(draft), id, owner, status: 'active', createdAt: now, nextRunAt: now, runs: [] }
+  return { ...validateDraft(draft), id, owner, executor: null, status: 'active', createdAt: now, nextRunAt: now, runs: [] }
 }
 
 // ──────────────────────────────── scheduling ────────────────────────────────
@@ -286,6 +299,11 @@ export function nextRunAfter (interval: RoutineInterval, from: number): number |
 }
 
 export const totalGiven = (r: Routine): number => r.runs.reduce((s, x) => s + x.sats, 0)
+
+export const isAutomatic = (r: Routine): boolean => r.executor !== undefined && r.executor !== null
+
+/** A compressed secp256k1 public key, as BRC-100 identity keys are. */
+export const isIdentityKey = (s: unknown): s is string => typeof s === 'string' && /^0[23][0-9a-f]{64}$/.test(s)
 
 export const isDue = (r: Routine, now: number): boolean => r.status === 'active' && r.nextRunAt !== null && r.nextRunAt <= now
 
