@@ -2321,6 +2321,6 @@ Suite: 249 passed, 3 skipped.
   - code drops those topics from any plan, so a brain that insists is overruled.
 - **Tests:**
   - in `agent.e2e`, a stubborn brain: refused once, the brain is told at the next round, and the topic is never attempted again. Mutation check: without the code filter it is attempted twice;
-  - `agentDemo.e2e` updated on purpose: 1 refusal instead of 2, and 14 calls for 700 sats instead of 13 for 650.
+  - `agentDemo.e2e` updated on purpose: 1 refusal instead of 2, and 14 calls for 700 sats instead of 13 for 650. `agent.trust` follows: the donor agent audits 14 receipted payments, all within limits. The first commit of this change left that count at 13, and a follow-up commit fixed it.
 - **Real Claude, re-run:** milestone 3 now plans five refresh readings instead of `zurich`, and the agent buys 700 sats of data instead of 450.
 - **Suite:** 278 passed, 3 skipped.
