@@ -12,8 +12,9 @@
  * Env (all optional):
  *   NETWORK=main|test  CRYPTOPLEDGEPOT_URL=http://localhost:8787  DATA_URL=http://localhost:8790
  *   AGENT_PORT=8791  AGENT_PUBLIC_URL=http://localhost:8791  AGENT_INTERVAL_S=20
- *   AGENT_ROOT_KEY (else data/agent.key)  AGENT_PRICE_CAP=50  AGENT_MAX_SPEND=500
- *   AGENT_FEE_RESERVE=3000  AGENT_GOAL=20000  AGENT_DEADLINE_MIN=15  AGENT_REFUND_DAYS=7
+ *   AGENT_ROOT_KEY (else data/agent.key)  AGENT_FEE_RESERVE=3000  AGENT_DEADLINE_MIN=15  AGENT_REFUND_DAYS=7
+ *   The campaign terms (fundraising-agent/campaignPlan.ts): AGENT_READINGS=5 per milestone × AGENT_PRICE_CAP=50 sats
+ *   + AGENT_FEE_ALLOWANCE=150 sats per milestone; the goal and the per-milestone cap are derived. AGENT_OPERATOR (who runs it).
  *   ANTHROPIC_API_KEY (Claude brain; without it the mock brain is used)  AGENT_MODEL  AGENT_BRAIN=mock
  */
 import '../core/loadEnv'
@@ -21,6 +22,7 @@ import path from 'node:path'
 import { CryptoPledgePot } from '../client/cryptoPledgePot'
 import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
+import { planCampaign } from './campaignPlan'
 import { CryptoPledgePotAgent, type AgentConfig, type StepOutcome } from './agent'
 import { defaultBrain } from './brain'
 import { createActivityLog } from './activity'
@@ -52,23 +54,24 @@ async function main (): Promise<void> {
   const deadline = now + num('AGENT_DEADLINE_MIN', 15) * 60
 
   const mission = 'Map urban air quality across European cities and publish open reports for anyone to use.'
+  // The terms come from one spending plan, so the goal, the milestones, the cap and the description agree.
+  for (const k of ['AGENT_GOAL', 'AGENT_MAX_SPEND']) if (process.env[k] !== undefined) console.warn(`[agent] ${k} is ignored: the goal and the cap are derived from AGENT_READINGS × AGENT_PRICE_CAP + AGENT_FEE_ALLOWANCE`)
+  const terms = planCampaign({ readingsPerMilestone: num('AGENT_READINGS', 5), pricePerReading: num('AGENT_PRICE_CAP', 50), feeAllowancePerMilestone: num('AGENT_FEE_ALLOWANCE', 150), operator: process.env.AGENT_OPERATOR })
   const config: AgentConfig = {
     mission,
     campaign: {
       title: 'AirWatch: an AI agent buying open air-quality data',
-      description: 'I am an autonomous AI agent. Back me and I will buy air-quality readings from a pay-per-call data API, ' +
-        'one BSV micropayment per reading, and publish a report for each milestone with a link to every payment. ' +
-        'You only fund the next milestone after you have seen my report.',
-      goal: num('AGENT_GOAL', 20_000),
+      description: terms.description,
+      goal: terms.goal,
       deadline,
       refundAfter: deadline + num('AGENT_REFUND_DAYS', 7) * 86_400,
-      milestones: [{ title: 'First readings: 5 cities', percent: 40 }, { title: 'Full coverage: 10 cities', percent: 60 }],
+      milestones: terms.milestones,
       kind: 'agent',
       agentUrl: env('AGENT_PUBLIC_URL', `http://localhost:${port}`)
     },
     dataUrl,
     pricePerCall: num('AGENT_PRICE_CAP', 50),
-    maxSpendPerMilestone: num('AGENT_MAX_SPEND', 500),
+    maxSpendPerMilestone: terms.maxSpendPerMilestone,
     feeReserve: num('AGENT_FEE_RESERVE', 3_000),
     dryRun: args.has('--dry-run')
   }

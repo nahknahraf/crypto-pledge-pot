@@ -6,6 +6,6 @@
   "compilerOptions": {
     "paths": { "@bsv/sdk": ["./node_modules/@bsv/sdk/dist/cjs/mod.d.ts"] }
   },
-  "include": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts", "liquidity-agent/swapDemo.ts", "liquidity-agent/swapDemoMain.ts", "liquidity-agent/bridgeDemo.ts", "liquidity-agent/bridgeDemoMain.ts", "liquidity-agent/btcBridgeDemoMain.ts", "liquidity-agent/lnBridgeDemoMain.ts", "donor-agent/donorDemo.ts", "donor-agent/donorDemoMain.ts", "test"],
+  "include": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts", "server/rehearsal.ts", "server/rehearsalMain.ts", "liquidity-agent/swapDemo.ts", "liquidity-agent/swapDemoMain.ts", "liquidity-agent/bridgeDemo.ts", "liquidity-agent/bridgeDemoMain.ts", "liquidity-agent/btcBridgeDemoMain.ts", "liquidity-agent/lnBridgeDemoMain.ts", "donor-agent/donorDemo.ts", "donor-agent/donorDemoMain.ts", "test"],
   "exclude": []
 }

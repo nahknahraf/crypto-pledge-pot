@@ -5,10 +5,10 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 **Before recording** (budget about 12,000 sats from **team** wallets; never a personal wallet):
 
 1. Run `npm run server`, `npm run data-provider` (real Open-Meteo data) and `npm run app`. Check that `/api/health` says `main` and that the app shows mainnet.
-2. Start the agent with short, cheap terms and the Claude brain:
+2. Start the agent with short, cheap terms and the Claude brain. Its goal and spending cap are derived from one spending plan (5 readings × 50 sats + 150 sats of fees per milestone = 1,200 sats in total; `fundraising-agent/campaignPlan.ts`):
 
    ```
-   AGENT_GOAL=5000 AGENT_DEADLINE_MIN=15 AGENT_MAX_SPEND=250 npm run agent
+   AGENT_DEADLINE_MIN=15 npm run agent
    ```
 
    The API key is loaded from `~/.config/cryptopledgepot/secrets.env` (`docs/KEYS.md`); don't type it on the command line. The start-up line must say `brain claude:…`. Top it up with about 3,000 sats from BSV Desktop, using **Top up agent fees** on its campaign page.

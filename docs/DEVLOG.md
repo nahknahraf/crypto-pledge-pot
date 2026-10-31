@@ -2336,3 +2336,15 @@ Suite: 249 passed, 3 skipped.
 - **Agent demo:** `npm run demo:agent` ran through the API. Claude planned all 3 milestones and wrote 2 reports through the SDK, which the agent anchored and posted. The overpriced topic was refused once and not retried, and 700 sats were spent.
 - **Safety, now that a real key exists:** `vitest.config.ts` sets `CPP_SECRETS_FILE=none`, so tests never read the owner's secrets file. `secretsIsolation` checks this.
 - **Video script:** step 2 no longer has the key typed on the command line; it loads from the secrets file.
+
+**9.21 Toward zero-click runs (only agents, nobody approving).**
+- **New:**
+  - `DONOR_DATA_DIR`, so several autopilot donor agents can run side by side;
+  - `server/rehearsal.ts` and `npm run rehearse:agents`: the server, the fundraising agent and three autopilot donor agents with the real brains, offline. There are no scripted actions; only the clock is staged.
+- **With the deterministic brains, it completes with 0 human actions** (`rehearsal.e2e`): launch, pledges, 3 releases, purchases, verified reports, votes.
+- **With real Claude** (API), **every donor agent declined**, and the run turned up two real bugs.
+  1. **The donor brain never saw the agent's anchored spending limits** (`agentLimits`), so it flagged "limits claimed but not shown". It now receives them.
+  2. **The agent's hand-written terms contradicted themselves.** The goal was 12,000 sats (20,000 in production), with data spend capped at 250 per milestone, and a "10 cities" milestone sat under a 5-reading cap. `fundraising-agent/campaignPlan.ts` now derives everything from one plan: readings × price + fee allowance gives the goal, the percents, the cap, and a description that states the numbers, the data source and the operator (`AGENT_OPERATOR`). `AGENT_GOAL` and `AGENT_MAX_SPEND` are ignored with a warning. Tests: `campaignPlan`.
+- **After both fixes,** Claude no longer flags inconsistencies. The remaining concerns are about the premise: the readings are public data resold to show micropayments.
+- **A structural finding about the scoring the owner kept:** a first-time campaign can score at most 35+25+10+5+10−30 = 55 once 3 or more concerns are flagged, under the threshold of 60. So with Claude, autopilot donors can't fund any new campaign. This is an open decision.
+- **Suite:** 284 passed, 3 skipped.

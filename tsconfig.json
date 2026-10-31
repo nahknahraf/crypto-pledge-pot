@@ -14,5 +14,5 @@
   "include": ["eval", "scripts", "core", "overlay", "client", "examples", "server", "agent", "donor", "swap", "web/src", "app/src"],
   // Code on the offline mock chain (demos, tests) loads the CJS SDK build: it is
   // type-checked by tsconfig.mock.json instead (npm run typecheck:mock).
-  "exclude": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts", "liquidity-agent/swapDemo.ts", "liquidity-agent/swapDemoMain.ts", "liquidity-agent/bridgeDemo.ts", "liquidity-agent/bridgeDemoMain.ts", "liquidity-agent/btcBridgeDemoMain.ts", "liquidity-agent/lnBridgeDemoMain.ts", "donor-agent/donorDemo.ts", "donor-agent/donorDemoMain.ts"]
+  "exclude": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts", "server/rehearsal.ts", "server/rehearsalMain.ts", "liquidity-agent/swapDemo.ts", "liquidity-agent/swapDemoMain.ts", "liquidity-agent/bridgeDemo.ts", "liquidity-agent/bridgeDemoMain.ts", "liquidity-agent/btcBridgeDemoMain.ts", "liquidity-agent/lnBridgeDemoMain.ts", "donor-agent/donorDemo.ts", "donor-agent/donorDemoMain.ts"]
 }

@@ -41,3 +41,13 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 ## Bridging (real money in)
 
 Done: `SourceChain.now()` is async; there is an EVM HTLC + viem adapter with the happy path on Anvil (`demo:bridge`, `bridge.evm` tests). The rest of the bridging TBD list is in [`BRIDGING_PLAN.md` § TBD](BRIDGING_PLAN.md#tbd-after-the-happy-path).
+
+## Zero-click runs (agents only)
+
+- [x] `DONOR_DATA_DIR`: several autopilot donor agents side by side.
+- [x] `npm run rehearse:agents`: the whole story with only agents, offline, with the real brains. With the deterministic brains it completes (tested).
+- [x] Campaign terms derived from one spending plan (real Claude found the hand-written terms contradicting themselves).
+- [x] The donor brain now sees the agent's anchored spending limits (it used to flag them as missing).
+- [ ] **Decide:** with Claude as the donor brain, a first-time campaign can score at most 55 once 3+ concerns are flagged, below the threshold of 60. So autopilot donors fund no new campaign, and a zero-click run ends with the campaign failing.
+- [ ] Zero-click funding of the agents' wallets (`npm run agents:fund`) and a launcher (`npm run agents:mainnet`).
+
