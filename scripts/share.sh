@@ -71,6 +71,23 @@ fi
 SHARE_HOST="$NGROK_DOMAIN" start web npm run share
 wait_for http://localhost:5175/ web
 
+# Before anything goes public: the web server must not serve local files (keys, wallet DBs, .env).
+# Probe the paths that once leaked (/@fs from the dev server) and fail if any key's content comes back.
+leak_check () {
+  local key body
+  for key in data/*.key; do
+    [ -f "$key" ] || continue
+    for path in "/@fs$PWD/$key" "/$key" "/../$key"; do
+      body=$(curl -s --path-as-is "http://localhost:5175$path" -H "Host: $NGROK_DOMAIN")
+      if printf '%s' "$body" | grep -qF "$(tr -d '[:space:]' < "$key")"; then
+        echo "  ✗ $path serves $key. Not going public. (Use npm run share, never the dev server.)"; exit 1
+      fi
+    done
+  done
+  echo "  ✓ no local files are served (leak check)"
+}
+leak_check
+
 if [ "$SKIP_TUNNEL" = "yes" ]; then
   echo; echo "  Rehearsal (no tunnel): everything is up on http://localhost:5175 (Host: $NGROK_DOMAIN). Ctrl+C stops it."
   wait; exit 0

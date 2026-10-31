@@ -27,7 +27,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 
 - [x] A lost server reply after the broadcast: `registerWalletPledges` and "Find my pledges" (§6). The user cancelling and too few sats fail in the wallet before anything is broadcast.
 - [x] The wallet gate as plain functions, with tests: mock never constructs a wallet; network mismatch; no wallet; the prompt (§7). SSE reconnect and empty pages remain.
-- [x] A container recreated on the same volume keeps the arbiter key and the DB (checked with Podman: same key hash, no new key generated) (§8). Still open: a curl check that `/@fs` and `data/` are unreachable via the share URL.
+- [x] A container recreated on the same volume keeps the arbiter key and the DB (checked with Podman: same key hash, no new key generated) (§8). `npm run share:internet` now refuses to go public if the web server serves any `data/*.key` (leak check, tested against a safe and a leaky server).
 - [x] A smoke test for `npm run demo` (§9).
 
 ## Edge cases: agents

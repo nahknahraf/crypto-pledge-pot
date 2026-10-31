@@ -2031,3 +2031,9 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
   - **D2:** one creator under two identity keys looks like two creators.
   - **D5:** a creator's track record (completed/failed counts) comes from the server. Everything that moves money is checked on chain: terms (8.13), anchors, reports (8.26). In this design the server is also the arbiter anyway, and refunds never depend on it.
   - **Reorgs:** a spend is recorded once it has a proof.
+
+**8.32 A leak check before going public** (§8). `scripts/share.sh` now probes the paths that once leaked (`/@fs/<repo>/data/…`, `/data/…`, `/../data/…`) for every `data/*.key` before starting the tunnel. If any response contains a key's actual content, it refuses to go public.
+- Checked against `vite preview` (what `npm run share` serves): every path returns the app's `index.html`, so it passes.
+- Checked against a deliberately leaky file server from the repo root: it stops with "✗ /data/agent.key serves data/agent.key" and exit 1.
+
+**What broke while testing:** my `pkill -f "vite preview …"` matched the shell running the test command itself, and killed it halfway. I re-ran the second half on its own. A lesson for scripts: kill by PID, not by a pattern that appears in your own command line. `share.sh` already does this, using process groups.
