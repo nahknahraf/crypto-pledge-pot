@@ -2,7 +2,7 @@
  * The Bitcoin (BTC) leg of the swap: a SourceChain over a Bitcoin data source (BtcBackend).
  *
  * Same contract as the EVM adapter, so LiquidityAgent and DonorSwap work unchanged:
- *  - an HTLC is a P2WSH output of swap/btc.ts's script. Its id is `txid:vout:witnessScriptHex`, which is
+ *  - an HTLC is a P2WSH output of liquidity-agent/btc.ts's script. Its id is `txid:vout:witnessScriptHex`, which is
  *    self-verifying: anyone reading it checks that the output really pays sha256(script) and reads the
  *    terms (hashlock, receiver, sender, refundAfter) from the script itself;
  *  - an "address" is a compressed public key (hex); claims and refunds pay that key's P2WPKH output;

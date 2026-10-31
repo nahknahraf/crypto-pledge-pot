@@ -2,18 +2,18 @@
  * "Bring BTC": two ways in. (1) Lightning: pay the liquidity agent's hold invoice from any Lightning wallet and
  * receive sats in your own BSV wallet. Atomic: the agent can only settle your payment with the secret
  * you reveal when you claim the sats; otherwise the payment fails back. The flow is
- * swap/browserLightning.ts (tested against real LND nodes); this page only shows it.
+ * liquidity-agent/browserLightning.ts (tested against real LND nodes); this page only shows it.
  *
  * Configured at build time (VITE_LP_LN_URL: an `npm run lp` with BRIDGE_CHAIN=ln). With a WebLN wallet
  * (e.g. Alby) the payment starts by itself; otherwise the page shows the invoice to pay from any wallet.
  * (2) On chain (VITE_LP_BTC_URL, VITE_BTC_NETWORK=main|test, VITE_BTC_ESPLORA_URL): the page makes a refund
  * ticket to save, shows the HTLC address to pay from any wallet, and can refund with the ticket after the
- * timeout (swap/browserBtc.ts, tested on regtest).
+ * timeout (liquidity-agent/browserBtc.ts, tested on regtest).
  */
 import { useState } from 'react'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../../../client/arcadeChainTracker'
-import { refundBtc, swapBtcToSats, type BtcRefundTicket } from '../../../swap/browserBtc'
-import { swapLightningToSats, weblnPayer, type WebLn } from '../../../swap/browserLightning'
+import { refundBtc, swapBtcToSats, type BtcRefundTicket } from '../../../liquidity-agent/browserBtc'
+import { swapLightningToSats, weblnPayer, type WebLn } from '../../../liquidity-agent/browserLightning'
 import { Notice } from '../components/ui'
 import { confirmSpend, useWallet } from '../wallet'
 

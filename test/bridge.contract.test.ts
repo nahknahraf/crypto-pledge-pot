@@ -7,8 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createPublicClient, createWalletClient, http, type Abi, type Address, type Hex } from 'viem'
 import { anvil as anvilChain } from 'viem/chains'
 import artifacts from '../evm/artifacts.json'
-import { anvilAccount, anvilBinary, startAnvil, type Anvil } from '../swap/anvil'
-import { deployBridgeContracts, HTLC_ABI, mintTestUsdc, TOKEN_ABI } from '../swap/evmChain'
+import { anvilAccount, anvilBinary, startAnvil, type Anvil } from '../liquidity-agent/anvil'
+import { deployBridgeContracts, HTLC_ABI, mintTestUsdc, TOKEN_ABI } from '../liquidity-agent/evmChain'
 
 const deployer = anvilAccount(0); const sender = anvilAccount(1); const receiver = anvilAccount(2)
 const HASH = `0x${'11'.repeat(32)}` as Hex

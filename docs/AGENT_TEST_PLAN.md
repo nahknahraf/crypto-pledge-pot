@@ -2,9 +2,9 @@
 
 There are three agents:
 
-- the **fundraising agent** (`agent/`), which raises its own budget and pays for data;
-- the **donor agent** (`donor/`), which gives on someone's behalf, in autopilot or co-pilot mode;
-- the **liquidity agent** (`swap/`), which swaps another chain's money into sats.
+- the **fundraising agent** (`fundraising-agent/`), which raises its own budget and pays for data;
+- the **donor agent** (`donor-agent/`), which gives on someone's behalf, in autopilot or co-pilot mode;
+- the **liquidity agent** (`liquidity-agent/`), which swaps another chain's money into sats.
 
 For each agent, this plan lists the invariants that must never break, the
 tests that already exist, and the edge cases still to add. All tests run on

@@ -1,20 +1,20 @@
 /**
  * The Bitcoin (BTC) leg of the bridge on a real Bitcoin Core node (regtest): the BTC HTLC is a
  * P2WSH script that bitcoind itself validates, and the unchanged LiquidityAgent and DonorSwap
- * swap BTC for BSV sats. Skipped when no bitcoind is installed (see swap/bitcoind.ts).
+ * swap BTC for BSV sats. Skipped when no bitcoind is installed (see liquidity-agent/bitcoind.ts).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Hash, PrivateKey, Transaction, Utils } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox'
-import { bitcoindBinary, startRegtest, type Regtest } from '../swap/bitcoind'
-import { btcPublicKey, claimTx, decodeSegwitAddress, htlcScript, p2wpkh, parseHtlcScript, refundTx, segwitAddress, serializeTx, type BtcTx } from '../swap/btc'
-import { BitcoindBackend, bitcoindWalletFunder, BtcChain } from '../swap/btcChain'
-import type { SpendFinder } from '../swap/bsv'
-import { DonorSwap } from '../swap/donorSwap'
-import { refundBtc, swapBtcToSats, type BtcRefundTicket } from '../swap/browserBtc'
-import { createLiquidityApp } from '../swap/lpHttp'
+import { bitcoindBinary, startRegtest, type Regtest } from '../liquidity-agent/bitcoind'
+import { btcPublicKey, claimTx, decodeSegwitAddress, htlcScript, p2wpkh, parseHtlcScript, refundTx, segwitAddress, serializeTx, type BtcTx } from '../liquidity-agent/btc'
+import { BitcoindBackend, bitcoindWalletFunder, BtcChain } from '../liquidity-agent/btcChain'
+import type { SpendFinder } from '../liquidity-agent/bsv'
+import { DonorSwap } from '../liquidity-agent/donorSwap'
+import { refundBtc, swapBtcToSats, type BtcRefundTicket } from '../liquidity-agent/browserBtc'
+import { createLiquidityApp } from '../liquidity-agent/lpHttp'
 import type { Server } from 'node:http'
-import { DEFAULT_LIQUIDITY, LiquidityAgent } from '../swap/liquidityAgent'
+import { DEFAULT_LIQUIDITY, LiquidityAgent } from '../liquidity-agent/liquidityAgent'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
 describe('BTC primitives', () => {

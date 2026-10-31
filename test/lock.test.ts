@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { acquireLock } from '../agent/lock'
+import { acquireLock } from '../shared/lock'
 
 const tmp = (): string => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lock-')), 'agent.lock')
 

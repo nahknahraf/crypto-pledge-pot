@@ -1,7 +1,7 @@
 # Plan: agents that bring assets into BSV wallets, non-custodially
 
 *30 October 2026 · status: **simplest demoable version built on branch `cross-chain-swap`**: A1 (BSV AtomicSwap), A2 against a *simulated* USDC chain, the donor and liquidity sides of A3, `npm run demo:swap` · still to do: a real EVM adapter (Anvil/Base), the NGO side, the quote board, the UI · builds on the donor agent (branch
-`donor-agent`), the NGO/service agent (`agent/`) and the sCrypt escrow.*
+`donor-agent`), the NGO/service agent (`fundraising-agent/`) and the sCrypt escrow.*
 
 **Why this matters for the track.** The adoption criterion (35%) asks for
 apps that bring **new users and liquidity from other chains** to BSV. Today
@@ -95,7 +95,7 @@ Phase A3.
 - `viem` in the agents for reading and writing; the donor signs in their own
   EVM wallet (MetaMask, Coinbase Wallet) from the page.
 
-**Shared protocol (`swap/`):**
+**Shared protocol (`liquidity-agent/`):**
 - the swap state machine (quoted → locked-src → locked-dst → claimed → settled
   | refunded);
 - signed RFQ/quote messages (BRC-103 identities for agents; EIP-191 for EVM
@@ -118,7 +118,7 @@ Phase A3.
 |---|---|---|---|
 | **A0 · Spike** | Pick the chain pair and the HTLC contract; check fees and confirmation times on Base Sepolia and BSV testnet | A one-page decision note with numbers | 0.5 d |
 | **A1 · BSV HTLC** | The sCrypt `AtomicSwap` contract and `core/swap.ts` | Byte-for-byte cross-check; interpreter tests for claim, wrong secret, refund too early, refund after T2, wrong signer | 1 d |
-| **A2 · Two-chain swap engine** | The `swap/` state machine, EVM HTLC (local Anvil chain), watchers, journal | E2E on Anvil + the BSV mock chain: a happy swap; the donor walks away (both refund); the LP walks away (both refund); a restart mid-swap resumes; the timeouts T2 < T1 are enforced | 2 d |
+| **A2 · Two-chain swap engine** | The `liquidity-agent/` state machine, EVM HTLC (local Anvil chain), watchers, journal | E2E on Anvil + the BSV mock chain: a happy swap; the donor walks away (both refund); the LP walks away (both refund); a restart mid-swap resumes; the timeouts T2 < T1 are enforced | 2 d |
 | **A3 · Agents** | Liquidity agent (RFQ, inventory limits); donor agent "fund from anywhere" (co-pilot); NGO agent "accept USDC into escrow" and "pay out in USDC"; quote board | E2E: a donor with only USDC ends up with an escrowed pledge; the NGO pays a supplier in USDC from released sats; every step has a memo; LP limits hold under 50 concurrent requests | 2 d |
 | **A4 · UI** | The pages in §4, live status, refund buttons | Playwright (read-only, demo mode) plus a manual testnet run | 1 d |
 | **A5 · Testnet, then mainnet** | Base Sepolia + BSV testnet with real wallets; then small mainnet swaps | Links to both chains for each step in `USAGE_AND_VALUE.md` | 1 d + waiting |

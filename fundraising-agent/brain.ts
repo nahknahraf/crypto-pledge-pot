@@ -10,7 +10,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
 import { z } from 'zod'
-import { CITIES, isCity, type AirQualityReport, type City } from './dataProvider'
+import { CITIES, isCity, type AirQualityReport, type City } from '../data-provider/dataProvider'
 
 export interface PlannedCall { topic: City, why: string }
 export interface PlanInput {

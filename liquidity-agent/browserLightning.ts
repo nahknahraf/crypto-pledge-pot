@@ -3,7 +3,7 @@
  * invoice from ANY Lightning wallet, then claim the sats into the donor's own BSV wallet.
  * Plain code with no React, tested end to end against real LND nodes (test/bridge.lightning.test.ts).
  *
- * The donor needs no Lightning node: the invoice is checked locally (swap/bolt11.ts) before paying,
+ * The donor needs no Lightning node: the invoice is checked locally (liquidity-agent/bolt11.ts) before paying,
  * and the BSV lock is checked on chain before claiming. If anything is off, the donor doesn't claim,
  * and the held payment fails back when the agent cancels or the HTLC times out.
  */

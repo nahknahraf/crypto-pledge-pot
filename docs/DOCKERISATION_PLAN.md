@@ -80,7 +80,7 @@ and the demo profile shows all five demo campaigns.
 
 ### Phase 2: slimmer, safer runtime image (~2–3 h)
 - **Stop running vite-node in production.** Bundle `server/main.ts`,
-  `agent/main.ts`, `agent/providerMain.ts`, `server/demo.ts` and
+  `fundraising-agent/main.ts`, `data-provider/main.ts`, `server/demo.ts` and
   `server/importTx.ts` with `vite build --ssr`. Apply the same `@bsv/sdk` → CJS
   alias as `vitest.config.ts`, so the single-SDK rule still holds. The runtime
   image then needs only production dependencies (`npm ci --omit=dev`).

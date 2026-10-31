@@ -31,12 +31,12 @@ after doing the due diligence.
 | Wallet connection, signing, transactions | BRC-100 (`WalletClient`, `createAction` / `signAction` / `createSignature`) | `app/src/wallet.tsx`, `client/cryptoPledgePot.ts` |
 | Keys that never leave the wallet | BRC-42/43 derived keys (protocol IDs per role) | `core/campaign.ts` (`protocolsFor`) |
 | Escrow and atomic-swap contracts | sCrypt (OP_PUSH_TX timelocks, covenant), cross-checked byte for byte | `contracts/`, `core/pledge.ts`, `core/swap.ts` |
-| Transactions with proofs | BEEF / AtomicBEEF (BRC-62/95), SPV verification | `server/app.ts`, `donor/diligence.ts`, `swap/donorSwap.ts` |
+| Transactions with proofs | BEEF / AtomicBEEF (BRC-62/95), SPV verification | `server/app.ts`, `donor-agent/diligence.ts`, `liquidity-agent/donorSwap.ts` |
 | Block headers, transaction lookup | Arcade chaintracks; WhatsOnChain BEEF and spends | `client/arcadeChainTracker.ts`, `server/watcher.ts` |
-| Server, agent, donor and liquidity wallets | `@bsv/wallet-toolbox` (`Setup.createWalletSQLite`) in 5 roles | `server/main.ts`, `agent/wallet.ts`, `donor/main.ts`, `swap/` |
+| Server, agent, donor and liquidity wallets | `@bsv/wallet-toolbox` (`Setup.createWalletSQLite`) in 5 roles | `server/main.ts`, `shared/wallet.ts`, `donor-agent/main.ts`, `liquidity-agent/` |
 | Accounts without passwords | BRC-103/104 mutual auth (`AuthFetch`, auth middleware) | `client/cryptoPledgePotApi.ts`, `server/app.ts` |
-| Agent pays per API call | BRC-121 HTTP 402 (`@bsv/402-pay`), capped payer | `agent/pay402.ts`, `agent/dataProvider.ts` |
-| Budget top-ups to agents | BRC-29 payments | `agent/http.ts`, `donor/http.ts` |
+| Agent pays per API call | BRC-121 HTTP 402 (`@bsv/402-pay`), capped payer | `fundraising-agent/pay402.ts`, `data-provider/dataProvider.ts` |
+| Budget top-ups to agents | BRC-29 payments | `fundraising-agent/http.ts`, `donor-agent/http.ts` |
 | Donor's pledges tracked in their wallet | BRC-46 baskets with custom instructions | `client/cryptoPledgePot.ts` |
 | Public, rebuildable records | OP_RETURN (campaigns, memos, agent report hashes) | `core/campaign.ts` |
 
@@ -228,7 +228,7 @@ server); the share command serves only the built app.
 | `client/cryptoPledgePot.ts` · `client/cryptoPledgePotApi.ts` | wallet flows · HTTP/AuthFetch API client |
 | `server/` | indexer + arbiter (`app.ts`, `policy.ts`, `db.ts`), `main.ts`, `demo.ts` |
 | `app/` | React frontend |
-| `agent/` | AI agent service: loop (`agent.ts`), Claude brain (`brain.ts`), capped 402 payer (`pay402.ts`), spend ledger, paid data API, status endpoint |
+| `fundraising-agent/` | AI agent service: loop (`agent.ts`), Claude brain (`brain.ts`), capped 402 payer (`pay402.ts`), spend ledger, paid data API, status endpoint |
 | `test/pledge.script.test.ts` · `test/cryptoPledgePot.e2e.test.ts` | contract tests · end-to-end flows |
 | `docs/DEVLOG.md` | engineering log: decisions, what broke, fixes |
 | `overlay/`, `client/token.ts`, `web/`… | the BSV-21 token kit this project started from (still tested) |
@@ -298,7 +298,7 @@ npm run app              # web UI
 `ANTHROPIC_API_KEY` switches on the Claude brain (`claude-opus-5-5` with
 structured output and the server-side refusal fallback). Without it, a
 deterministic mock brain is used. All limits are env vars (see
-`agent/main.ts`).
+`fundraising-agent/main.ts`).
 
 The data is **synthetic** (deterministic per city and date, flagged
 `synthetic: true`). The demo is about the payment rail; a real provider plugs in

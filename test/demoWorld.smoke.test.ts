@@ -5,7 +5,7 @@
  */
 import { afterAll, describe, expect, it } from 'vitest'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { freePort } from '../swap/anvil'
+import { freePort } from '../liquidity-agent/anvil'
 
 let proc: ChildProcess | undefined
 afterAll(() => { if (proc?.pid !== undefined) try { process.kill(-proc.pid, 'SIGTERM') } catch {} })

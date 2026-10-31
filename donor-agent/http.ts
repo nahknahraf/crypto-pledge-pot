@@ -1,6 +1,6 @@
 /**
  * The donor agent's own API, for the donor's web page. It belongs to ONE
- * donor and listens on 127.0.0.1 only (donor/main.ts); never expose it
+ * donor and listens on 127.0.0.1 only (donor-agent/main.ts); never expose it
  * publicly.
  *
  *   GET  /api/donor                   mode, terms, budget used/reserved/left, wallet (autopilot)

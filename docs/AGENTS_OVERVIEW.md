@@ -31,7 +31,7 @@ Every agent is described the same way:
 
 ---
 
-## 1. Fundraising agent (`agent/`)
+## 1. Fundraising agent (`fundraising-agent/`)
 
 | | |
 |---|---|
@@ -45,7 +45,7 @@ Every agent is described the same way:
 
 The model only chooses *what* to buy and writes the text. Prices, caps, hosts and amounts are decided in code.
 
-## 2. Donor agent (`donor/`)
+## 2. Donor agent (`donor-agent/`)
 
 | | |
 |---|---|
@@ -57,19 +57,19 @@ The model only chooses *what* to buy and writes the text. Prices, caps, hosts an
 | **Never** | exceeds the budget or per-creator cap; pledges twice to one campaign; pays in co-pilot; funds text that addresses AI agents (a rule in code, for every brain, so the campaign scores 0); votes YES without verified evidence, or on a report that differs from its on-chain anchor; trusts terms the server shows unless they hash to the anchored campaign id; evaluates more than `maxEvaluationsPerStep` campaigns per round |
 | **Alone** | `donor.rules`, `donor.e2e`, `donor.http`; `npm run demo:donor` |
 
-## 3. Liquidity (bridging) agent (`swap/`)
+## 3. Liquidity (bridging) agent (`liquidity-agent/`)
 
 | | |
 |---|---|
 | **Job** | Sell sats for USDC on an EVM chain, BTC on chain, or BTC over Lightning, atomically, so a donor with no BSV can pledge |
-| **Runs as** | `npm run lp` (`:8793/api/lp`: `GET` status, `POST /quote`, `POST /lock`). Configured by env (`swap/lpMain.ts`) |
+| **Runs as** | `npm run lp` (`:8793/api/lp`: `GET` status, `POST /quote`, `POST /lock`). Configured by env (`liquidity-agent/lpMain.ts`) |
 | **Holds** | Its own sats inventory (BSV) and the USDC it collects (EVM). **Never the donor's money**: the donor's USDC sits in an HTLC that only the secret or the timeout can open |
 | **State** | `data/lp-swaps.json`: every quote and lock. It is saved before and after each lock, so a restart still collects or refunds |
 | **Loop** | `quote` → `acceptSourceLock` (reads the donor's lock **on the EVM chain**: pays us, right amount, long enough timeout, not already used) → lock sats on BSV for the donor's key, with an earlier timeout → `step`: when the donor claims, read the secret from the BSV claim and claim the USDC; if they never claim, refund our sats after our timeout |
 | **Never** | locks sats before seeing the source lock on chain with `minSourceConfirmations`; loses track of a lock it broadcast (a `locking` intent is saved first and recovered from the wallet basket); accepts one source lock for two swaps (including concurrent requests); quotes above its limit or its inventory; lets its timeout end after the donor's |
 | **Alone** | `swap.edges`, `swap.e2e` (simulated USDC), `bridge.evm` and `bridge.service` (real Solidity HTLC on Anvil, the agent over HTTP, a crash and restart), `bridge.btc` (P2WSH HTLC on a Bitcoin Core regtest node), `bridge.lightning` (hold invoices on two LND nodes); `npm run demo:bridge`, `npm run demo:bridge:btc`, `npm run demo:bridge:ln` |
 
-The donor side of a swap (`swap/donorSwap.ts`) is a library, not a separate agent:
+The donor side of a swap (`liquidity-agent/donorSwap.ts`) is a library, not a separate agent:
 
 - it makes the secret and locks the USDC;
 - it **re-checks the BSV lock itself** (SPV, hashlock, its key, amount, timeout) before claiming;
@@ -78,11 +78,11 @@ The donor side of a swap (`swap/donorSwap.ts`) is a library, not a separate agen
   - from USDC the donor holds (`approve` + `lock`);
   - with a permit, in one transaction;
   - swapped from another token on a DEX through `SwapAndLock`, in one transaction (`lockAndRequest(…, lockWith)`);
-- in a browser, the donor's own EVM wallet signs (`swap/browserEvm.ts`), and `swap/browserSwap.ts` runs the whole flow for the **Bring USDC** page.
-- on-chain BTC also works from any wallet: `swap/browserBtc.ts` gives the donor a refund ticket, shows the HTLC address to pay, and finds the payment on chain;
-- over Lightning, the donor pays from any wallet: `swap/browserLightning.ts` checks the agent's invoice locally (`swap/bolt11.ts`), then pays through WebLN or by hand, for the **Bring BTC** page.
+- in a browser, the donor's own EVM wallet signs (`liquidity-agent/browserEvm.ts`), and `liquidity-agent/browserSwap.ts` runs the whole flow for the **Bring USDC** page.
+- on-chain BTC also works from any wallet: `liquidity-agent/browserBtc.ts` gives the donor a refund ticket, shows the HTLC address to pay, and finds the payment on chain;
+- over Lightning, the donor pays from any wallet: `liquidity-agent/browserLightning.ts` checks the agent's invoice locally (`liquidity-agent/bolt11.ts`), then pays through WebLN or by hand, for the **Bring BTC** page.
 
-The source chain is pluggable: `SourceChain` (`swap/usdcChain.ts`) has an `asset` (USDC, 6 decimals, by default; BTC, 8). `EvmUsdcChain`, `BtcChain` and `LightningChain` implement it, so the agent and the donor library don't know which chain they're on. Two optional hooks cover Lightning: `request` (the agent issues a hold invoice first) and `release` (it cancels that invoice when it gives up).
+The source chain is pluggable: `SourceChain` (`liquidity-agent/usdcChain.ts`) has an `asset` (USDC, 6 decimals, by default; BTC, 8). `EvmUsdcChain`, `BtcChain` and `LightningChain` implement it, so the agent and the donor library don't know which chain they're on. Two optional hooks cover Lightning: `request` (the agent issues a hold invoice first) and `release` (it cancels that invoice when it gives up).
 
 Money can also come in without a swap: **Fund from an exchange** (`client/receive.ts`) gives a fresh deposit address of the user's own wallet.
 
@@ -90,8 +90,21 @@ Money can also come in without a swap: **Fund from an exchange** (`client/receiv
 
 | Service | Job | Command |
 |---|---|---|
-| CryptoPledgePot server | Index campaigns and pledges; arbiter co-signature by policy (milestone 1 when funded, later milestones by a >50 % vote, refunds when failed) | `npm run server` |
-| Data provider | The paid API the fundraising agent buys from (BRC-121), real Open-Meteo data | `npm run data-provider` |
+| CryptoPledgePot server (`server/`) | Index campaigns and pledges; arbiter co-signature by policy (milestone 1 when funded, later milestones by a >50 % vote, refunds when failed) | `npm run server` |
+| Data provider (`data-provider/`) | The paid API the fundraising agent buys from (BRC-121), real Open-Meteo data | `npm run data-provider` |
+
+## Folders
+
+| Folder | What it is |
+|---|---|
+| `fundraising-agent/` | The fundraising agent |
+| `donor-agent/` | The donor agent |
+| `liquidity-agent/` | The liquidity (bridging) agent, its chain adapters (EVM, BTC, Lightning), and the donor-side swap library |
+| `shared/` | Plumbing every agent uses and none owns: the single-process lock, the server wallet, the JSON store |
+| `data-provider/` | The paid data API (a service, not an agent) |
+| `server/`, `client/`, `core/`, `app/` | The platform: index and arbiter, client library, contracts and records, web app |
+
+No agent folder imports another agent's folder.
 
 ## Reasoning about failures
 

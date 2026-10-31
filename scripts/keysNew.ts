@@ -13,7 +13,7 @@ import fs from 'node:fs'
 import { PrivateKey } from '@bsv/sdk'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 import type { Hex } from 'viem'
-import { btcPublicKey, p2wpkh, segwitAddress } from '../swap/btc'
+import { btcPublicKey, p2wpkh, segwitAddress } from '../liquidity-agent/btc'
 import { parseEnv } from '../core/loadEnv'
 import { ensureSecretsFile, fillEmpty, secretsFile } from './secretsFile'
 

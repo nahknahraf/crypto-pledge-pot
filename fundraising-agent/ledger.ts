@@ -5,9 +5,8 @@
  * their money went, call by call, on WhatsOnChain. File-backed in production
  * (data/agent-ledger.json, data/agent-state.json), in-memory in tests.
  */
-import fs from 'node:fs'
-import path from 'node:path'
-import type { City } from './dataProvider'
+import type { City } from '../data-provider/dataProvider'
+import type { Store } from '../shared/store'
 
 export interface SpendEntry {
   milestone: number
@@ -27,22 +26,8 @@ export interface AgentState {
   worked: number[]
 }
 
-export interface Store<T> { load: () => T, save: (value: T) => void }
-
-export const memoryStore = <T>(initial: T): Store<T> => {
-  let value = structuredClone(initial)
-  return { load: () => structuredClone(value), save: v => { value = structuredClone(v) } }
-}
-
-export const fileStore = <T>(file: string, initial: T): Store<T> => ({
-  load: () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')) as T } catch { return structuredClone(initial) } },
-  save: v => {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    const tmp = `${file}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify(v, null, 2))
-    fs.renameSync(tmp, file) // atomic replace: a crash never leaves half a ledger
-  }
-})
+// The generic store lives in shared/; re-exported for the fundraising agent's own modules and tests.
+export { fileStore, memoryStore, type Store } from '../shared/store'
 
 export class Ledger {
   constructor (private readonly store: Store<SpendEntry[]>) {}

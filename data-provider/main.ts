@@ -10,7 +10,7 @@
 import '../core/loadEnv'
 import path from 'node:path'
 import { createDataProviderApp, serveDataProvider } from './dataProvider'
-import { createToolboxWallet, loadOrCreateKey } from './wallet'
+import { createToolboxWallet, loadOrCreateKey } from '../shared/wallet'
 
 async function main (): Promise<void> {
   const chain = process.env.NETWORK === 'test' ? 'test' : 'main'

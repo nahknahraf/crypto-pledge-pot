@@ -26,9 +26,9 @@ import { defaultBrain } from './brain'
 import { createActivityLog } from './activity'
 import { createAgentApp } from './http'
 import { fileStore, Ledger, type AgentState, type SpendEntry } from './ledger'
-import { acquireLock } from './lock'
+import { acquireLock } from '../shared/lock'
 import { createCappedPayer } from './pay402'
-import { createToolboxWallet, loadOrCreateKey } from './wallet'
+import { createToolboxWallet, loadOrCreateKey } from '../shared/wallet'
 
 const env = (k: string, d: string): string => process.env[k] ?? d
 const num = (k: string, d: number): number => Number(process.env[k] ?? d)

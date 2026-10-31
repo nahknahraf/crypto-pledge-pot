@@ -4,10 +4,10 @@
  * runs this file together with them (see docs/HAPPY_PATHS.md).
  */
 import { describe, expect, it } from 'vitest'
-import { runDonorDemo } from '../donor/donorDemo'
-import { anvilBinary } from '../swap/anvil'
-import { runBridgeDemo } from '../swap/bridgeDemo'
-import { USDC } from '../swap/usdcChain'
+import { runDonorDemo } from '../donor-agent/donorDemo'
+import { anvilBinary } from '../liquidity-agent/anvil'
+import { runBridgeDemo } from '../liquidity-agent/bridgeDemo'
+import { USDC } from '../liquidity-agent/usdcChain'
 
 const quiet = (): void => {}
 

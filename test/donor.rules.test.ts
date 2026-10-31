@@ -1,14 +1,14 @@
 /** Donor agent, layers 1–3: mandate, hard rules, amounts, brain guards, score. Pure, no chain. */
 import { describe, expect, it } from 'vitest'
 import type { CampaignView } from '../core/api'
-import { parseMandate, type Mandate } from '../donor/mandate'
-import { amountFor, creatorRecord, screen, type Portfolio } from '../donor/screen'
-import { addressesAgents, MockDonorBrain, sanitizeAssessment } from '../donor/brain'
-import { scoreCampaign } from '../donor/score'
-import { memoryStore } from '../agent/ledger'
+import { parseMandate, type Mandate } from '../donor-agent/mandate'
+import { amountFor, creatorRecord, screen, type Portfolio } from '../donor-agent/screen'
+import { addressesAgents, MockDonorBrain, sanitizeAssessment } from '../donor-agent/brain'
+import { scoreCampaign } from '../donor-agent/score'
+import { memoryStore } from '../shared/store'
 import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
-import { DonorAgent } from '../donor/donorAgent'
-import { MemoBook, type Memo } from '../donor/memo'
+import { DonorAgent } from '../donor-agent/donorAgent'
+import { MemoBook, type Memo } from '../donor-agent/memo'
 
 const NOW = 1_800_000_000
 const DAY = 86_400

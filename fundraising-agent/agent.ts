@@ -20,7 +20,7 @@ import type { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import type { CampaignView } from '../core/api'
 import { reportRecordScript } from '../core/campaign'
 import type { Brain } from './brain'
-import type { AirQualityReport, City } from './dataProvider'
+import type { AirQualityReport, City } from '../data-provider/dataProvider'
 import { Ledger, type AgentState, type Store } from './ledger'
 import { PaidButNotServed, PaymentRefused, type PaidResponse } from './pay402'
 
@@ -48,7 +48,7 @@ export interface AgentDeps {
   brain: Brain
   ledger: Ledger
   state: Store<AgentState>
-  /** Capped 402 payer (agent/pay402.ts). */
+  /** Capped 402 payer (fundraising-agent/pay402.ts). */
   pay: <T>(url: string) => Promise<PaidResponse<T>>
   log?: (line: string) => void
   /** Wallet originator (BRC-100 apps identify themselves by domain). */

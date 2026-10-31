@@ -12,11 +12,11 @@
  * The donor side is judged exactly as DonorAgent judges (assessWithRules + scoreCampaign).
  */
 import type { CampaignView } from '../core/api'
-import type { Brain } from '../agent/brain'
-import { CITIES } from '../agent/dataProvider'
-import { assessWithRules, type DonorBrain } from '../donor/brain'
-import { parseMandate } from '../donor/mandate'
-import { scoreCampaign } from '../donor/score'
+import type { Brain } from '../fundraising-agent/brain'
+import { CITIES } from '../data-provider/dataProvider'
+import { assessWithRules, type DonorBrain } from '../donor-agent/brain'
+import { parseMandate } from '../donor-agent/mandate'
+import { scoreCampaign } from '../donor-agent/score'
 
 export interface EvalResult { agent: 'donor' | 'fundraising', kind: 'invariant' | 'quality', name: string, pass: boolean, detail: string }
 

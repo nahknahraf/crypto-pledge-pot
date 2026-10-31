@@ -1,7 +1,7 @@
 /** The swap demo must keep telling the truth: run it at full speed and check its outcome. */
 import { describe, expect, it } from 'vitest'
-import { runSwapDemo } from '../swap/swapDemo'
-import { USDC } from '../swap/usdcChain'
+import { runSwapDemo } from '../liquidity-agent/swapDemo'
+import { USDC } from '../liquidity-agent/usdcChain'
 
 describe('"Fay has only USDC" demo', () => {
   it('act 1 ends in a pledge from swapped sats; act 2 ends with the cheater refused and Fay refunded', async () => {

@@ -6,8 +6,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Server } from 'node:http'
 import type { Wallet } from '@bsv/wallet-toolbox'
-import { createDataProviderApp, syntheticReading } from '../agent/dataProvider'
-import { createCappedPayer, PaidButNotServed, PaymentRefused } from '../agent/pay402'
+import { createDataProviderApp, syntheticReading } from '../data-provider/dataProvider'
+import { createCappedPayer, PaidButNotServed, PaymentRefused } from '../fundraising-agent/pay402'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
 let chain: MockChain

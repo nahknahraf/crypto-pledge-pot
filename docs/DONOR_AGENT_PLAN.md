@@ -151,7 +151,7 @@ small.
 ## 7. Where it lives in the code
 
 ```
-donor/
+donor-agent/
   mandate.ts      schema, defaults, validation
   screen.ts       hard rules (pure functions, unit-tested)
   diligence.ts    anchor/arbiter/creator/agent-ledger checks (data fetchers injected)
@@ -166,8 +166,8 @@ app/src/pages/Donor.tsx   mandate form, portfolio, memos, "ask first" queue
 ```
 
 Reused unchanged: `client/cryptoPledgePot.ts` (`donate`, `vote`, `claim`,
-`refund`, `reclaimEscrow`), `agent/wallet.ts` (keys), `agent/activity.ts` (log),
-`agent/ledger.ts` patterns (atomic file stores).
+`refund`, `reclaimEscrow`), `shared/wallet.ts` (keys), `fundraising-agent/activity.ts` (log),
+`fundraising-agent/ledger.ts` patterns (atomic file stores).
 
 **Server additions (small):**
 1. `GET /api/arbiter-key?nonce=&tag=` (legacy tag support);
@@ -183,7 +183,7 @@ Reused unchanged: `client/cryptoPledgePot.ts` (`donate`, `vote`, `claim`,
 | **D2 · Diligence** | Anchor SPV check, arbiter check (+ server `tag` param), agent-ledger audit | Mock chain: a valid campaign passes; a foreign-arbiter campaign, a forged anchor, and an agent whose ledger contradicts its report are all flagged | 3 h |
 | **D3 · Brain and score** | `DonorBrain` (Claude + mock), `score.ts`, risk flags | Scripted fake client: prompt-injection text in a description lowers the score and never changes amounts; refusal → skip with a memo; model asked for 1,000,000 sats → code caps it | 3 h |
 | **D4 · Loop (autopilot)** | `donorAgent.step()`: discover → pledge → monitor → vote → recover; memos | Mock chain e2e: mandate + 6 campaigns → pledges exactly to the qualifying ones within budget; votes yes on a good report and asks first on a bad one above threshold; failed campaign → refunded; idempotent re-runs | 4 h |
-| **D5 · Interfaces** | `donor/http.ts`, `npm run donor`, Donor page (mandate, portfolio, memos, approve queue), `GET /api/events` | HTTP tests; Playwright read-only screenshots in mock mode | 4 h |
+| **D5 · Interfaces** | `donor-agent/http.ts`, `npm run donor`, Donor page (mandate, portfolio, memos, approve queue), `GET /api/events` | HTTP tests; Playwright read-only screenshots in mock mode | 4 h |
 | **D6 · Demo** | Add the donor agent to "AirWatch live" (or a second story): it screens 4 campaigns, rejects 2 with reasons, backs AirWatch, votes on its reports | Story test with exact outcomes, like the raising-agent demo | 2 h |
 | **D7 · Mainnet** | Co-pilot or autopilot with a small budget (e.g. 20,000 sats); one real cycle | WhatsOnChain links for pledge, vote and reclaim in `USAGE_AND_VALUE.md` | 2 h + waiting for deadlines |
 

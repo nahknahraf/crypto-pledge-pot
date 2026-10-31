@@ -65,7 +65,7 @@ Internet ──443──▶  Caddy (automatic HTTPS)                            
 | C2 | `app.set('trust proxy', 1)` when behind Caddy | Correct client IPs for rate limiting and logs |
 | C3 | Rate limits on the public POSTs that do SPV work (`/api/spends`, `/api/import`) and on `/api/campaigns/:id/events` connections per IP | These are unauthenticated and cost CPU plus Arcade/WhatsOnChain calls: a cheap DoS vector |
 | C4 | A `Dockerfile` (Node 22; `npm ci`; `vite build app`; entry points via `vite-node`, which we need for the single-SDK alias), plus `docker-compose.yml` and a `Caddyfile` | Repeatable deploys |
-| C5 | `.env.example` listing every variable (already documented in `server/main.ts`, `agent/main.ts`, `agent/providerMain.ts`) | No guessing on the server |
+| C5 | `.env.example` listing every variable (already documented in `server/main.ts`, `fundraising-agent/main.ts`, `data-provider/main.ts`) | No guessing on the server |
 | C6 | Optional: serve the built app from the server for the demo instance | One container for the hosted demo |
 | C7 | Security headers (CSP allowing `localhost:3321`/`2121` for the wallet, WhatsOnChain and Arcade), via Caddy | Hardening; must not block the BRC-100 wallet connection |
 

@@ -1,7 +1,7 @@
 /**
  * npm run demo:bridge:btc: BTC → BSV sats, atomically, on a real Bitcoin Core node (regtest).
  *
- * Starts a throwaway regtest node (swap/bitcoind.ts; needs bitcoind, see BITCOIND_BIN), then:
+ * Starts a throwaway regtest node (liquidity-agent/bitcoind.ts; needs bitcoind, see BITCOIND_BIN), then:
  * the donor locks 0.0001 BTC in a P2WSH HTLC from their Bitcoin wallet → the liquidity agent waits
  * for a confirmation and locks BSV sats for the donor → the donor checks and claims them (revealing
  * the secret) → the agent claims the BTC with that secret. The BSV side is the offline mock chain.

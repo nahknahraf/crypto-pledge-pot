@@ -2,10 +2,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Wallet } from '@bsv/wallet-toolbox'
 import { newSecret } from '../core/swap'
-import { newSwapKey } from '../swap/bsv'
-import { memoryStore, type Store } from '../agent/ledger'
-import { DEFAULT_LIQUIDITY, LiquidityAgent, type LpSwap } from '../swap/liquidityAgent'
-import { SimulatedUsdcChain, USDC, type SourceChain } from '../swap/usdcChain'
+import { newSwapKey } from '../liquidity-agent/bsv'
+import { memoryStore, type Store } from '../shared/store'
+import { DEFAULT_LIQUIDITY, LiquidityAgent, type LpSwap } from '../liquidity-agent/liquidityAgent'
+import { SimulatedUsdcChain, USDC, type SourceChain } from '../liquidity-agent/usdcChain'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
 const T0 = Math.floor(Date.now() / 1000) - 30 * 86_400

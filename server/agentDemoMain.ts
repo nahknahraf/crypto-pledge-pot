@@ -6,7 +6,7 @@
  *      AGENT_PUBLIC_URL (the agent's public status URL when shared).
  */
 import '../core/loadEnv'
-import { defaultBrain } from '../agent/brain'
+import { defaultBrain } from '../fundraising-agent/brain'
 import { runAgentDemo } from './agentDemo'
 
 const demo = await runAgentDemo({

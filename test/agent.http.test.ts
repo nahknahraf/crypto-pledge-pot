@@ -2,8 +2,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Server } from 'node:http'
 import type { Wallet } from '@bsv/wallet-toolbox'
-import { createAgentApp } from '../agent/http'
-import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../agent/ledger'
+import { createAgentApp } from '../fundraising-agent/http'
+import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../fundraising-agent/ledger'
 import { createBrc29Payment } from '../client/payments'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 

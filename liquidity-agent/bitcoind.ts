@@ -1,5 +1,5 @@
 /**
- * A throwaway Bitcoin Core node in regtest, for tests and the demo (like swap/anvil.ts for EVM).
+ * A throwaway Bitcoin Core node in regtest, for tests and the demo (like liquidity-agent/anvil.ts for EVM).
  * Fresh data directory and random RPC credentials per run; deleted on stop().
  * The binary: BITCOIND_BIN, else ~/opt/bitcoin-<version>/bin/bitcoind (newest), else `bitcoind` on PATH.
  */

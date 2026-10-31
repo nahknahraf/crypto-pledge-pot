@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { PrivateKey } from '@bsv/sdk'
-import { loadOrCreateKey } from '../agent/wallet'
+import { loadOrCreateKey } from '../shared/wallet'
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpp-keys-'))
 const VAR = 'CPP_TEST_KEY'

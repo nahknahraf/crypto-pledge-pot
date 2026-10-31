@@ -8,8 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createPublicClient, createWalletClient, http, type Address, type Hex } from 'viem'
 import { anvil as anvilChain } from 'viem/chains'
 import { Hash, Utils } from '@bsv/sdk'
-import { anvilAccount, anvilBinary, anvilIncreaseTime, startAnvil, type Anvil } from '../swap/anvil'
-import { deployBridgeContracts, HTLC_ABI, mintTestUsdc, TOKEN_ABI } from '../swap/evmChain'
+import { anvilAccount, anvilBinary, anvilIncreaseTime, startAnvil, type Anvil } from '../liquidity-agent/anvil'
+import { deployBridgeContracts, HTLC_ABI, mintTestUsdc, TOKEN_ABI } from '../liquidity-agent/evmChain'
 
 const SEED = Number(process.env.FUZZ_SEED ?? 20261031)
 const STEPS = Number(process.env.FUZZ_STEPS ?? 150)

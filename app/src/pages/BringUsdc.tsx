@@ -1,7 +1,7 @@
 /**
  * "Bring USDC": swap USDC from the donor's own EVM wallet into sats in their own
  * BSV wallet, then back a campaign. Atomic: either both sides settle or both
- * refund. The flow is swap/browserSwap.ts (tested); this page only shows it.
+ * refund. The flow is liquidity-agent/browserSwap.ts (tested); this page only shows it.
  *
  * Configured at build time (VITE_LP_URL, VITE_EVM_RPC_URL, VITE_EVM_HTLC,
  * VITE_EVM_TOKEN, VITE_EVM_CHAIN=base-sepolia|base|anvil). Without them the page
@@ -11,9 +11,9 @@ import { useState } from 'react'
 import { anvil, base, baseSepolia } from 'viem/chains'
 import type { Address } from 'viem'
 import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../../../client/arcadeChainTracker'
-import { swapUsdcToSats } from '../../../swap/browserSwap'
-import type { Eip1193 } from '../../../swap/browserEvm'
-import { USDC } from '../../../swap/usdcChain'
+import { swapUsdcToSats } from '../../../liquidity-agent/browserSwap'
+import type { Eip1193 } from '../../../liquidity-agent/browserEvm'
+import { USDC } from '../../../liquidity-agent/usdcChain'
 import { Notice } from '../components/ui'
 import { confirmSpend, useWallet } from '../wallet'
 

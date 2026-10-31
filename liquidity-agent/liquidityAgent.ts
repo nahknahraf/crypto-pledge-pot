@@ -15,7 +15,7 @@
  * looking at the chain.
  */
 import type { WalletInterface } from '@bsv/sdk'
-import { memoryStore, type Store } from '../agent/ledger'
+import { memoryStore, type Store } from '../shared/store'
 import { secretFromClaim, type SwapTerms } from '../core/swap'
 import { findLock, lockSats, newSwapKey, refundSats, type BsvLock, type SpendFinder } from './bsv'
 import { assetOf, formatAmount, unitOf, USDC, type SourceAccount, type SourceChain } from './usdcChain'

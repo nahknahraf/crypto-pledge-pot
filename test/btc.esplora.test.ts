@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Hash, Utils } from '@bsv/sdk'
-import { EsploraBackend } from '../swap/btcChain'
+import { EsploraBackend } from '../liquidity-agent/btcChain'
 
 const TXID = 'aa'.repeat(32); const SPENDER = 'bb'.repeat(32)
 const SCRIPT = '0020' + 'cc'.repeat(32)

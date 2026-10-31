@@ -23,9 +23,9 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 
 | Agent | What it does |
 |---|---|
-| **Fundraising agent** (`agent/`) | An AI that raises its own budget on CryptoPledgePot, buys data from a pay-per-call API (one micropayment per call, never above a published cap), and anchors each report on chain |
-| **Donor agent** (`donor/`) | Gives on your behalf within your budget and rules. It checks each campaign (on-chain proofs, the agent's spending, manipulation attempts) and votes only on evidence. **Autopilot** pledges by itself; **co-pilot** writes you a short memo and waits for your approval |
-| **Liquidity agent** (`swap/`) | Turns another chain's money (USDC) into sats with an atomic swap, so a donor with no BSV can still pledge. Either both sides get paid or both get refunds |
+| **Fundraising agent** (`fundraising-agent/`) | An AI that raises its own budget on CryptoPledgePot, buys data from a pay-per-call API (one micropayment per call, never above a published cap), and anchors each report on chain |
+| **Donor agent** (`donor-agent/`) | Gives on your behalf within your budget and rules. It checks each campaign (on-chain proofs, the agent's spending, manipulation attempts) and votes only on evidence. **Autopilot** pledges by itself; **co-pilot** writes you a short memo and waits for your approval |
+| **Liquidity agent** (`liquidity-agent/`) | Turns another chain's money (USDC) into sats with an atomic swap, so a donor with no BSV can still pledge. Either both sides get paid or both get refunds |
 
 ## What works in each piece
 

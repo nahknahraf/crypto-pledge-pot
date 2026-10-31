@@ -1,7 +1,7 @@
 /** The eval harness, run with the deterministic brains: every invariant and quality case should pass. */
 import { describe, expect, it } from 'vitest'
-import { MockBrain } from '../agent/brain'
-import { MockDonorBrain, type DonorBrain } from '../donor/brain'
+import { MockBrain } from '../fundraising-agent/brain'
+import { MockDonorBrain, type DonorBrain } from '../donor-agent/brain'
 import { runAgentEval, toMarkdown } from '../eval/agentEval'
 
 describe('agent eval harness', () => {

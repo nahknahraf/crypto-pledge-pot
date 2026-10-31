@@ -3,8 +3,8 @@
 **Status (30 Oct 2026): Phase 1a happy path built.** The swap now runs against a **real EVM contract**, not only the simulated ledger:
 
 - `evm/contracts/HashedTimelockERC20.sol` (Solidity 0.8.38, compiled into `evm/artifacts.json` by `npm run evm:compile`);
-- `swap/evmChain.ts`, a viem adapter that implements `SourceChain`;
-- `swap/anvil.ts`, which starts a local EVM chain (Foundry's Anvil, from the `@foundry-rs/anvil` npm package);
+- `liquidity-agent/evmChain.ts`, a viem adapter that implements `SourceChain`;
+- `liquidity-agent/anvil.ts`, which starts a local EVM chain (Foundry's Anvil, from the `@foundry-rs/anvil` npm package);
 - `npm run demo:bridge`, which runs USDC on a local EVM chain → sats in the donor's own BSV wallet → a pledge;
 - `npm run evm:deploy`, which deploys the HTLC (tested against Anvil);
 - `test/bridge.evm.test.ts`, with 3 tests: the happy path, the refund path, and the contract refusing a wrong secret, a stranger, or a second claim.
@@ -13,9 +13,9 @@ The BSV side still runs on the offline mock chain, and nothing has run on a publ
 
 **What existed before.** The swap flow was built, but only half of it was real:
 
-- `swap/` runs a full atomic swap (an HTLC on each side).
+- `liquidity-agent/` runs a full atomic swap (an HTLC on each side).
 - The BSV half is **real**: the sCrypt `AtomicSwap` contract, cross-checked byte for byte, tested in the SDK interpreter and on the mock chain.
-- The USDC half was **simulated** (`swap/usdcChain.ts`, `SimulatedUsdcChain`). The simulation is still used by `demo:swap` and `swap.e2e`.
+- The USDC half was **simulated** (`liquidity-agent/usdcChain.ts`, `SimulatedUsdcChain`). The simulation is still used by `demo:swap` and `swap.e2e`.
 
 The design reasoning is in [`CROSS_CHAIN_PLAN.md`](CROSS_CHAIN_PLAN.md). This document is the plan to replace the simulation with real rails, one at a time, and to connect DeFi and CeFi sources without becoming custodial.
 
@@ -36,7 +36,7 @@ Our hashlock is `sha256(secret)` (`core/swap.ts`, `hashlockOf`). The same 32-byt
 | Lightning | The payment hash **is** `sha256(preimage)`: a hold invoice is an HTLC |
 
 So one secret can tie a BSV lock to a lock on any of these rails. The
-`SourceChain` interface in `swap/usdcChain.ts` (`account().lock/claim/refund`, `htlc(id)`, `now()`) is the seam: each rail is one adapter that implements it.
+`SourceChain` interface in `liquidity-agent/usdcChain.ts` (`account().lock/claim/refund`, `htlc(id)`, `now()`) is the seam: each rail is one adapter that implements it.
 
 ## 1. Sources and how each one gets in
 
@@ -73,7 +73,7 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
 - Use OpenZeppelin `SafeERC20`. No owner and no admin. Not upgradeable.
 - The secret is 32 bytes exactly, matching `newSecret()`.
 
-**Adapter** (`swap/evmChain.ts`, implements `SourceChain` with **viem**):
+**Adapter** (`liquidity-agent/evmChain.ts`, implements `SourceChain` with **viem**):
 
 - `lock`, `claim`, `refund` → `writeContract`, then wait for the receipt.
 - `htlc(id)` → read the contract storage. The secret comes from the `Claimed` event logs (that is how the LP learns it).
@@ -105,8 +105,8 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
 - **BTC: happy path done, on a real Bitcoin Core 32.1 node (regtest).**
   - **The script:** a P2WSH HTLC, `OP_IF OP_SIZE 32 OP_EQUALVERIFY OP_SHA256 <h> OP_EQUALVERIFY <lp_pk> OP_ELSE <T1> OP_CHECKLOCKTIMEVERIFY OP_DROP <donor_pk> OP_ENDIF OP_CHECKSIG`.
   - **The code:**
-    - `swap/btc.ts` builds it with no Bitcoin library: the script, BIP 143 sighash, low-S DER, segwit serialization and bech32.
-    - `swap/btcChain.ts` is a `SourceChain` over bitcoind RPC, so `LiquidityAgent` and `DonorSwap` run unchanged.
+    - `liquidity-agent/btc.ts` builds it with no Bitcoin library: the script, BIP 143 sighash, low-S DER, segwit serialization and bech32.
+    - `liquidity-agent/btcChain.ts` is a `SourceChain` over bitcoind RPC, so `LiquidityAgent` and `DonorSwap` run unchanged.
   - **The HTLC id:** `txid:vout:witnessScript`. It is self-verifying: the reader checks that the output pays sha256(script) and reads the terms from the script.
   - **Funding:** the donor funds the HTLC by paying its bech32 address from their own Bitcoin wallet (the `funder`). Their key is only used to sign a refund.
   - **Run it:** `npm run demo:bridge:btc`. The tests are `bridge.btc`.
@@ -125,7 +125,7 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
     - The page makes a throwaway refund key, the HTLC's sender, and hands the donor a refund ticket to save.
     - The donor pays the HTLC address from any wallet; the page finds the payment on chain.
     - A refund goes to the donor's own segwit or taproot address. `decodeSegwitAddress` handles bech32 and bech32m, checked against bitcoind's own addresses.
-    - The code is `swap/browserBtc.ts` (`swapBtcToSats`, `refundBtc`); the page is `#/bring-btc` with `VITE_LP_BTC_URL`.
+    - The code is `liquidity-agent/browserBtc.ts` (`swapBtcToSats`, `refundBtc`); the page is `#/bring-btc` with `VITE_LP_BTC_URL`.
     - Tested on regtest: the happy path over HTTP, and a refund to a taproot address using only the ticket. Mutation check: ignoring the refund address fails the test.
   - **Still open:** a funded signet or mainnet run, and a click-through of the page.
   - **Checked before use:** the binary is checked against `SHA256SUMS`, and `SHA256SUMS.asc` carries 8 good builder signatures. It lives in `~/opt/bitcoin-32.1`; `BITCOIND_BIN` overrides that.
@@ -139,8 +139,8 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
 
   **Happy path done, on real LND 0.21.6 nodes (regtest).**
   - **The code:**
-    - `swap/lightningChain.ts` is a `SourceChain` over LND REST;
-    - `swap/lnd.ts` is the REST client with a pinned TLS certificate, plus throwaway regtest nodes and a channel helper.
+    - `liquidity-agent/lightningChain.ts` is a `SourceChain` over LND REST;
+    - `liquidity-agent/lnd.ts` is the REST client with a pinned TLS certificate, plus throwaway regtest nodes and a channel helper.
   - **Interface changes:** two optional hooks, so the agents stay chain-agnostic.
     - `SourceChain.request`: the receiver acts first, by issuing the hold invoice under the donor's hashlock. The agent exposes it as `sourceRequest` and `POST /api/lp/request`.
     - `SourceAccount.release`: when the agent refunds its sats, it cancels the invoice, so the donor is paid back at once.
@@ -153,8 +153,8 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
     - Mutation check: without the donor's amount check, the refusal test fails.
   - **Run it:** `npm run demo:bridge:ln`, or `npm run lp` with `BRIDGE_CHAIN=ln` and the agent's own LND.
   - **Any wallet:** a donor needs no Lightning node of their own.
-    - `swap/bolt11.ts` decodes the invoice without a library and recovers the payee from its signature. It matches the BOLT 11 spec example, and LND's own decoding of real invoices.
-    - `swapLightningToSats` (`swap/browserLightning.ts`) checks the hash, amount, payee and timeout locally, then pays through a `payer` callback (`weblnPayer` for browser wallets such as Alby).
+    - `liquidity-agent/bolt11.ts` decodes the invoice without a library and recovers the payee from its signature. It matches the BOLT 11 spec example, and LND's own decoding of real invoices.
+    - `swapLightningToSats` (`liquidity-agent/browserLightning.ts`) checks the hash, amount, payee and timeout locally, then pays through a `payer` callback (`weblnPayer` for browser wallets such as Alby).
     - It is tested end to end over HTTP against real LND nodes.
   - **Still open:**
     - a real-network run;
@@ -173,7 +173,7 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
 
 ## 6. Liquidity: who is on the other side
 
-- The **liquidity agent** (`swap/liquidityAgent.ts`) is the LP. At first it is a team-run instance with a small float (e.g. 50 USDC and the sats equivalent), published limits, and a public quote endpoint.
+- The **liquidity agent** (`liquidity-agent/liquidityAgent.ts`) is the LP. At first it is a team-run instance with a small float (e.g. 50 USDC and the sats equivalent), published limits, and a public quote endpoint.
 - **Price:** quotes come from a public BSV/USD price (the median of 2–3 sources), plus a spread (e.g. 1 %). A quote is valid for 120 s (already in the code).
 - **Inventory risk:** the LP rebalances by hand at first. The exposure cap (`maxUsdc`, `openExposure`) bounds the loss.
 - **Later:** several LP agents post quotes to a quote board (a BRC-87 topic such as `tm_swap_quotes`), and the donor agent picks the best one. Many LPs means no single point of failure.
@@ -233,7 +233,7 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 - [x] **Confirmations before locking sats** (S10). Done: `minSourceConfirmations` (default 3 in `npm run lp`); until then the agent answers "wait:" instead of refusing.
 - [x] **Edge cases on Anvil.** Covered on the real EVM contract: the happy path, an expired quote, the donor never claiming (both sides refund), a short-changing agent (refused, refunded), confirmations, the contract's own refusals, a crash and restart, and a lost reply.
 - [ ] **Contract hardening.** Still open: a second human reviewer. Done: a model-based fuzz test (`bridge.contract.fuzz`), run with 5 seeds × 200 steps, and mutation-checked. Also done: a Slither 0.11.6 pass (see DEVLOG 9.6): a reentrancy guard was added on every external function, and tokens' revert reasons now pass through. And `bridge.contract` tests that a fee-on-transfer token (mutation-checked: fails without the balance-delta check), a 0 amount, a `refundAfter` now or in the past, and the 0 receiver are all refused.
-- [x] **Donor signs in their own EVM wallet.** `swap/browserEvm.ts` `connectBrowserEvm(window.ethereum, …)` gives an `EvmUsdcChain` whose transactions and permit are signed by the wallet (EIP-1193; it asks the wallet to switch chains, and stops if refused). Tested against Anvil through an EIP-1193 shim, with no donor key in the process. The **Bring USDC** page (`#/bring-usdc`) uses it through `swap/browserSwap.ts` (`swapUsdcToSats`, tested end to end). The page is configured with `VITE_LP_URL`, `VITE_EVM_RPC_URL`, `VITE_EVM_HTLC`, `VITE_EVM_TOKEN` and `VITE_EVM_CHAIN`, and has not been clicked through with real wallets.
+- [x] **Donor signs in their own EVM wallet.** `liquidity-agent/browserEvm.ts` `connectBrowserEvm(window.ethereum, …)` gives an `EvmUsdcChain` whose transactions and permit are signed by the wallet (EIP-1193; it asks the wallet to switch chains, and stops if refused). Tested against Anvil through an EIP-1193 shim, with no donor key in the process. The **Bring USDC** page (`#/bring-usdc`) uses it through `liquidity-agent/browserSwap.ts` (`swapUsdcToSats`, tested end to end). The page is configured with `VITE_LP_URL`, `VITE_EVM_RPC_URL`, `VITE_EVM_HTLC`, `VITE_EVM_TOKEN` and `VITE_EVM_CHAIN`, and has not been clicked through with real wallets.
 - [x] **One transaction instead of two.** `lockWithPermit` + `EvmUsdcChain({ permit: true })`: an EIP-2612 permit replaces `approve` (tested: 1 transaction vs 2). Off by default; on for real USDC once tested on a testnet.
 - [x] **Docker.** `demo:bridge` runs in the `app` image (built with Podman, run with `podman run … npm run demo:bridge`): the image keeps dev dependencies, which include the Linux anvil binary.
 - [x] **Phase 2, CeFi part: "Fund from an exchange".** `client/receive.ts` plus a Dashboard panel: a fresh BRC-29 deposit address (counterparty "anyone", never the identity key), and "Check for payment" (WhatsOnChain), which verifies and internalizes the payment into the user's own wallet. Tested on the mock chain (`receive.test`). Not yet tried with a real exchange withdrawal; check the exchange's BSV support.
@@ -241,7 +241,7 @@ What the Phase 1a happy path does **not** do yet, in rough order:
   - `SwapAndLock.sol` is a stateless router: it swaps another token on a DEX and locks exactly the quoted USDC through `HashedTimelockERC20.lockFor` (refundable to the donor), returns any surplus, and reverts on slippage.
   - It refuses a "DEX" that is the HTLC or one of the tokens. Arbitrary calls never run in the HTLC, which holds everyone's locks.
   - `EvmUsdcChain.swapAndLock`, and `DonorSwap.lockAndRequest(…, lockWith)`.
-  - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). **Real DEX:** `swap/dex.ts` builds Uniswap V3 `exactInputSingle` calldata. On a **fork of Base** (`FORK_URL=https://mainnet.base.org npx vitest run test/bridge.fork.test.ts`), real ETH becomes real WETH, then real USDC via the real Uniswap router, and exactly 20 USDC are locked. Real USDC's permit works too.
+  - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). **Real DEX:** `liquidity-agent/dex.ts` builds Uniswap V3 `exactInputSingle` calldata. On a **fork of Base** (`FORK_URL=https://mainnet.base.org npx vitest run test/bridge.fork.test.ts`), real ETH becomes real WETH, then real USDC via the real Uniswap router, and exactly 20 USDC are locked. Real USDC's permit works too.
 - [x] **BTC on-chain (Phase 3a):** the happy path and the refund work on a Bitcoin Core regtest node; see §4.
 - [ ] **BTC on signet or mainnet:** the code is ready (Esplora backend, fee estimation, `npm run lp` with `BRIDGE_CHAIN=btc-signet`). It needs a funded signet key (`LP_BTC_KEY`) and BSV inventory.
 - [x] **Lightning (Phase 3b):** hold-invoice swaps work on real LND nodes (regtest); see §4.

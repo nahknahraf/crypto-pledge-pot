@@ -5,8 +5,8 @@
  */
 import '../core/loadEnv'
 import fs from 'node:fs'
-import { defaultBrain } from '../agent/brain'
-import { defaultDonorBrain } from '../donor/brain'
+import { defaultBrain } from '../fundraising-agent/brain'
+import { defaultDonorBrain } from '../donor-agent/brain'
 import { runAgentEval, toMarkdown, type EvalResult } from './agentEval'
 
 const donorBrain = defaultDonorBrain()

@@ -6,7 +6,7 @@
 import '../core/loadEnv'
 import { WalletClient } from '@bsv/sdk'
 import { createBrc29Payment } from '../client/payments'
-import { LiquidityClient } from '../swap/lpClient'
+import { LiquidityClient } from '../liquidity-agent/lpClient'
 
 const sats = Number(process.argv[2])
 const url = process.argv[3] ?? process.env.LP_URL ?? 'http://127.0.0.1:8793'

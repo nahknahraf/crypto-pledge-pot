@@ -40,20 +40,20 @@ When a milestone is released, `CryptoPledgePot.release()` puts the released sats
 the creator's wallet as change, which is the agent's spendable budget. **Do not
 change the contract, `core/pledge.ts` or the release flow.**
 
-### Components (new directory `agent/`)
+### Components (new directory `fundraising-agent/`)
 
-1. **`agent/wallet.ts`**: builds the agent's wallet-toolbox wallet (SQLite) from
+1. **`shared/wallet.ts`**: builds the agent's wallet-toolbox wallet (SQLite) from
    `AGENT_ROOT_KEY` (64 hex). On first run, generate it into `data/agent.key`
    (mode 600) and add that file and the wallet DB to `.gitignore`. Use
    originator `cryptopledgepot-agent.local` for every wallet call. Mirror `server/main.ts`.
 
-2. **`agent/dataProvider.ts`**: a small, independent **paid data API** (BRC-121,
+2. **`data-provider/dataProvider.ts`**: a small, independent **paid data API** (BRC-121,
    built on `createBrc121App` from `examples/payPerRequest.ts`). It sells
    something the agent needs, for example `GET /data/:topic` at
    `DATA_PRICE_SATS` (default 50) per call. It runs as its own process with its
    own merchant wallet, so payments are real transfers between two parties.
 
-3. **`agent/brain.ts`**: the LLM layer, using the Anthropic SDK
+3. **`fundraising-agent/brain.ts`**: the LLM layer, using the Anthropic SDK
    (`@anthropic-ai/sdk`). Default model `claude-opus-5-5`, configurable with
    `AGENT_MODEL`; key from `ANTHROPIC_API_KEY`.
    - `planCalls(goal, budgetSats, price)` → JSON `{ calls: [{ topic, why }] }`
@@ -63,12 +63,12 @@ change the contract, `core/pledge.ts` or the release flow.**
    - Provide a deterministic **mock brain** (no network) for tests and for runs
      without an API key.
 
-4. **`agent/ledger.ts`**: append-only spend log (JSON or SQLite):
+4. **`fundraising-agent/ledger.ts`**: append-only spend log (JSON or SQLite):
    `{ txid, sats, url, topic, why, at }`. This is the traceability the track asks
    for. Every milestone update includes the ledger summary and the WhatsOnChain
    links of the payments.
 
-5. **`agent/agent.ts`**: the loop (CLI `npm run agent`, one step per run or
+5. **`fundraising-agent/agent.ts`**: the loop (CLI `npm run agent`, one step per run or
    `--watch`):
    1. **launch** (once): `cryptopledgepot.launch({...})`. The campaign title and
       description say it is an AI agent service and state exactly what each

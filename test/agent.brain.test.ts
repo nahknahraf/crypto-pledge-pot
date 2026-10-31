@@ -1,7 +1,7 @@
 /** Step 2: the agent's brain. Claude picks topics; code enforces every limit. */
 import { describe, expect, it } from 'vitest'
-import { ClaudeBrain, MockBrain, sanitizePlan } from '../agent/brain'
-import { syntheticReading } from '../agent/dataProvider'
+import { ClaudeBrain, MockBrain, sanitizePlan } from '../fundraising-agent/brain'
+import { syntheticReading } from '../data-provider/dataProvider'
 
 /** A stand-in for the Anthropic client: returns whatever we script. */
 const fakeClient = (response: any): any => ({ beta: { messages: { parse: async (params: any) => { fakeClient.last = params; return response } } } })

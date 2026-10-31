@@ -3,7 +3,7 @@
 *30 October 2026 · written against the BSV track rules (TBC26 BSV Track
 Requirements PDF) and the current code · status: plan*
 
-**The fundraising agent** (`agent/`, "AirWatch") is an AI service that:
+**The fundraising agent** (`fundraising-agent/`, "AirWatch") is an AI service that:
 - raises its own budget in CryptoPledgePot milestone escrow;
 - withdraws one approved milestone at a time into its own wallet;
 - pays a data API per call with BSV micropayments (BRC-121), refusing

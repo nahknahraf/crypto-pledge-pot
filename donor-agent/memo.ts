@@ -3,7 +3,7 @@
  * found, the score, and what it did (or proposes). Kept in an append-only
  * book (file-backed in production, in memory in tests).
  */
-import type { Store } from '../agent/ledger'
+import type { Store } from '../shared/store'
 import type { Check } from './diligence'
 import type { Score } from './score'
 

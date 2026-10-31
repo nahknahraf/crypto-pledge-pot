@@ -15,7 +15,7 @@
  * This process sees an HTLC through whichever of its nodes knows it: the payee's invoice, or the payer's payment.
  *
  * Any wallet: a donor without their own node passes `payer` (WebLN in a browser, a QR code, a node).
- * The invoice is checked locally (swap/bolt11.ts: hash, amount, payee from the signature, timeout) before
+ * The invoice is checked locally (liquidity-agent/bolt11.ts: hash, amount, payee from the signature, timeout) before
  * `payer` is called. Such a payment can't be observed here; it reads as locked with the timeout the invoice guarantees.
  */
 import { checkSwapInvoice, decodeInvoice, type DecodedInvoice } from './bolt11'

@@ -1,7 +1,7 @@
 /** Real data for the agent: Open-Meteo readings, honest labels, honest fallback. (Offline: fetch is injected.) */
 import { describe, expect, it } from 'vitest'
-import { liveReading, syntheticReading } from '../agent/dataProvider'
-import { sourceNote } from '../agent/brain'
+import { liveReading, syntheticReading } from '../data-provider/dataProvider'
+import { sourceNote } from '../fundraising-agent/brain'
 
 const openMeteo = (current: Record<string, unknown>): typeof fetch => (async () => new Response(JSON.stringify({ current }), { status: 200 })) as unknown as typeof fetch
 

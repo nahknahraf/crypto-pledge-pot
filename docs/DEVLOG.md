@@ -2268,3 +2268,16 @@ Suite: 249 passed, 3 skipped.
 
 - **Tests** (`preflight`): all good, every failure mode, and a down service reported as a reason without leaking secrets.
 - **Run for real now:** everything is down except BSV Desktop, as expected; exit 1.
+
+**9.15 Folders named after the agents.** `agent/` became `fundraising-agent/`, `donor/` became `donor-agent/`, and `swap/` became `liquidity-agent/`.
+- **Two moves so the names stay true:**
+  - `data-provider/` takes the paid data API (`dataProvider.ts`, and `providerMain.ts`, now `main.ts`). It is a service, not an agent.
+  - `shared/` takes the plumbing that every agent used from `agent/`: `lock.ts`, `wallet.ts`, and the generic `Store` and `fileStore`, extracted from `ledger.ts` into `shared/store.ts`. `ledger.ts` re-exports them for its own modules.
+  - As a result, no agent folder imports another agent's folder any more. Before, the donor and liquidity agents imported from `agent/`.
+- **How the imports were rewritten:** a script resolved every relative import against the old layout and recomputed it for the new one (164 files). The paths in `package.json`, both tsconfigs, the docs and the comments were updated with the same mapping. This log keeps its historical paths.
+- **Caught on review:** four regex literals in tests (`/not made by the donor/`, `/AI agent/` …) had been rewritten as if they were paths. I reverted them by hand.
+- **Verified:**
+  - both typechecks are clean and the app build is clean;
+  - `npm test` gives 275 passed and 3 skipped;
+  - `demo:donor`, `demo:swap`, `demo:bridge:btc` and `data-provider` all start from their new paths.
+- **Unchanged:** the npm script names and the `data/` file names.

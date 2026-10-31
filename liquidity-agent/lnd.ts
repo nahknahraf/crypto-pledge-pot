@@ -1,6 +1,6 @@
 /**
  * LND over its REST API (https://lightning.engineering/api-docs/api/lnd/), and throwaway regtest
- * LND nodes for tests and the demo (like swap/bitcoind.ts). Bytes in REST bodies are base64;
+ * LND nodes for tests and the demo (like liquidity-agent/bitcoind.ts). Bytes in REST bodies are base64;
  * a macaroon authorizes every call; the node's self-signed TLS certificate is pinned.
  * The binary: LND_BIN, else ~/opt/lnd-linux-amd64-<version>/lnd (newest), else `lnd` on PATH.
  */
