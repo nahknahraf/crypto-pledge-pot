@@ -26,7 +26,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 ## Edge cases: client, web app and ops
 
 - [x] A lost server reply after the broadcast: `registerWalletPledges` and "Find my pledges" (§6). The user cancelling and too few sats fail in the wallet before anything is broadcast.
-- [x] The wallet gate as plain functions, with tests: mock never constructs a wallet; network mismatch; no wallet; the prompt (§7). SSE reconnect and empty pages remain.
+- [x] The wallet gate as plain functions, with tests: mock never constructs a wallet; network mismatch; no wallet; the prompt (§7). SSE: the page reloads the campaign whenever the live feed (re)connects, so events missed during a server restart still show. Empty pages remain an unchecked UI case.
 - [x] A container recreated on the same volume keeps the arbiter key and the DB (checked with Podman: same key hash, no new key generated) (§8). `npm run share:internet` now refuses to go public if the web server serves any `data/*.key` (leak check, tested against a safe and a leaky server).
 - [x] A smoke test for `npm run demo` (§9).
 

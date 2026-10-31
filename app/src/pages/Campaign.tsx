@@ -24,6 +24,8 @@ export function Campaign ({ id }: { id: string }) {
   useEffect(() => {
     load()
     const es = new EventSource(api.eventsUrl(id))
+    // The browser reconnects by itself after a server restart, but events from the gap are not replayed: reload on every (re)open.
+    es.onopen = () => { load() }
     es.onmessage = (m) => {
       const ev = JSON.parse(m.data) as CampaignEvent
       if (ev.type === 'pledge') setFlash(`New pledge: ${formatSats(ev.pledge.amount)}${ev.pledge.name !== null ? ` from ${ev.pledge.name}` : ''}`)

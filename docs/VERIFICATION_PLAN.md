@@ -89,7 +89,7 @@ document does not repeat what those tests do. It marks each case as follows:
 | Voter who pledged 0 or already refunded | edge | ➕ the vote weight must be 0 |
 | Vote changed twice; vote on a milestone already released | edge | ➕ |
 | Pledge BEEF whose SPV proof does not verify | edge | ➕ must be refused (tests use the mock chain tracker, which is permissive) |
-| Two server processes on one DB (SQLite lock) | edge | ➕ or documented as unsupported |
+| Two server processes on one DB (SQLite lock) | edge | ✅ refused by a lock next to the DB (DEVLOG 8.38) |
 | Server restart mid-release (signatures handed out, tx not broadcast) | edge | ➕ the next request must give the same signatures, and the watcher must catch the broadcast |
 
 ## 5. Watcher, import and claims (`server/watcher.ts`, `importTx.ts`)
