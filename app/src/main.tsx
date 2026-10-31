@@ -35,7 +35,7 @@ function Header () {
         <a href="#/bring-btc">Bring BTC</a>
       </nav>
       {identityKey !== undefined
-        ? <span className="chip" title={identityKey}>● {network === 'testnet' ? 'testnet · ' : ''}{short(identityKey)}</span>
+        ? <span className="chip" title={`${identityKey} (click to copy)`} style={{ cursor: 'copy' }} onClick={() => { void navigator.clipboard?.writeText(identityKey) }}>● {network === 'testnet' ? 'testnet · ' : ''}{short(identityKey)}</span>
         : <button className="primary" disabled={connecting || serverNetwork === 'mock'} title={serverNetwork === 'mock' ? 'Disabled in the offline demo' : undefined} onClick={() => { void connect() }}>{connecting ? 'Connecting…' : 'Connect wallet'}</button>}
     </header>
   )

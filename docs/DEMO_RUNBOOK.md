@@ -102,6 +102,18 @@ ANTHROPIC_API_KEY=<key>          # the AI agent's Claude brain (otherwise a dete
 - **Releasing milestones:** a creator releases them from their own Dashboard (milestone 1 once funded; later ones after a >50 % YES vote).
 - **The donor agents and the zero-click run** (§3) run on the host with npm. Point them at the Docker server with `CRYPTOPLEDGEPOT_URL=https://<NGROK_DOMAIN>` if you want agents giving alongside the visitors.
 
+### Your own donor agent next to the Docker stack (private, this machine only)
+
+The "My donor agent" page talks to a donor agent on **your** machine. The public Docker app never forwards it, because a personal agent that can approve payments must not be reachable through the ngrok link. To use one with the Docker stack, go through Caddy's local-only plain-HTTP entrance (`127.0.0.1:8081`):
+
+```bash
+cp donor-mandate.example.json data/donor-mandate.json   # set budget, interests and donorIdentityKey (click the ● key chip in the app to copy it)
+CRYPTOPLEDGEPOT_URL=http://127.0.0.1:8081 npm run donor                                        # terminal 1
+CRYPTOPLEDGEPOT_SERVER=http://127.0.0.1:8081 AGENT_SERVER=http://127.0.0.1:8081/agent npm run app   # terminal 2
+```
+
+Open **http://localhost:5174**. It's the same data as the Docker stack, and **My donor agent** now works. Checked on 2026-10-31: `/api` and `/agent` reach the Docker stack through the dev server.
+
 ## 3. Zero-click on mainnet (only agents, nobody approving)
 
 ```bash

@@ -92,6 +92,6 @@ export function parseMandate (input: unknown): Mandate {
   if (!isInt(r.minMilestonePercent, 1, 100)) fail('requirements.minMilestonePercent must be 1–100')
   if (!['allow', 'only', 'never'].includes(r.agentCampaigns)) fail('requirements.agentCampaigns must be allow, only or never')
   if (!isInt(m.scoreThreshold, 0, 100)) fail('scoreThreshold must be 0–100')
-  if (m.donorIdentityKey !== undefined && !/^0[23][0-9a-f]{64}$/.test(m.donorIdentityKey)) fail('donorIdentityKey must be a compressed public key')
+  if (m.donorIdentityKey !== undefined && !/^0[23][0-9a-f]{64}$/.test(m.donorIdentityKey)) fail('donorIdentityKey must be your BSV Desktop identity key (66 hex characters starting with 02 or 03): connect your wallet in the app and click the ● key chip at the top right to copy it, or remove the line')
   return m
 }
