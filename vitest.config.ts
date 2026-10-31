@@ -15,6 +15,8 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     testTimeout: 120_000,
     hookTimeout: 120_000,
-    fileParallelism: false
+    fileParallelism: false,
+    // Tests never read the owner's real secrets file (core/loadEnv.ts): no real API keys or EVM keys in tests.
+    env: { CPP_SECRETS_FILE: 'none' }
   }
 })

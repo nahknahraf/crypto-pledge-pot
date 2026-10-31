@@ -2326,3 +2326,13 @@ Suite: 249 passed, 3 skipped.
 - **Suite:** 278 passed, 3 skipped.
 
 **9.19 Decision: keep the risk-flag penalty.** The owner chose to keep it: each flag costs 10 points (capped at −30), and the threshold stays at 60. TODO and the eval results record the decision. The code is unchanged.
+
+**9.20 The API path, verified live** (the owner added `ANTHROPIC_API_KEY`). This is the first run of the agents' real API path: the Anthropic SDK with structured output.
+- **Eval:** `npm run eval:agents`, 3 runs, Opus 5.5.
+  - Every invariant held 3/3, and the evidenced report was approved 3/3.
+  - The well campaign reaches 60 in every run; the filters (58) and springs (54) campaigns don't, under the penalty the owner chose to keep.
+  - The off-topic campaign scores about 15.
+  - The results file now records the API runs, with the CLI runs for comparison.
+- **Agent demo:** `npm run demo:agent` ran through the API. Claude planned all 3 milestones and wrote 2 reports through the SDK, which the agent anchored and posted. The overpriced topic was refused once and not retried, and 700 sats were spent.
+- **Safety, now that a real key exists:** `vitest.config.ts` sets `CPP_SECRETS_FILE=none`, so tests never read the owner's secrets file. `secretsIsolation` checks this.
+- **Video script:** step 2 no longer has the key typed on the command line; it loads from the secrets file.

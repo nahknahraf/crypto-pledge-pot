@@ -8,10 +8,10 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 2. Start the agent with short, cheap terms and the Claude brain:
 
    ```
-   ANTHROPIC_API_KEY=… AGENT_GOAL=5000 AGENT_DEADLINE_MIN=15 AGENT_MAX_SPEND=250 npm run agent
+   AGENT_GOAL=5000 AGENT_DEADLINE_MIN=15 AGENT_MAX_SPEND=250 npm run agent
    ```
 
-   The start-up line must say `brain claude:…`. Top it up with about 3,000 sats from BSV Desktop, using **Top up agent fees** on its campaign page.
+   The API key is loaded from `~/.config/cryptopledgepot/secrets.env` (`docs/KEYS.md`); don't type it on the command line. The start-up line must say `brain claude:…`. Top it up with about 3,000 sats from BSV Desktop, using **Top up agent fees** on its campaign page.
 3. Donor agent: copy `donor-mandate.example.json` to `data/donor-mandate.json`, put in backer 1's identity key, and keep it in `copilot` mode. Then run `npm run donor`.
 4. Launch a second, tiny campaign from the app (goal 1,000 sats, deadline 10 minutes) and pledge 600 sats to it, so it fails during the recording.
 5. Have two BSV Desktop wallets ready (backer 1 and backer 2), with about 4,000 sats each. Keep a WhatsOnChain tab and the agent's terminal visible.
