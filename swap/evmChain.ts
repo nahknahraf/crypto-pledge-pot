@@ -15,7 +15,7 @@
  * browser the donor's own EVM wallet would sign instead (EIP-1193); see
  * docs/BRIDGING_PLAN.md.
  */
-import { createPublicClient, createWalletClient, getAddress, http, parseEventLogs, parseSignature, type Abi, type Account, type Address, type Chain, type Hex, type PublicClient } from 'viem'
+import { createPublicClient, createWalletClient, getAddress, http, parseEventLogs, parseSignature, type Abi, type Account, type Address, type Chain, type Hex, type PublicClient, type Transport, type WalletClient } from 'viem'
 import artifacts from '../evm/artifacts.json'
 import type { SourceAccount, SourceChain, SourceHtlc } from './usdcChain'
 
@@ -30,8 +30,13 @@ export interface EvmChainOptions {
   htlc: Address
   /** The ERC-20 (6 decimals, like USDC). */
   token: Address
-  /** Signers for the accounts this process may act for. */
+  /**
+   * Signers for the accounts this process may act for: local accounts (a key in this process), or
+   * JSON-RPC accounts ({ address, type: 'json-rpc' }) whose wallet signs, e.g. the donor's browser wallet.
+   */
   signers: Account[]
+  /** How transactions and signatures reach the signer: default http(rpcUrl); custom(window.ethereum) for a browser wallet (EIP-1193). */
+  signerTransport?: Transport
   /** Blocks to wait after each transaction (1 on Anvil, more on a public chain). */
   confirmations?: number
   /** Lock with an EIP-2612 permit (one transaction) instead of approve + lock (two). The token must support it, as USDC does. */
@@ -72,13 +77,19 @@ export class EvmUsdcChain implements SourceChain {
     return h
   }
 
+  /** The wallet client that signs for `signer`: in this process (local key) or in the user's wallet (EIP-1193). */
+  private walletFor (signer: Account): WalletClient {
+    return createWalletClient({ account: signer, chain: this.opts.chain, transport: this.opts.signerTransport ?? http(this.opts.rpcUrl) })
+  }
+
   /** deadline, v, r, s of an EIP-2612 permit letting the HTLC pull `value` from `owner`. */
   private async permitSignature (signer: Account | undefined, owner: Address, value: bigint): Promise<[bigint, number, Hex, Hex]> {
-    if (signer?.signTypedData === undefined) throw new Error(`${this.name}: no signer for ${owner} that can sign a permit`)
+    if (signer === undefined) throw new Error(`${this.name}: no signer for ${owner}`)
     const read = async (functionName: string, args: unknown[] = []): Promise<unknown> => await this.client.readContract({ address: this.opts.token, abi: TOKEN_ABI, functionName, args })
     const [name, version, nonce] = await Promise.all([read('name'), read('version'), read('nonces', [owner])]) as [string, string, bigint]
     const deadline = BigInt(await this.now()) + 3600n
-    const signature = await signer.signTypedData({
+    const signature = await this.walletFor(signer).signTypedData({
+      account: signer,
       domain: { name, version, chainId: this.opts.chain.id, verifyingContract: this.opts.token },
       types: { Permit: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] },
       primaryType: 'Permit',
@@ -93,7 +104,7 @@ export class EvmUsdcChain implements SourceChain {
     const addr = getAddress(address)
     const write = async (to: Address, abi: Abi, functionName: string, args: unknown[]): Promise<Hex> => {
       if (signer === undefined) throw new Error(`${this.name}: no signer for ${addr}`)
-      const wallet = createWalletClient({ account: signer, chain: this.opts.chain, transport: http(this.opts.rpcUrl) })
+      const wallet = this.walletFor(signer)
       // Simulate first: a revert comes back with the contract's reason instead of a failed transaction.
       const { request } = await this.client.simulateContract({ account: signer, address: to, abi, functionName, args })
       const hash = await wallet.writeContract(request)

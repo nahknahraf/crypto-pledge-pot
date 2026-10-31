@@ -2037,3 +2037,12 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
 - Checked against a deliberately leaky file server from the repo root: it stops with "✗ /data/agent.key serves data/agent.key" and exit 1.
 
 **What broke while testing:** my `pkill -f "vite preview …"` matched the shell running the test command itself, and killed it halfway. I re-ran the second half on its own. A lesson for scripts: kill by PID, not by a pattern that appears in your own command line. `share.sh` already does this, using process groups.
+
+**8.33 The donor signs the USDC side in their own EVM wallet** (bridging TBD).
+- `EvmUsdcChain` accepts JSON-RPC accounts (`{ address, type: 'json-rpc' }`) and a `signerTransport`. One `walletFor(signer)` builds the signing client, for local keys and EIP-1193 alike. The permit is signed via the wallet client's `signTypedData`, so it works for both.
+- `swap/browserEvm.ts`: `connectBrowserEvm(provider, opts)` asks for the account, checks the chain (it asks the wallet to switch, and stops if refused), and returns the chain plus the donor's address, ready for `DonorSwap`.
+- Test (`bridge.browser`): Anvil's dev accounts are unlocked, so a `request()` shim forwarding to Anvil behaves like `window.ethereum`.
+  - The donor's key never exists in the process. The permit is signed by the "wallet" (`eth_signTypedData_v4`), and the lock is sent by it (`eth_sendTransaction`). The swap completes into the donor's BSV wallet, and the LP collects 20 USDC.
+  - A wallet on the wrong chain that refuses to switch stops the connect.
+
+**Not done:** a web page that uses it, with an LP URL and a USDC amount.
