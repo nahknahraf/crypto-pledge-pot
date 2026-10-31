@@ -12,6 +12,7 @@ import { donorDir, ensureDonorMandate, ZERO_CLICK } from './zeroClick'
 import { runTreasury } from './treasuryRun'
 
 const network = process.env.NETWORK === 'test' ? 'test' : 'main'
+const dataRoot = process.env.CPP_DATA_DIR ?? 'data' // every process gets it through the environment
 const children: ChildProcess[] = []
 const start = (label: string, script: string, env: Record<string, string>): void => {
   const p = spawn('npm', ['run', '-s', script], { env: { ...process.env, NETWORK: network, ...env }, stdio: ['ignore', 'pipe', 'pipe'] })
@@ -34,7 +35,7 @@ start('data', 'data-provider', { DATA_PORT: String(ZERO_CLICK.dataPort) })
 await up(`http://127.0.0.1:${ZERO_CLICK.serverPort}/api/health`, 'the server')
 start('fundraising', 'agent', { AGENT_PORT: String(ZERO_CLICK.agentPort), AGENT_FEE_RESERVE: String(ZERO_CLICK.agentFeeReserve), AGENT_INTERVAL_S: '20', CRYPTOPLEDGEPOT_URL: `http://127.0.0.1:${ZERO_CLICK.serverPort}`, DATA_URL: `http://127.0.0.1:${ZERO_CLICK.dataPort}` })
 for (const d of ZERO_CLICK.donors) {
-  start(d.slug, 'donor', { DONOR_DATA_DIR: donorDir(d), DONOR_MANDATE: ensureDonorMandate(d), DONOR_PORT: String(d.port), DONOR_INTERVAL_S: '30', CRYPTOPLEDGEPOT_URL: `http://127.0.0.1:${ZERO_CLICK.serverPort}` })
+  start(d.slug, 'donor', { DONOR_DATA_DIR: donorDir(d, dataRoot), DONOR_MANDATE: ensureDonorMandate(d, dataRoot), DONOR_PORT: String(d.port), DONOR_INTERVAL_S: '30', CRYPTOPLEDGEPOT_URL: `http://127.0.0.1:${ZERO_CLICK.serverPort}` })
 }
 await up(`http://127.0.0.1:${ZERO_CLICK.agentPort}/api/agent`, 'the fundraising agent')
 for (const d of ZERO_CLICK.donors) await up(`http://127.0.0.1:${d.port}/api/donor`, d.name)

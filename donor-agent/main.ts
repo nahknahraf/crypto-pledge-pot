@@ -32,7 +32,7 @@ import { parseMandate } from './mandate'
 import { MemoBook, type Memo } from './memo'
 
 const network = process.env.NETWORK === 'test' ? 'test' : 'main'
-const dataDir = path.resolve(process.env.DONOR_DATA_DIR ?? 'data') // one directory per donor agent: key, wallet, memos, lock
+const dataDir = path.resolve(process.env.DONOR_DATA_DIR ?? process.env.CPP_DATA_DIR ?? 'data') // one directory per donor agent: key, wallet, memos, lock
 fs.mkdirSync(dataDir, { recursive: true })
 acquireLock(path.join(dataDir, 'donor.lock')) // one donor agent per state: two would pledge twice
 const mandateFile = process.env.DONOR_MANDATE ?? path.join(dataDir, 'donor-mandate.json')

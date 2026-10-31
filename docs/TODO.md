@@ -54,5 +54,6 @@ Done: `SourceChain.now()` is async; there is an EVM HTLC + viem adapter with the
 - [x] Zero-click funding (`npm run agents:fund`): one deposit, from any wallet or exchange, to the team treasury, which then funds every agent itself. It records each agent it funds, so a re-run never pays one twice. Unit-tested offline.
 - [x] Launcher (`npm run agents:mainnet`): the server, the data provider, the fundraising agent, 3 autopilot donor agents, and the treasury. Unit-tested plan; not yet run live.
 - [x] An unfunded autopilot donor agent waits instead of using up its pledge retries.
-- [ ] **Run it:** `NETWORK=test npm run agents:mainnet` first, then mainnet with about 7,500 team sats.
+- [x] Testnet smoke run of the launcher in its own folder (`CPP_DATA_DIR`): every process up, unfunded agents wait, the deposit address is printed, a clean stop, and the real `data/` untouched.
+- [ ] **Funded run:** `CPP_DATA_DIR=data/testnet NETWORK=test npm run agents:mainnet` with about 7,500 testnet sats, then mainnet with team sats.
 

@@ -50,7 +50,7 @@ import { USDC, type SourceChain } from './usdcChain'
 const env = process.env
 const need = (k: string): string => { const v = env[k] ?? ''; if (v === '') { console.error(`${k} is required`); process.exit(1) } return v }
 
-const dataDir = env.LP_DATA_DIR ?? 'data' // one directory per agent: its key, wallet, swaps and lock
+const dataDir = env.LP_DATA_DIR ?? env.CPP_DATA_DIR ?? 'data' // one directory per agent: its key, wallet, swaps and lock
 fs.mkdirSync(dataDir, { recursive: true })
 const network = env.NETWORK === 'test' ? 'test' : 'main'
 acquireLock(path.resolve(dataDir, 'lp.lock')) // one liquidity agent per state: two would lock sats twice

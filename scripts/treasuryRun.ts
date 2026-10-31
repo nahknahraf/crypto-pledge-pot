@@ -15,7 +15,7 @@ import { depositNeeded, fundTargets, totalFunding } from './zeroClick'
 
 export async function runTreasury (o: { network: 'main' | 'test', log?: (m: string) => void, pollMs?: number }): Promise<FundResult[] | 'already funded'> {
   const log = o.log ?? (m => console.log(`[treasury] ${m}`))
-  const dir = path.resolve('data', 'treasury')
+  const dir = path.resolve(process.env.CPP_DATA_DIR ?? 'data', 'treasury')
   const store = fundStore(dir)
   const done = new Set(store.funded().map(r => r.name))
   const targets = fundTargets().filter(t => !done.has(t.name))

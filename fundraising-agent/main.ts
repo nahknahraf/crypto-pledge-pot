@@ -38,7 +38,7 @@ const args = new Set(process.argv.slice(2))
 
 async function main (): Promise<void> {
   const chain = env('NETWORK', 'main') === 'test' ? 'test' : 'main'
-  const dataDir = path.resolve('data')
+  const dataDir = path.resolve(process.env.CPP_DATA_DIR ?? 'data')
   acquireLock(path.join(dataDir, 'agent.lock')) // one agent per state: two would pay twice
   const setup = await createToolboxWallet({
     chain,

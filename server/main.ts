@@ -30,7 +30,7 @@ import { CryptoPledgePotDb, sqliteKnex } from './db'
 
 const chain = process.env.NETWORK === 'test' ? 'test' : 'main'
 const port = Number(process.env.PORT ?? 8787)
-const dataDir = path.resolve('data')
+const dataDir = path.resolve(process.env.CPP_DATA_DIR ?? 'data') // one folder per run (e.g. a testnet pass)
 fs.mkdirSync(dataDir, { recursive: true })
 
 const arbiterKey = (): PrivateKey => loadOrCreateKey('CRYPTOPLEDGEPOT_ARBITER_KEY', path.join(dataDir, 'arbiter.key'))

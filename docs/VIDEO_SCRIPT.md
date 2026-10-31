@@ -74,7 +74,7 @@ Open work is in [`TODO.md`](TODO.md).
 3. Make **one** payment of the amount it prints (about 7,500 sats) to the deposit address it prints, from any wallet or exchange. The team treasury claims it (SPV) and funds every agent by itself. This is the only human step, and it happens before the agents start.
 4. `npm run preflight` (expect the donor-agent check to say autopilot rather than co-pilot).
 
-> **Not yet run live:** `agents:mainnet` and `agents:fund` are unit-tested (plan, funding, deposits) and every part they start is tested. The launcher itself has not been run on a network yet. Do a testnet pass first (`NETWORK=test npm run agents:mainnet`).
+> **Tested so far:** a testnet smoke run (`CPP_DATA_DIR=<scratch> NETWORK=test npm run agents:mainnet`) brought every process up, the donor agents waited for their budget, and the treasury printed its deposit address. No funded run yet. Do a funded testnet pass first.
 
 | Time | Show | Say |
 |---|---|---|

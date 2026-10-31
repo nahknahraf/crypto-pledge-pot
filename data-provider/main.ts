@@ -18,8 +18,8 @@ async function main (): Promise<void> {
   const price = Number(process.env.DATA_PRICE_SATS ?? 50)
   const setup = await createToolboxWallet({
     chain,
-    rootKey: loadOrCreateKey('DATA_PROVIDER_KEY', path.resolve('data', 'provider.key')),
-    dbFile: path.resolve('data', 'provider-wallet.sqlite'),
+    rootKey: loadOrCreateKey('DATA_PROVIDER_KEY', path.resolve(process.env.CPP_DATA_DIR ?? 'data', 'provider.key')),
+    dbFile: path.resolve(process.env.CPP_DATA_DIR ?? 'data', 'provider-wallet.sqlite'),
     dbName: 'cryptopledgepot_provider'
   })
   const source = process.env.DATA_SOURCE === 'synthetic' ? 'synthetic' : 'open-meteo'

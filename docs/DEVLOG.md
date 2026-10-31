@@ -2382,3 +2382,15 @@ Suite: 249 passed, 3 skipped.
   - `donor.rules`: the unfunded agent waits.
 - **Not done:** the launcher has not been run on a network. It would use the real `data/` folder (the existing agent key and the local DB), and a real run should be the owner's call. The next step is a testnet pass.
 - **The video script** gains a zero-click version.
+
+**9.24 `CPP_DATA_DIR` and a testnet smoke run of the launcher.**
+- **`CPP_DATA_DIR`** (default `data`) is honoured by the server, the fundraising agent, the data provider, the liquidity agent, the donor agents and the treasury, so a whole run can live in its own folder. The launcher passes it to every process.
+- **The smoke run:** `CPP_DATA_DIR=<scratch> NETWORK=test npm run agents:mainnet`, without a deposit.
+  - **What came up:**
+    - the server on testnet;
+    - the fundraising agent with Claude, no campaign yet, balance 0. Its first launch failed cleanly on "insufficient funds" and will retry once funded;
+    - three autopilot donor agents with Claude and their own wallets, logging "waiting for budget";
+    - the treasury, which printed its deposit address.
+  - **Stopping:** Ctrl+C stopped every process and freed every port.
+  - **Real data:** 0 files changed in the real `data/`. The scratch folder, with its throwaway testnet keys, was deleted.
+- **Not done:** a funded run, which needs testnet sats.
