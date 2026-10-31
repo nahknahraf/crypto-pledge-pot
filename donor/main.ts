@@ -38,6 +38,9 @@ if (!fs.existsSync(mandateFile)) {
   process.exit(1)
 }
 const mandate = parseMandate(JSON.parse(fs.readFileSync(mandateFile, 'utf8')))
+if (mandate.mode === 'copilot' && mandate.donorIdentityKey === undefined) {
+  console.warn('[donor] warning: co-pilot without donorIdentityKey in the mandate. Approvals cannot check that YOUR wallet made the pledge, so the budget bookkeeping could count someone else\'s pledge. Add your BSV Desktop identity key.')
+}
 const serverUrl = process.env.CRYPTOPLEDGEPOT_URL ?? 'http://localhost:8787'
 const chainTracker = new ArcadeChainTracker(network === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
 const txExists = async (txid: string): Promise<boolean> => (await fetch(`https://api.whatsonchain.com/v1/bsv/${network}/tx/hash/${txid}`)).ok

@@ -15,7 +15,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 - [x] The same pledge submitted twice gets 409 and is counted once (§4).
 - [ ] A pledge whose BEEF fails SPV is refused, tested with a strict chain tracker (§4).
 - [x] A pledge after the deadline is refused; a refunded donor's vote counts 0; a changed vote replaces the earlier one (§4).
-- [ ] Server restart between handing out release signatures and the broadcast (§4).
+- [x] Server restart between handing out release signatures and the broadcast (§4): the next release request gets fresh signatures, and a release broadcast but never reported is indexed by the watcher (`watcher` test).
 - [x] A pledge that fails SPV is refused (§4).
 - [x] `MIN_PLEDGE` 100 vs 99; rounding; 1 and the maximum of 4 milestones; the largest amount. The last one was a real float bug, fixed (§1).
 - [ ] Two pledges released in one transaction; `unlockLength` equals the real size (§1).
@@ -33,7 +33,7 @@ This is one list. The details live in [`VERIFICATION_PLAN.md`](VERIFICATION_PLAN
 ## Edge cases: agents
 
 - [x] Fundraising agent F1–F14. Tested: F1–F6, F8, F12 and F14 (F1, F5 and F14 were real gaps, fixed). By design: F7 (report text is posted as written; the limits are in code), F9 and F13 (no release means it waits; a refused or failed step is caught by `npm run agent` and retried next interval), F10 and F11 (a failed campaign stops it; an unreachable server fails the step cleanly).
-- [ ] Donor agent: D2 (two identities, one name) and D5 (recompute raised and status from chain) are open. Done: D1, D3, D4, D6, D8 (stale proposals withdrawn after a mandate change), D9–D13. In co-pilot without `donorIdentityKey`, approve cannot check who paid.
+- [ ] Donor agent: D2 (two identities, one name) and D5 (recompute raised and status from chain) are open. Done: D1, D3, D4, D6, D8 (stale proposals withdrawn after a mandate change), D9–D13. In co-pilot without `donorIdentityKey`, approve cannot check who paid; `npm run donor` warns at start-up.
 - [x] Liquidity agent S1–S11: all done (S5 and the crash window were real holes, fixed); see DEVLOG 8.5–8.25.
 - [ ] A live-model eval: 20 scenarios × 3 runs, saved to `AGENT_EVAL_RESULTS.md`.
 
