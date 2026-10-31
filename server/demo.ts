@@ -43,7 +43,13 @@ async function main (): Promise<void> {
     return w
   }))
   server.use(app)
-  await new Promise<void>(resolve => { server.listen(port, () => resolve()) })
+  // Express 5 reports a busy port to the callback instead of throwing: stop, or the seeding below talks to whatever else runs there.
+  await new Promise<void>((resolve, reject) => {
+    server.listen(port, (err?: Error) => {
+      if (err === undefined) { resolve(); return }
+      reject(new Error(`port ${port} is already in use (${err.message}). Stop the other demo, or start this one on a free port: PORT=8797 npm run demo`))
+    })
+  })
   const url = `http://localhost:${port}`
 
   const people = await Promise.all(Array.from({ length: 6 }, async () => await chain.makeWallet()))
