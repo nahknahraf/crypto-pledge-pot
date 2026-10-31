@@ -8,12 +8,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Transaction } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox'
 import { anvil as anvilChain } from 'viem/chains'
-import { anvilAccount, anvilBinary, startAnvil, type Anvil } from '../swap/anvil'
+import { anvilAccount, anvilBinary, anvilMine, startAnvil, type Anvil } from '../swap/anvil'
 import { connectBrowserEvm, type Eip1193 } from '../swap/browserEvm'
 import type { SpendFinder } from '../swap/bsv'
 import { DonorSwap } from '../swap/donorSwap'
 import { deployBridgeContracts, EvmUsdcChain, mintTestUsdc } from '../swap/evmChain'
-import { LiquidityAgent } from '../swap/liquidityAgent'
+import { DEFAULT_LIQUIDITY, LiquidityAgent } from '../swap/liquidityAgent'
+import { createLiquidityApp } from '../swap/lpHttp'
+import { swapUsdcToSats } from '../swap/browserSwap'
+import type { Server } from 'node:http'
 import { USDC } from '../swap/usdcChain'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
@@ -76,4 +79,21 @@ describe.skipIf(anvilBinary() === undefined)('the donor signs in their own EVM w
     }) as Eip1193['request'] }
     await expect(connectBrowserEvm(wrongChain, { name: 'x', rpcUrl: node.rpcUrl, chain: anvilChain, htlc, token })).rejects.toThrow(/rejected/)
   })
+
+  it('the web app\'s one-call flow: EVM wallet + liquidity agent over HTTP + BSV wallet, with a wait for confirmations', async () => {
+    const lpSide = new EvmUsdcChain({ name: 'USDC (LP)', rpcUrl: node.rpcUrl, chain: anvilChain, htlc, token, signers: [lpEvm] })
+    const lpWallet = await chain.makeWallet(); await chain.fund(lpWallet, 3_000_000)
+    const lp = new LiquidityAgent(lpWallet, lpSide, lpEvm.address, findSpend, async () => await spendable(lpWallet), { ...DEFAULT_LIQUIDITY, minSourceConfirmations: 2 })
+    const server: Server = await new Promise(resolve => { const s = createLiquidityApp(lp).listen(0, '127.0.0.1', () => resolve(s)) })
+    const mineWhileWaiting = setInterval(() => { void anvilMine(node.rpcUrl, 1) }, 50)
+    try {
+      const bsvWallet = await chain.makeWallet()
+      const lines: string[] = []
+      const r = await swapUsdcToSats(provider(), bsvWallet, chain.chainTracker, { lpUrl: `http://127.0.0.1:${(server.address() as any).port}`, evm: { name: 'USDC', rpcUrl: node.rpcUrl, chain: anvilChain, htlc, token, permit: true }, retryMs: 100 }, 10 * USDC, l => lines.push(l))
+      expect(r.state).toBe('claimed')
+      expect(lines.join('\n')).toMatch(/waiting for confirmations/)
+      expect(await spendable(bsvWallet)).toBeGreaterThan(10 * 21_500 - 2_000)
+    } finally { clearInterval(mineWhileWaiting); await new Promise(r => server.close(r)) }
+  }, 120_000)
 })
+

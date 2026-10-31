@@ -2046,3 +2046,15 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
   - A wallet on the wrong chain that refuses to switch stops the connect.
 
 **Not done:** a web page that uses it, with an LP URL and a USDC amount.
+
+**8.34 The Bring USDC page.**
+- `swap/browserSwap.ts`: `swapUsdcToSats(ethereum, bsvWallet, tracker, config, usdc, onStep)` runs the whole donor side as one plain function:
+  1. connect the EVM wallet;
+  2. get a quote from the liquidity agent over HTTP;
+  3. lock with a permit;
+  4. while the agent says "wait", ask again;
+  5. verify the BSV lock and claim it.
+- Test (`bridge.browser`): the EIP-1193 shim, the agent behind HTTP requiring 2 confirmations, and blocks mined in the background. The flow reports "waiting for confirmations…" and ends with the sats claimed into the donor's BSV wallet.
+- `app/src/pages/BringUsdc.tsx` (`#/bring-usdc`, in the menu) only displays that function's progress. It is configured by `VITE_LP_URL`, `VITE_EVM_RPC_URL`, `VITE_EVM_HTLC`, `VITE_EVM_TOKEN` and `VITE_EVM_CHAIN`. Without them, it says no liquidity agent is configured.
+- It asks `confirmSpend` first, is disabled in the offline demo, and says so if no EVM wallet is installed.
+- The app builds. **Not done:** clicking it through with real wallets.
