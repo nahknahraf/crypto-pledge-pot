@@ -9,6 +9,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
+import { askClaudeCli } from '../shared/claudeCli'
 import { z } from 'zod'
 import { CITIES, isCity, type AirQualityReport, type City } from '../data-provider/dataProvider'
 
@@ -57,14 +58,17 @@ const ReportSchema = z.object({ report: z.string() })
 
 export class ClaudeBrain implements Brain {
   readonly name: string
-  private readonly client: Anthropic
+  private clientInstance?: Anthropic
 
   constructor (readonly model = process.env.AGENT_MODEL ?? 'claude-opus-5-5', client?: Anthropic) {
-    this.client = client ?? new Anthropic()
+    this.clientInstance = client
     this.name = `claude:${model}`
   }
 
-  private async ask<T> (schema: z.ZodType<T>, system: string, user: string): Promise<T> {
+  /** Created on first use, so a subclass that never calls the API needs no credentials. */
+  private get client (): Anthropic { return (this.clientInstance ??= new Anthropic()) }
+
+  protected async ask<T> (schema: z.ZodType<T>, system: string, user: string): Promise<T> {
     const response = await this.client.beta.messages.parse({
       model: this.model,
       max_tokens: 16000,
@@ -137,8 +141,24 @@ export class MockBrain implements Brain {
   }
 }
 
+/**
+ * The same brain through the Claude Code CLI (`claude -p`, shared/claudeCli.ts): no API key, uses the local
+ * Claude Code login. For local testing; select with AGENT_BRAIN=claude-cli. Prompts, schemas and rules are identical.
+ */
+export class ClaudeCliBrain extends ClaudeBrain {
+  constructor (model = process.env.AGENT_MODEL ?? 'claude-opus-5-5') {
+    super(model)
+    Object.assign(this, { name: `claude-cli:${model}` })
+  }
+
+  protected override async ask<T> (schema: z.ZodType<T>, system: string, user: string): Promise<T> {
+    return await askClaudeCli(schema, system, user, { model: this.model })
+  }
+}
+
 /** ClaudeBrain when Anthropic credentials are configured, otherwise MockBrain. */
 export function defaultBrain (): Brain {
   const hasKey = (process.env.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_AUTH_TOKEN ?? '') !== ''
+  if (process.env.AGENT_BRAIN === 'claude-cli') return new ClaudeCliBrain()
   return hasKey && process.env.AGENT_BRAIN !== 'mock' ? new ClaudeBrain() : new MockBrain()
 }

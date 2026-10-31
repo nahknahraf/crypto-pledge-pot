@@ -2281,3 +2281,18 @@ Suite: 249 passed, 3 skipped.
   - `npm test` gives 275 passed and 3 skipped;
   - `demo:donor`, `demo:swap`, `demo:bridge:btc` and `data-provider` all start from their new paths.
 - **Unchanged:** the npm script names and the `data/` file names.
+
+**9.16 Testing the brains with real Claude without an API key.** `shared/claudeCli.ts` asks Claude through the Claude Code CLI (`claude -p`), which uses the local Claude Code login.
+- **How it runs:** the same zod schema is sent as `--json-schema` and validated again on return. There are no tools, no saved session, and it runs from a neutral working directory, so project instructions can't leak into the agent's judgement.
+- **The brains:** `ClaudeCliBrain` and `ClaudeCliDonorBrain` are the existing Claude brains with only `ask` swapped, so prompts, sanitizing and code rules are identical. The base classes now create the Anthropic client lazily, so a CLI brain needs no credentials.
+- **Selection:** `AGENT_BRAIN=claude-cli` and `DONOR_BRAIN=claude-cli`, or `npm run eval:agents:cli`. This is for local testing only: each call counts against the Claude Code usage limits, and a deployed agent should use the API.
+- **Bug found on the first real run:** the CLI rejects zod's `$schema: draft 2020-12` header, so it is now stripped (covered by a test).
+- **Tests** (`claudeCli`, using a fake `claude` binary):
+  - the arguments sent;
+  - the brain's code rules still apply (an unknown topic is dropped, and the plan is capped at `maxCalls`);
+  - a CLI error, an answer that breaks the schema, and a missing binary are each reported.
+- **First real run** (one run, Opus 5.5, 84 s):
+  - every invariant held: all 4 manipulations score 0, a report with no evidence is rejected, and the plan stays within its limits;
+  - quality misses: the honest campaigns scored 52–58 against a threshold of 60, and the report with 2 verified payments was rejected.
+- **Why the honest campaigns miss:** Claude lists about 6 specific risk flags, and each costs 10 points, capped at −30. That calibration is a policy question for the user; I haven't changed it.
+- **Real bug found:** the donor brain sent the campaign goal with no unit, and Claude read 50,000 sats as $50,000. The prompt now sends `goalSatoshis` and says amounts are in satoshis. Re-checked with real Claude: it now reasons in sats.

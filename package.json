@@ -39,7 +39,8 @@
     "demo:bridge:ln": "vite-node --config vitest.config.ts liquidity-agent/lnBridgeDemoMain.ts",
     "keys:new": "vite-node --config vitest.config.ts scripts/keysNew.ts",
     "lp:fund": "vite-node --config vitest.config.ts scripts/lpFund.ts",
-    "preflight": "vite-node --config vitest.config.ts scripts/preflight.ts"
+    "preflight": "vite-node --config vitest.config.ts scripts/preflight.ts",
+    "eval:agents:cli": "AGENT_BRAIN=claude-cli DONOR_BRAIN=claude-cli vite-node --config vitest.config.ts eval/agentEvalMain.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
