@@ -52,7 +52,7 @@ On mainnet, the whole cycle runs with nobody clicking.
 | Demo video (≤ 2.5 min) | 🟡 record it with `VIDEO_SCRIPT.md` (zero-click version) |
 | Public GitHub repository | 🟡 the repo has never been pushed; you decide where and when (run the secret check in §6 first) |
 | README: what it does, how to set it up and run it | ✅ `README.md`, `docs/DEMO_RUNBOOK.md`, `docs/WHAT_WORKS.md` |
-| Live demo link | 🟡 `docker-compose --profile demo` + ngrok (`DEMO_RUNBOOK.md` §2, needs your ngrok token) |
+| Live demo link | 🟡 the real stack in Docker plus ngrok; visitors create and donate from their own wallets (`DEMO_RUNBOOK.md` §2b). Needs your ngrok token. The stack is verified on mainnet |
 | Track proof | ✅ §3 |
 
 ## 3. Proof (BSV mainnet, WhatsOnChain)

@@ -2414,3 +2414,11 @@ Suite: 249 passed, 3 skipped.
 - **What the run didn't show:** the agent's per-call payments on mainnet. That needs run 2, about 9,000 sats.
 - All the txids are in `docs/SUBMISSION.md` §3. The run is stopped, and its wallets stay in `data/mainnet-run1/` (git-ignored).
 - **Also:** `docs/SUBMISSION.md` drafts the Devfolio page, the links for judges, the proof table, a minimal pitch and the likely judges' questions.
+
+**9.27 Demo terms, and the live audience demo.**
+- **Demo terms:** the offline demos (`server/demo.ts`, `server/agentDemo.ts`) now build the agent's campaign from the spending plan (goal 1,200). Before, the screenshots showed the old contradictory terms. The scripted pledges are scaled to fit (AirWatch raises 1,300, and Ben's NO still loses 300 to 700); `agentDemo.e2e` is updated.
+- **The owner's demo means real use:** they run Docker, and people create campaigns and donate from their own wallets. The offline `demo` profile can't do that, because wallet actions are off there.
+- **Verified:** the **production stack in Docker on mainnet**. Server and data provider healthy, agent started (waiting for its fee float), the app live with a working Start-a-campaign form.
+- **New runbook section §2b:** `.env.docker` settings, ngrok, the agent's top-up, what visitors need, stopping without losing the arbiter key.
+- **The owner chose "visitors bring their own BSV"** (no faucet).
+- **Not done:** a donation through the stack, which needs a person with a wallet.

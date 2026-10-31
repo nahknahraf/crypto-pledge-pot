@@ -61,6 +61,47 @@ export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
 - **ngrok:** point an ngrok you run yourself at port **8081**, never 80 (80 redirects to HTTPS and loops through the tunnel).
 - **Backups:** back up the volumes. `server-data` holds the arbiter key that every campaign's escrow names.
 
+## 2b. Live demo for an audience: people create campaigns and donate (Docker, mainnet)
+
+This is the real stack: anyone with the link creates a campaign or donates from **their own** BSV wallet. The platform never holds their keys.
+- **Verified 2026-10-31** (Podman): the stack came up on mainnet. The server and the data provider were healthy, the agent started, and the app was live (no offline banner) with a working "Start a campaign" form.
+- **Not done yet:** a donation through it. That needs a person with a wallet: try it yourself first at `https://localhost:8443`.
+
+**Visitors need:** BSV Desktop (laptop) or BSV Browser (phone), holding a few hundred sats of their own.
+- Creating a campaign costs a fraction of a cent.
+- The minimum pledge is 100 sats.
+- The app shows the USD value (about $17 per BSV on 2026-10-31).
+
+**Set up, once, in `.env.docker`** (git-ignored):
+
+```bash
+NETWORK=main
+HTTP_PORT=8080
+HTTPS_PORT=8443                  # rootless Docker/Podman
+NGROK_AUTHTOKEN=<from ngrok>     # the public link for visitors
+NGROK_DOMAIN=<your-name>.ngrok-free.app
+PUBLIC_URL=https://<your-name>.ngrok-free.app   # must match the link (CORS, the agent's public page)
+ANTHROPIC_API_KEY=<key>          # the AI agent's Claude brain (otherwise a deterministic brain)
+# Remove the old AGENT_GOAL / AGENT_MAX_SPEND lines (ignored now; the terms come from the spending plan)
+```
+
+**On the day:**
+
+| Step | Command / action |
+|---|---|
+| 1. Start the stack and the public link | `docker-compose --env-file .env.docker --profile tunnel up -d --build` (with Podman, first: `systemctl --user start podman.socket; export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock`) |
+| 2. Check | `docker-compose --env-file .env.docker ps`: all healthy; `https://<NGROK_DOMAIN>/api/health` says `"network":"main"` |
+| 3. Give the AI agent its fee float | Open its campaign page once it appears, or find its status at `/agent/api/agent`. Click **Top up agent fees** (about 3,000 sats from your wallet). It then launches its own campaign (goal 1,200 sats) |
+| 4. Visitors | Share the link or a QR code. They connect their wallet, then **Start a campaign** (title, story, goal, deadline, milestones) or **Donate** to any campaign |
+| 5. Show the rest | Donors vote on milestones on the campaign page; the AI agent buys data per call and posts anchored reports; on a failed campaign, donors use **Reclaim**. Every action links to WhatsOnChain |
+| Logs | `docker-compose --env-file .env.docker logs -f server agent` |
+| Stop | `docker-compose --env-file .env.docker --profile tunnel down`. **Never** add `-v` unless you mean to delete the volumes: `server-data` holds the arbiter key that every campaign's escrow names. Back it up first |
+
+**Good to know**
+- **Short demos:** use a short deadline, such as 30 minutes, for campaigns you want to show finishing. The milestones release as soon as the goal is met and the deadline has passed.
+- **Releasing milestones:** a creator releases them from their own Dashboard (milestone 1 once funded; later ones after a >50 % YES vote).
+- **The donor agents and the zero-click run** (§3) run on the host with npm. Point them at the Docker server with `CRYPTOPLEDGEPOT_URL=https://<NGROK_DOMAIN>` if you want agents giving alongside the visitors.
+
 ## 3. Zero-click on mainnet (only agents, nobody approving)
 
 ```bash
