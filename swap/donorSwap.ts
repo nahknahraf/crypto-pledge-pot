@@ -61,9 +61,14 @@ export class DonorSwap {
   }
 
   /** Lock the USDC (refundable to the donor after T1) and tell the agent; returns the agent's BSV lock. */
-  async lockAndRequest (lp: LiquidityProvider, r: SwapRecord): Promise<SwapRecord> {
+  /**
+   * `lockWith`: how to lock the USDC, if not from USDC the donor holds (default). E.g. EvmUsdcChain.swapAndLock,
+   * which swaps another token on a DEX and locks in the same transaction. It must return the lock id.
+   */
+  async lockAndRequest (lp: LiquidityProvider, r: SwapRecord, lockWith?: (args: { receiver: string, amount: number, hashlock: string, refundAfter: number }) => Promise<string>): Promise<SwapRecord> {
     const refundAfter = Math.max((await this.source.now()) + this.options.sourceWindow, r.quote.minSourceRefundAfter)
-    r.sourceHtlcId = await this.usdc.lock({ receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter })
+    const args = { receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter }
+    r.sourceHtlcId = await (lockWith ?? this.usdc.lock)(args)
     r.state = 'source-locked'
     r.steps.push(`locked ${formatUsdc(r.quote.usdc)} on ${this.source.name}, refundable to you after the timeout`)
     return await this.requestLock(lp, r)

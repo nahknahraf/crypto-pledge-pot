@@ -39,27 +39,36 @@ contract HashedTimelockERC20 {
     event Refunded(bytes32 indexed id);
 
     function lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external returns (bytes32 id) {
-        return _lock(receiver, token, amount, hashlock, refundAfter);
+        return _lock(msg.sender, receiver, token, amount, hashlock, refundAfter);
+    }
+
+    /// Lock tokens paid by the caller, refundable to `refundTo`. For contracts that act for a user in one
+    /// transaction (SwapAndLock): the user, not the contract, gets the refund. The caller pays, so nobody
+    /// can lock someone else's tokens.
+    function lockFor(address refundTo, address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external returns (bytes32 id) {
+        require(refundTo != address(0), "refundTo");
+        return _lock(refundTo, receiver, token, amount, hashlock, refundAfter);
     }
 
     /// The same as lock, with an EIP-2612 permit instead of a separate approve transaction (USDC supports it).
     /// If someone front-runs the permit, it is already spent but the allowance is set, so the lock still works.
     function lockWithPermit(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external returns (bytes32 id) {
         try IERC20Permit(token).permit(msg.sender, address(this), amount, deadline, v, r, s) {} catch {}
-        return _lock(receiver, token, amount, hashlock, refundAfter);
+        return _lock(msg.sender, receiver, token, amount, hashlock, refundAfter);
     }
 
-    function _lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) private returns (bytes32 id) {
+    /// Tokens come from msg.sender; `sender` is who may refund (msg.sender, or the user for lockFor).
+    function _lock(address sender, address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) private returns (bytes32 id) {
         require(receiver != address(0), "receiver");
         require(amount > 0, "amount");
         require(refundAfter > block.timestamp, "refundAfter");
-        id = keccak256(abi.encode(msg.sender, receiver, token, amount, hashlock, refundAfter, nonce++));
+        id = keccak256(abi.encode(sender, receiver, token, amount, hashlock, refundAfter, nonce++));
         // Pull the tokens and check what actually arrived (refuses fee-on-transfer tokens).
         uint256 before = IERC20(token).balanceOf(address(this));
         _call(token, abi.encodeCall(IERC20.transferFrom, (msg.sender, address(this), amount)));
         require(IERC20(token).balanceOf(address(this)) - before == amount, "token");
-        locks[id] = Lock(msg.sender, receiver, token, amount, hashlock, refundAfter, State.Locked);
-        emit Locked(id, msg.sender, receiver, token, amount, hashlock, refundAfter);
+        locks[id] = Lock(sender, receiver, token, amount, hashlock, refundAfter, State.Locked);
+        emit Locked(id, sender, receiver, token, amount, hashlock, refundAfter);
     }
 
     function claim(bytes32 id, bytes32 secret) external {

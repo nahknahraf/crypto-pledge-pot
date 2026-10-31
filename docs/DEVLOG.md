@@ -2058,3 +2058,24 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
 - `app/src/pages/BringUsdc.tsx` (`#/bring-usdc`, in the menu) only displays that function's progress. It is configured by `VITE_LP_URL`, `VITE_EVM_RPC_URL`, `VITE_EVM_HTLC`, `VITE_EVM_TOKEN` and `VITE_EVM_CHAIN`. Without them, it says no liquidity agent is configured.
 - It asks `confirmSpend` first, is disabled in the offline demo, and says so if no EVM wallet is installed.
 - The app builds. **Not done:** clicking it through with real wallets.
+
+**8.35 DeFi sourcing: swap another token and lock USDC in one transaction** (bridging Phase 2, DeFi).
+- **Design for safety:** arbitrary DEX calls never run inside the HTLC, which holds everyone's locked funds; `token.transfer(attacker, …)` as "DEX calldata" would drain it. They run in a separate **stateless** router, `SwapAndLock.sol`, which holds nothing between transactions. In order, it:
+  1. pulls the donor's token;
+  2. calls the DEX;
+  3. checks that it got at least the quoted USDC (otherwise **everything reverts**);
+  4. locks exactly that amount via the new `HashedTimelockERC20.lockFor(refundTo, …)` (the caller pays; the donor, not the router, can refund);
+  5. returns any surplus USDC and any unused input token.
+
+  It also refuses a "DEX" that is the HTLC or one of the tokens.
+- `lock` and `lockWithPermit` are unchanged for callers; all three share `_lock(sender, …)`.
+- TS: `EvmUsdcChain.swapAndLock` (approve + router call, lock id from the `Locked` event); `DonorSwap.lockAndRequest(lp, r, lockWith)` accepts any lock function; `deployTestDex` for local tests.
+- Tests (`bridge.dex`, Anvil, a fixed-rate `TestDex` with 1 TKN = 2 USDC):
+  - Fay holds no USDC. 11 TKN become 22 USDC, exactly 20 are locked with Fay as the refund address, 2 come back, and the swap into sats completes.
+  - 9 TKN (18 USDC) reverts with "slippage", and her TKN is untouched.
+  - A "DEX" pointing at the HTLC is refused.
+- All 30 bridge and swap tests still pass after the contract change.
+
+**What broke:** the first compile hit "stack too deep" (10 parameters). An `Order` struct fixed it, and reads better.
+
+**Not done:** calldata for a real DEX router.

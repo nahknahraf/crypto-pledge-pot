@@ -21,6 +21,8 @@ import type { SourceAccount, SourceChain, SourceHtlc } from './usdcChain'
 
 export const HTLC_ABI = artifacts.HashedTimelockERC20.abi as Abi
 export const TOKEN_ABI = artifacts.TestUSDC.abi as Abi
+export const ROUTER_ABI = artifacts.SwapAndLock.abi as Abi
+export const TEST_DEX_ABI = artifacts.TestDex.abi as Abi
 
 export interface EvmChainOptions {
   name: string
@@ -77,6 +79,33 @@ export class EvmUsdcChain implements SourceChain {
     return h
   }
 
+  /** Send one contract call as `from`. Simulated first, so a revert comes back with the contract's reason. */
+  private async send (signer: Account | undefined, from: Address, to: Address, abi: Abi, functionName: string, args: unknown[]): Promise<Hex> {
+    if (signer === undefined) throw new Error(`${this.name}: no signer for ${from}`)
+    const { request } = await this.client.simulateContract({ account: signer, address: to, abi, functionName, args })
+    const hash = await this.walletFor(signer).writeContract(request)
+    const receipt = await this.client.waitForTransactionReceipt({ hash, confirmations: this.opts.confirmations ?? 1 })
+    if (receipt.status !== 'success') throw new Error(`${this.name}: ${functionName} reverted (tx ${hash})`)
+    return hash
+  }
+
+  /**
+   * DeFi sourcing: swap `amountIn` of another token on a DEX and lock exactly `lock.amount` USDC, in one
+   * transaction through the SwapAndLock router (reverts, moving nothing, if the DEX gives less). `dexCall`
+   * is the DEX router call, built off-chain with the router contract as the recipient. Returns the lock id.
+   */
+  async swapAndLock (from: string, swap: { router: Address, tokenIn: Address, amountIn: bigint, dex: Address, dexCall: Hex }, lock: { receiver: string, amount: number, hashlock: string, refundAfter: number }): Promise<string> {
+    const signer = this.signers.get(from.toLowerCase())
+    const addr = getAddress(from)
+    await this.send(signer, addr, swap.tokenIn, TOKEN_ABI, 'approve', [swap.router, swap.amountIn])
+    const order = { htlc: this.opts.htlc, tokenIn: swap.tokenIn, amountIn: swap.amountIn, dex: swap.dex, tokenOut: this.opts.token, amountOut: BigInt(lock.amount), receiver: getAddress(lock.receiver), hashlock: hex32(lock.hashlock), refundAfter: BigInt(lock.refundAfter) }
+    const hash = await this.send(signer, addr, swap.router, ROUTER_ABI, 'swapAndLock', [order, swap.dexCall])
+    const receipt = await this.client.getTransactionReceipt({ hash })
+    const [locked] = parseEventLogs({ abi: HTLC_ABI, eventName: 'Locked', logs: receipt.logs }) as unknown as Array<{ args: { id: Hex } }>
+    if (locked === undefined) throw new Error(`${this.name}: no Locked event in ${hash}`)
+    return plain(locked.args.id)
+  }
+
   /** The wallet client that signs for `signer`: in this process (local key) or in the user's wallet (EIP-1193). */
   private walletFor (signer: Account): WalletClient {
     return createWalletClient({ account: signer, chain: this.opts.chain, transport: this.opts.signerTransport ?? http(this.opts.rpcUrl) })
@@ -102,16 +131,7 @@ export class EvmUsdcChain implements SourceChain {
   account (address: string): SourceAccount {
     const signer = this.signers.get(address.toLowerCase())
     const addr = getAddress(address)
-    const write = async (to: Address, abi: Abi, functionName: string, args: unknown[]): Promise<Hex> => {
-      if (signer === undefined) throw new Error(`${this.name}: no signer for ${addr}`)
-      const wallet = this.walletFor(signer)
-      // Simulate first: a revert comes back with the contract's reason instead of a failed transaction.
-      const { request } = await this.client.simulateContract({ account: signer, address: to, abi, functionName, args })
-      const hash = await wallet.writeContract(request)
-      const receipt = await this.client.waitForTransactionReceipt({ hash, confirmations: this.opts.confirmations ?? 1 })
-      if (receipt.status !== 'success') throw new Error(`${this.name}: ${functionName} reverted (tx ${hash})`)
-      return hash
-    }
+    const write = async (to: Address, abi: Abi, functionName: string, args: unknown[]): Promise<Hex> => await this.send(signer, addr, to, abi, functionName, args)
     return {
       address: addr,
       balance: async () => Number(await this.client.readContract({ address: this.opts.token, abi: TOKEN_ABI, functionName: 'balanceOf', args: [addr] }) as bigint),
@@ -136,18 +156,31 @@ export class EvmUsdcChain implements SourceChain {
 }
 
 /** Deploy the HTLC and (for local tests) a TestUSDC token. Returns their addresses. */
-export async function deployBridgeContracts (rpcUrl: string, chain: Chain, deployer: Account, opts: { withTestToken: boolean }): Promise<{ htlc: Address, token?: Address }> {
+export async function deployBridgeContracts (rpcUrl: string, chain: Chain, deployer: Account, opts: { withTestToken: boolean, withRouter?: boolean }): Promise<{ htlc: Address, token?: Address, router?: Address }> {
   const client = createPublicClient({ chain, transport: http(rpcUrl) })
   const wallet = createWalletClient({ account: deployer, chain, transport: http(rpcUrl) })
   const deploy = async (c: { abi: unknown, bytecode: string }): Promise<Address> => {
-    const hash = await wallet.deployContract({ abi: c.abi as Abi, bytecode: c.bytecode as Hex, args: [] })
+    const hash = await wallet.deployContract({ abi: c.abi as Abi, bytecode: c.bytecode as Hex, args: [] as unknown[] })
     const r = await client.waitForTransactionReceipt({ hash })
     if (r.contractAddress == null) throw new Error('deploy failed')
     return r.contractAddress
   }
   const htlc = await deploy(artifacts.HashedTimelockERC20)
   const token = opts.withTestToken ? await deploy(artifacts.TestUSDC) : undefined
-  return { htlc, token }
+  const router = opts.withRouter === true ? await deploy(artifacts.SwapAndLock) : undefined
+  return { htlc, token, router }
+}
+
+/** Local tests only: a second test token and a fixed-rate TestDex (num/den tokenOut per tokenIn). */
+export async function deployTestDex (rpcUrl: string, chain: Chain, deployer: Account, num: number, den: number): Promise<{ otherToken: Address, dex: Address }> {
+  const client = createPublicClient({ chain, transport: http(rpcUrl) })
+  const wallet = createWalletClient({ account: deployer, chain, transport: http(rpcUrl) })
+  const deploy = async (c: { abi: unknown, bytecode: string }, args: unknown[]): Promise<Address> => {
+    const r = await client.waitForTransactionReceipt({ hash: await wallet.deployContract({ abi: c.abi as Abi, bytecode: c.bytecode as Hex, args }) })
+    if (r.contractAddress == null) throw new Error('deploy failed')
+    return r.contractAddress
+  }
+  return { otherToken: await deploy(artifacts.TestUSDC, []), dex: await deploy(artifacts.TestDex, [BigInt(num), BigInt(den)]) }
 }
 
 /** Mint TestUSDC (local chains only: anyone can mint it). */

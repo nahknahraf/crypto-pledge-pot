@@ -187,4 +187,9 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 - [x] **One transaction instead of two.** `lockWithPermit` + `EvmUsdcChain({ permit: true })`: an EIP-2612 permit replaces `approve` (tested: 1 transaction vs 2). Off by default; on for real USDC once tested on a testnet.
 - [x] **Docker.** `demo:bridge` runs in the `app` image (built with Podman, run with `podman run … npm run demo:bridge`): the image keeps dev dependencies, which include the Linux anvil binary.
 - [x] **Phase 2, CeFi part: "Fund from an exchange".** `client/receive.ts` plus a Dashboard panel: a fresh BRC-29 deposit address (counterparty "anyone", never the identity key), and "Check for payment" (WhatsOnChain), which verifies and internalizes the payment into the user's own wallet. Tested on the mock chain (`receive.test`). Not yet tried with a real exchange withdrawal; check the exchange's BSV support.
-- [ ] **Phases 2–5, the rest** (DEX, BTC, Lightning, on-ramp, wrapped stablecoins): not started.
+- [x] **Phase 2, DeFi part: DEX sourcing in one transaction.**
+  - `SwapAndLock.sol` is a stateless router: it swaps another token on a DEX and locks exactly the quoted USDC through `HashedTimelockERC20.lockFor` (refundable to the donor), returns any surplus, and reverts on slippage.
+  - It refuses a "DEX" that is the HTLC or one of the tokens. Arbitrary calls never run in the HTLC, which holds everyone's locks.
+  - `EvmUsdcChain.swapAndLock`, and `DonorSwap.lockAndRequest(…, lockWith)`.
+  - Tested on Anvil with a fixed-rate `TestDex` (`bridge.dex`). A real DEX (e.g. Uniswap on Base) needs its router calldata built off-chain, which is not done yet.
+- [ ] **Phases 3–5** (BTC, Lightning, on-ramp, wrapped stablecoins): not started. BTC and Lightning need a regtest node, which this machine doesn't have.
