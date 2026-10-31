@@ -6,6 +6,6 @@
   "compilerOptions": {
     "paths": { "@bsv/sdk": ["./node_modules/@bsv/sdk/dist/cjs/mod.d.ts"] }
   },
-  "include": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts", "swap/swapDemo.ts", "swap/swapDemoMain.ts", "swap/bridgeDemo.ts", "swap/bridgeDemoMain.ts", "donor/donorDemo.ts", "donor/donorDemoMain.ts", "test"],
+  "include": ["server/demo.ts", "server/agentDemo.ts", "server/agentDemoMain.ts", "swap/swapDemo.ts", "swap/swapDemoMain.ts", "swap/bridgeDemo.ts", "swap/bridgeDemoMain.ts", "donor/donorDemo.ts", "donor/donorDemoMain.ts", "agent/snarkjs.d.ts", "test"],
   "exclude": []
 }

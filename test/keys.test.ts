@@ -17,7 +17,11 @@ describe('loadOrCreateKey', () => {
     const k1 = loadOrCreateKey(VAR, file, () => {})
     expect(k1.toHex()).toMatch(/^[0-9a-f]{64}$/)
     expect(k1.toHex()).not.toMatch(/^0+$/)
-    expect((fs.statSync(file).mode & 0o777).toString(8)).toBe('600')
+    if (process.platform === 'win32') {
+        expect(['666', '600', '444']).toContain((fs.statSync(file).mode & 0o777).toString(8))
+    } else {
+        expect((fs.statSync(file).mode & 0o777).toString(8)).toBe('600')
+    }
     expect(loadOrCreateKey(VAR, file, () => {}).toHex()).toBe(k1.toHex())
   })
 

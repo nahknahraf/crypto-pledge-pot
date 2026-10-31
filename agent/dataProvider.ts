@@ -15,6 +15,7 @@ import http from 'node:http'
 import express, { type Express } from 'express'
 import { createPaymentMiddleware } from '@bsv/402-pay/server'
 import { Hash, Utils, type WalletInterface } from '@bsv/sdk'
+import { verifyAgentRequest, type AgentAuthorizationOptions } from './zkAuth'
 
 /** Topics the provider sells. The agent's planner may only pick from these. */
 export const CITIES = ['munich', 'berlin', 'paris', 'madrid', 'rome', 'vienna', 'zurich', 'amsterdam', 'warsaw', 'prague'] as const
@@ -65,7 +66,12 @@ export function syntheticReading (city: City, date = new Date().toISOString().sl
  *                 middleware only sees the path after the mount point, so each
  *                 premium city gets its own middleware and the generic one skips it.
  */
-export interface DataSourceOptions { source?: 'open-meteo' | 'synthetic', fetchImpl?: typeof fetch }
+export interface DataSourceOptions {
+  source?: 'open-meteo' | 'synthetic'
+  fetchImpl?: typeof fetch
+  /** Optional zk-SNARK authorization (agent/zkAuth.ts). Unset keeps the public BRC-121 behaviour. */
+  zkAuth?: AgentAuthorizationOptions
+}
 
 export function createDataProviderApp (merchant: WalletInterface, priceSats: number, premium: Partial<Record<City, number>> = {}, data: DataSourceOptions = {}): Express {
   const source = data.source ?? 'synthetic'
@@ -76,6 +82,11 @@ export function createDataProviderApp (merchant: WalletInterface, priceSats: num
     next()
   })
   app.get('/', (_req, res) => { res.json({ service: 'CryptoPledgePot air-quality data', priceSats, premium, topics: CITIES, source: source === 'open-meteo' ? 'Open-Meteo (CAMS), resold per call' : 'synthetic' }) })
+  // Register authorization before every paid /data/:city route. Express runs
+  // middleware in registration order, so an invalid proof is rejected before
+  // the merchant wallet sees a payment or the route performs API work. Leaving
+  // zkAuth unset preserves the provider's original public BRC-121 behavior.
+  if (data.zkAuth !== undefined) app.use('/data/:city', verifyAgentRequest(data.zkAuth))
   for (const [city, price] of Object.entries(premium)) {
     app.use(`/data/${city}`, createPaymentMiddleware({ wallet: merchant, calculatePrice: () => price }))
   }

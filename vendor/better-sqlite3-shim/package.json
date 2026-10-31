@@ -1,0 +1,7 @@
+{
+  "name": "better-sqlite3",
+  "version": "13.0.3-node-sqlite",
+  "description": "Minimal better-sqlite3 API on top of the built-in node:sqlite, enough for knex. Avoids native builds (no Visual Studio needed).",
+  "main": "index.cjs",
+  "engines": { "node": ">=22.13" }
+}

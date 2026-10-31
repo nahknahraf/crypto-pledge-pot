@@ -50,6 +50,7 @@
     "knex": "^3.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "snarkjs": "^0.7.6",
     "viem": "^2.57.13",
     "zod": "^4.6.7"
   },
@@ -60,6 +61,7 @@
     "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "circomlib": "^2.0.5",
     "@vitejs/plugin-react": "^6.1.2",
     "solc": "^0.8.38",
     "tsx": "^4.23.15",
