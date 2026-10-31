@@ -11,7 +11,8 @@
  *
  * Env: CRYPTOPLEDGEPOT_URL (http://localhost:8787), NETWORK=main|test,
  *      DONOR_PORT (8792, bound to 127.0.0.1), DONOR_INTERVAL_S (60),
- *      DONOR_MANDATE (data/donor-mandate.json), ANTHROPIC_API_KEY (Claude;
+ *      DONOR_DATA_DIR (data: its key, wallet, memos and lock; one per agent),
+ *      DONOR_MANDATE (<DONOR_DATA_DIR>/donor-mandate.json), ANTHROPIC_API_KEY (Claude;
  *      otherwise a deterministic brain), DONOR_ROOT_KEY.
  */
 import '../core/loadEnv'
@@ -31,7 +32,8 @@ import { parseMandate } from './mandate'
 import { MemoBook, type Memo } from './memo'
 
 const network = process.env.NETWORK === 'test' ? 'test' : 'main'
-const dataDir = path.resolve('data')
+const dataDir = path.resolve(process.env.DONOR_DATA_DIR ?? 'data') // one directory per donor agent: key, wallet, memos, lock
+fs.mkdirSync(dataDir, { recursive: true })
 acquireLock(path.join(dataDir, 'donor.lock')) // one donor agent per state: two would pledge twice
 const mandateFile = process.env.DONOR_MANDATE ?? path.join(dataDir, 'donor-mandate.json')
 if (!fs.existsSync(mandateFile)) {
