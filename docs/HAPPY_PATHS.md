@@ -6,7 +6,7 @@ Run every automated happy path in one go:
 npm run test:happy     # 16 files, 113 tests, about 20 s, offline
 ```
 
-The files are listed in the `test:happy` script in `package.json`. Some of them also contain edge cases. `npm test` runs everything (237 tests).
+The files are listed in the `test:happy` script in `package.json`. Some of them also contain edge cases. `npm test` runs everything (239 tests).
 
 ## The happy paths
 

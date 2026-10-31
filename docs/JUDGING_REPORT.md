@@ -60,7 +60,7 @@ swaps, real data, 149 tests).
 ## Added since (31 October 2026, branch `finja-and-louisas-branches`)
 
 The scores above are not re-rated; this is what was built after them.
-**237 tests** pass now, both type-checks clean.
+**239 tests** pass now, both type-checks clean.
 
 - **NGO payment plans and the compliance agent:** a signed plan per
   milestone, releases gated on SPV-checked spending, grace period, pro-rata

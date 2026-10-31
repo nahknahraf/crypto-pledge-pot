@@ -99,8 +99,8 @@ from the chain: campaigns and memos are `OP_RETURN` records (`core/campaign.ts`)
 ### Campaign lifecycle
 | Status | When | What can happen |
 |---|---|---|
-| `active` | before the deadline | donations |
-| `funded` | deadline passed, goal met | milestone 1 releases; later milestones need a creator update + YES from donors holding > 50% of pledged sats |
+| `active` | before the deadline, goal not reached yet | donations |
+| `funded` | the goal is reached (at once, even before the deadline) | no more pledges; milestone 1 releases; later milestones need a creator update + YES from donors holding > 50% of pledged sats |
 | `failed` | deadline passed, goal missed | arbiter co-signs immediate refunds |
 | `completed` | all milestones released | nothing left in escrow |
 | `breached` | an NGO's off-plan spending was not fixed within the grace period | no more releases; the arbiter co-signs early refunds of everything still escrowed |
