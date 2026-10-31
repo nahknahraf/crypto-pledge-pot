@@ -35,6 +35,11 @@ export class LiquidityClient implements LiquidityProvider {
     return (await this.post<{ request: string }>('/api/lp/request', { quoteId, hashlock, refundAfter })).request
   }
 
+  /** Send a BRC-29 payment (client/payments.ts createBrc29Payment) to top up the agent's sats inventory. */
+  async fund (payment: unknown): Promise<{ ok: boolean, txid: string, spendable: number }> {
+    return await this.post('/api/lp/fund', payment)
+  }
+
   async acceptSourceLock (quoteId: string, sourceHtlcId: string): Promise<BsvLock> {
     return await this.post<BsvLock>('/api/lp/lock', { quoteId, sourceHtlcId })
   }

@@ -45,9 +45,9 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | Bringing money in | ✅ **EVM:** a Solidity HTLC; the donor signs in their own wallet (EIP-1193, permit); **DeFi:** swap another token on a DEX and lock USDC in one transaction, checked against **real USDC and Uniswap on a fork of Base**; **CeFi:** withdraw from an exchange to a deposit address of your own wallet · ✅ **BTC:** a P2WSH HTLC swapped for sats, checked on a real Bitcoin Core node (regtest) · ✅ **Lightning:** hold invoices on real LND nodes (regtest) · 🟡 no public-network run yet | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **267 tests**, all passing (the BTC and Lightning ones skip themselves when `bitcoind` or `lnd` is not installed) (`npm test`), plus 3 opt-in tests against a fork of Base (`FORK_URL`), and both typechecks are clean.
+In total there are **268 tests**, all passing (the BTC and Lightning ones skip themselves when `bitcoind` or `lnd` is not installed) (`npm test`), plus 3 opt-in tests against a fork of Base (`FORK_URL`), and both typechecks are clean.
 
-**Secrets** (API keys, testnet EVM keys) go in one file outside the repository: run `npm run secrets:init`, then paste the values into `~/.config/cryptopledgepot/secrets.env` (mode 600). Every `npm run` command loads it; variables set in the shell take precedence.
+**Keys and secrets:** see [`docs/KEYS.md`](docs/KEYS.md). It covers what each run needs, how to get each key, and where it goes. Everything lives in one file outside the repository, `~/.config/cryptopledgepot/secrets.env`. `npm run secrets:init` creates the file, and `npm run keys:new` fills in fresh testnet keys and prints the addresses to fund. Nothing is needed for `npm test` or the offline demos.
 
 ## Try it
 

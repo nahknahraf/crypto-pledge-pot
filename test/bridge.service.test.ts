@@ -20,6 +20,7 @@ import { deployBridgeContracts, EvmUsdcChain, mintTestUsdc } from '../swap/evmCh
 import { DEFAULT_LIQUIDITY, LiquidityAgent, type LpSwap } from '../swap/liquidityAgent'
 import { LiquidityClient } from '../swap/lpClient'
 import { createLiquidityApp } from '../swap/lpHttp'
+import { createBrc29Payment } from '../client/payments'
 import { USDC } from '../swap/usdcChain'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
@@ -57,6 +58,22 @@ describe.skipIf(anvilBinary() === undefined)('the liquidity agent as an independ
   it('answers bad requests with a reason, not a crash', async () => {
     await expect(client.quote(0, '02' + 'ab'.repeat(32))).rejects.toThrow(/liquidity agent: amount must be positive/)
     await expect(client.acceptSourceLock('nope', 'ff'.repeat(32))).rejects.toThrow(/no open quote/)
+  })
+
+  it('anyone can top up its sats inventory with a BRC-29 payment (SPV-checked); a forged payment is refused', async () => {
+    const identityKey = (await lpWallet.getPublicKey({ identityKey: true })).publicKey
+    const sv: Server = await new Promise(resolve => { const x = createLiquidityApp(startLp(), { identityKey, chainTracker: chain.chainTracker }).listen(0, '127.0.0.1', () => resolve(x)) })
+    try {
+      const c = new LiquidityClient(`http://127.0.0.1:${(sv.address() as any).port}`)
+      const info = await c.info() as { bsvIdentityKey: string, bsvSpendable: number }
+      expect(info.bsvIdentityKey).toBe(identityKey)
+      const funder = await chain.makeWallet(); await chain.fund(funder, 100_000)
+      const r = await c.fund(await createBrc29Payment(funder, identityKey, 40_000, 'top-up'))
+      expect(r.spendable).toBe(info.bsvSpendable + 40_000)
+      const forged = { ...(await createBrc29Payment(funder, identityKey, 1_000, 'top-up')), senderIdentityKey: '02' + 'cd'.repeat(32) }
+      await expect(c.fund(forged)).rejects.toThrow()
+      await expect(client.fund(await createBrc29Payment(funder, identityKey, 1_000))).rejects.toThrow() // the default app serves no /fund
+    } finally { await new Promise(resolve => sv.close(resolve)) }
   })
 
   it('happy path over HTTP, then a crash before collecting: a restarted agent still gets its USDC', async () => {

@@ -33,6 +33,7 @@ import type { Hex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { anvil, base, baseSepolia } from 'viem/chains'
 import { fileStore } from '../agent/ledger'
+import { ArcadeChainTracker, ARCADE_MAINNET, ARCADE_TESTNET } from '../client/arcadeChainTracker'
 import { acquireLock } from '../agent/lock'
 import { createToolboxWallet, loadOrCreateKey } from '../agent/wallet'
 import { wocSpendSource } from '../server/watcher'
@@ -97,7 +98,7 @@ const lp = new LiquidityAgent(setup.wallet, source, lpAddress, findSpend, spenda
 
 const host = env.LP_HOST ?? '127.0.0.1'
 const port = Number(env.LP_PORT ?? 8793)
-createLiquidityApp(lp).listen(port, host, () => console.log(`[lp] BSV ${network} · ${source.name} · receives at ${lpAddress} · BSV identity ${setup.identityKey} · http://${host}:${port}/api/lp`))
+createLiquidityApp(lp, { identityKey: setup.identityKey, chainTracker: new ArcadeChainTracker(network === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET) }).listen(port, host, () => console.log(`[lp] BSV ${network} · ${source.name} · receives at ${lpAddress} · BSV identity ${setup.identityKey} · http://${host}:${port}/api/lp`))
 
 let printed = 0
 const tick = async (): Promise<void> => {

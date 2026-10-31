@@ -2199,3 +2199,15 @@ Suite: 249 passed, 3 skipped.
 - Without one, the page shows the invoice, already checked, as text and a `lightning:` link.
 
 **A bug the build warnings caught.** `lightningChain.ts` imported base64 helpers from the Node-only `lnd.ts`, so Vite stubbed out `node:https` and `node:child_process` in the browser bundle, and the page would have broken at runtime. It now imports only a type from `lnd.ts` and uses the SDK for base64. The build is clean with no externalized modules, and the Lightning tests still pass. The page has not been clicked through with real wallets.
+
+**9.9 Getting the keys.** `docs/KEYS.md` covers every secret: what needs it, how to get it, where it goes, and the rules (testnet-only keys in the file, never a recovery phrase).
+- **The facts it states were checked read-only first:** `https://sepolia.base.org` is chain 84532, and `0x036C…CF7e` answers `USDC` with 6 decimals.
+- **`npm run keys:new`** generates fresh testnet keys into the empty slots: EVM deployer, donor and LP (`LP_EVM_KEY` is the same key as `BRIDGE_LP_KEY`), plus `LP_BTC_KEY`. It prints the addresses to fund, never the keys, and never replaces a value.
+- **`npm run secrets:init`** now also adds the slots an existing file lacks.
+- **Checked on a scratch file:** existing values kept, no duplicate lines, mode 600, and a second run changes nothing.
+- **Topping up the liquidity agent's sats** wasn't possible before. Now it is:
+  - `POST /api/lp/fund` takes a BRC-29 payment and checks it by SPV; it is only served when a chain tracker is given;
+  - `GET /api/lp` publishes `bsvIdentityKey` and `bsvSpendable`;
+  - `npm run lp:fund -- <sats>` pays from your own wallet.
+  - Tested: a top-up is accepted, a forged sender is refused, and the default app doesn't serve the endpoint.
+- **`scripts/` is now typechecked.**
