@@ -27,7 +27,7 @@ proof:
 $env:AGENT_ZK_SECRET = "<high-entropy token>"
 $env:AGENT_ZK_WASM = "circuits/agentSecret_js/agentSecret.wasm"
 $env:AGENT_ZK_ZKEY = "circuits/agentSecret_final.zkey"
-pnpm exec tsx scripts/deriveAgentCommitment.ts
+npx tsx scripts/deriveAgentCommitment.ts
 ```
 
 Store the resulting decimal signal as `ZK_AGENT_COMMITMENT` at the provider.

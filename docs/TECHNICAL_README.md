@@ -304,12 +304,33 @@ The data is **synthetic** (deterministic per city and date, flagged
 `synthetic: true`). The demo is about the payment rail; a real provider plugs in
 behind the same middleware.
 
+**Optional: zk-SNARK agent authorization.** A provider can sell its data only
+to enrolled agents, without learning or storing their secret.
+
+- **Enrollment:** the provider stores only a public Poseidon commitment to
+  the agent's secret (`circuits/agentSecret.circom`).
+- **Each call:** the agent makes a Groth16 proof locally (`agent/zkAuth.ts`,
+  snarkjs) and sends it in `x-zk-proof` and `x-zk-signals`.
+- **The check:** the provider verifies the proof **before** the BRC-121
+  payment middleware. Without a valid proof it answers `401`, and no payment
+  is taken.
+- **Opt-in:** `ZK_AGENT_AUTH=1` with `ZK_AGENT_COMMITMENT` and
+  `ZK_VERIFICATION_KEY` at the provider; `AGENT_ZK_SECRET`, `AGENT_ZK_WASM`
+  and `AGENT_ZK_ZKEY` at the agent. Without them the API stays public, as
+  above.
+- **Limit:** proofs are not yet bound to a request, so one can be replayed
+  while the commitment is enrolled. Use HTTPS; a nonce in the circuit would
+  fix it.
+
+Setup (circuit, trusted setup, keys): [`docs/ZK_AGENT_AUTH.md`](ZK_AGENT_AUTH.md).
+
 **Tests** (offline, real wallet-toolbox wallets):
 - `test/agent.pay402.test.ts`: price cap and allow-list.
 - `test/agent.brain.test.ts`: hostile plans are sanitized; refusals fail safe.
 - `test/agent.e2e.test.ts`: the full cycle with exact sat accounting, a greedy
   brain held to budget, an overpriced API refused, and the underfunded case.
 - `test/agent.http.test.ts`: status, ledger, top-ups.
+- `test/agent.zkAuth.test.ts`: proof headers never contain the secret, a matching commitment passes, a mismatched one is refused, and the headers go out with the first BRC-121 request.
 
 Build log: `docs/DEVLOG.md` (agent steps 0–6).
 

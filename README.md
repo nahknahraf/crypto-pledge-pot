@@ -48,7 +48,7 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | API3 price guard (swap) | ✅ the Solidity HTLC checks the quoted rate against a BSV/USD price signed by an Airnode on API3 AirnodeHub (±2%, fresh data) and refuses unfair or stale quotes; verified with a real API3 signature · 🟡 a paid live fetch and Base Sepolia are not run yet | 9 tests; [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](docs/API3_CROSSCHAIN_SWAP_GUARD.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **165 tests**, all passing (`npm test`), and both typechecks are clean.
+In total there are **233 tests**, all passing (`npm test`), and both typechecks are clean.
 
 ## Try it
 
@@ -77,6 +77,7 @@ npm run demo:donor     # the donor agent: co-pilot memo + approval, then autopil
 - BRC-121 pay-per-call (HTTP 402).
 - BRC-29 payments.
 - `@bsv/wallet-toolbox` for the server and agent wallets.
+- Optional zk-SNARK agent authorization (Groth16, circom + snarkjs): an AI agent proves it is enrolled without sending its secret.
 
 The table of which standard is used where is in the technical README.
 
@@ -95,4 +96,5 @@ The table of which standard is used where is in the technical README.
 | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) | real money from other chains, DeFi and CeFi |
 | [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](docs/API3_CROSSCHAIN_SWAP_GUARD.md) | the API3 track: how the swap contract verifies signed BSV/USD data on chain |
 | [`docs/JUDGING_REPORT.md`](docs/JUDGING_REPORT.md) | honest self-assessment against the track criteria |
+| [`docs/ZK_AGENT_AUTH.md`](docs/ZK_AGENT_AUTH.md) | zk-SNARK authorization of AI agents at the paid data API: circuit, setup, configuration |
 | [`docs/DEVLOG.md`](docs/DEVLOG.md) | what we built, why, and what broke |
