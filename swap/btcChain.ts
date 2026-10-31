@@ -16,7 +16,7 @@
  * node's wallet). Keys only sign claims and refunds here; nobody else's key is ever needed.
  */
 import { Hash, PrivateKey, Utils } from '@bsv/sdk'
-import { btcPublicKey, claimTx, htlcScript, p2wpkh, p2wsh, parseHtlcScript, refundTx, segwitAddress, serializeTx, witnessesOf, type BtcNetwork, type BtcTx, type HtlcSpend } from './btc'
+import { btcPublicKey, claimTx, decodeSegwitAddress, htlcScript, p2wpkh, p2wsh, parseHtlcScript, refundTx, segwitAddress, serializeTx, witnessesOf, type BtcNetwork, type BtcTx, type HtlcSpend } from './btc'
 import type { SourceAccount, SourceAsset, SourceChain, SourceHtlc } from './usdcChain'
 
 /** What BtcChain needs from the Bitcoin network. Every amount in sats; scripts and txs in hex. */
@@ -33,6 +33,8 @@ export interface BtcBackend {
   broadcast: (rawHex: string) => Promise<string>
   /** Fee rate for confirmation within a few blocks (sat/vB); undefined if the backend can't estimate. */
   feeRate: () => Promise<number | undefined>
+  /** Unspent outputs locked by this output script (a node: confirmed only; Esplora: mempool too). */
+  utxos: (outputScriptHex: string) => Promise<Array<{ txid: string, vout: number, value: number }>>
 }
 
 export class BitcoindRpc {
@@ -80,6 +82,10 @@ export class BitcoindBackend implements BtcBackend {
   async medianTime (): Promise<number> { return (await this.rpc.call<{ mediantime: number }>('getblockchaininfo')).mediantime }
   async balance (script: string): Promise<number> { return sats((await this.rpc.call<{ total_amount: number }>('scantxoutset', ['start', [`raw(${script})`]])).total_amount) }
   async broadcast (raw: string): Promise<string> { return await this.rpc.call<string>('sendrawtransaction', [raw]) }
+  async utxos (script: string): Promise<Array<{ txid: string, vout: number, value: number }>> {
+    const r = await this.rpc.call<{ unspents: Array<{ txid: string, vout: number, amount: number }> }>('scantxoutset', ['start', [`raw(${script})`]])
+    return r.unspents.map(u => ({ txid: u.txid, vout: u.vout, value: sats(u.amount) }))
+  }
   async feeRate (): Promise<number | undefined> {
     const r = await this.rpc.call<{ feerate?: number }>('estimatesmartfee', [3]).catch(() => ({ feerate: undefined }))
     return r.feerate === undefined ? undefined : r.feerate * 1e8 / 1000 // BTC/kvB → sat/vB
@@ -124,6 +130,11 @@ export class EsploraBackend implements BtcBackend {
     return (await this.json<Array<{ value: number }>>(`/scripthash/${sh}/utxo`)).reduce((t, u) => t + u.value, 0)
   }
 
+  async utxos (script: string): Promise<Array<{ txid: string, vout: number, value: number }>> {
+    const sh = Utils.toHex(Hash.sha256(Utils.toArray(script, 'hex')).reverse())
+    return (await this.json<Array<{ txid: string, vout: number, value: number }>>(`/scripthash/${sh}/utxo`)).map(u => ({ txid: u.txid, vout: u.vout, value: u.value }))
+  }
+
   async broadcast (raw: string): Promise<string> {
     const r = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, '')}/tx`, { method: 'POST', body: raw })
     const text = (await r.text()).trim()
@@ -139,8 +150,11 @@ export class EsploraBackend implements BtcBackend {
   }
 }
 
-/** Pays `sats` to `address` from the donor's Bitcoin wallet; returns the txid. */
-export type BtcFunder = (address: string, sats: number) => Promise<string>
+/**
+ * Pays `sats` to `address` from the donor's Bitcoin wallet. Returns the txid, or nothing when the payment is
+ * made elsewhere (any wallet, by hand): the lock then waits for an output paying the address that amount.
+ */
+export type BtcFunder = (address: string, sats: number) => Promise<string | undefined>
 
 /** A funder backed by a wallet loaded in the node (regtest, or the donor's own node). */
 export const bitcoindWalletFunder = (rpc: BitcoindRpc, wallet: string): BtcFunder =>
@@ -155,6 +169,11 @@ export interface BtcChainOptions {
   funder?: BtcFunder
   /** A fixed miner fee for a claim or refund (sats). If unset: the backend's fee rate × the spend's size. */
   feeSats?: number
+  /** Where a refund goes (a segwit address of the donor's own wallet); default the refunding key's P2WPKH. */
+  refundTo?: string
+  /** For a funder that returns no txid: how often and how long to look for the payment. Default 5 s, 1 hour. */
+  fundingPollMs?: number
+  fundingTimeoutMs?: number
   /** Floor and fallback rate (sat/vB) when estimating. Default 2. */
   minFeeRate?: number
   name?: string
@@ -220,6 +239,15 @@ export class BtcChain implements SourceChain {
         const script = htlcScript({ hashlock, receiver, sender: address, refundAfter })
         const out = Utils.toHex(p2wsh(script))
         const txid = await this.o.funder(segwitAddress(p2wsh(script), this.o.network), amount)
+        if (txid === undefined) { // paid from elsewhere: find the output on chain
+          const end = Date.now() + (this.o.fundingTimeoutMs ?? 3_600_000)
+          for (;;) {
+            const u = (await this.backend.utxos(out)).find(x => x.value === amount)
+            if (u !== undefined) return `${u.txid}:${u.vout}:${Utils.toHex(script)}`
+            if (Date.now() > end) throw new Error(`${this.name}: no payment of ${amount} sats to the HTLC address arrived`)
+            await new Promise(r => setTimeout(r, this.o.fundingPollMs ?? 5_000))
+          }
+        }
         let tx = await this.backend.tx(txid)
         for (let i = 0; tx === undefined && i < 10; i++) { await new Promise(r => setTimeout(r, 1000)); tx = await this.backend.tx(txid) } // an indexer may lag
         const vout = tx?.outputs.findIndex(v => v.script === out && v.value === amount) ?? -1
@@ -238,7 +266,7 @@ export class BtcChain implements SourceChain {
         if (parsed.terms.sender !== address) throw new Error(`${this.name}: only the sender can refund`)
         // BIP 113: final only once the median time past is strictly after nLockTime.
         if ((await this.now()) <= parsed.terms.refundAfter) throw new Error(`${this.name}: refund too early: the timeout has not passed`)
-        const tx = await this.withFee({ txid: parsed.txid, vout: parsed.vout, value, witnessScript: parsed.script, to: p2wpkh(address) }, s => refundTx(s, key(), parsed.terms.refundAfter))
+        const tx = await this.withFee({ txid: parsed.txid, vout: parsed.vout, value, witnessScript: parsed.script, to: this.o.refundTo !== undefined ? decodeSegwitAddress(this.o.refundTo, this.o.network) : p2wpkh(address) }, s => refundTx(s, key(), parsed.terms.refundAfter))
         await this.backend.broadcast(Utils.toHex(serializeTx(tx)))
       }
     }

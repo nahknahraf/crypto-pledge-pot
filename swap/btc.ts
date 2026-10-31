@@ -92,6 +92,28 @@ export function segwitAddress (outputScript: Bytes, network: BtcNetwork): string
   return `${hrp}1${[...data, ...checksum].map(d => CHARSET[d]).join('')}`
 }
 
+/**
+ * The output script of a segwit address (v0 bech32: bc1q…, or v1+ bech32m: bc1p…), checked for this network.
+ * Used for a refund destination the donor types in.
+ */
+export function decodeSegwitAddress (address: string, network: BtcNetwork): Bytes {
+  const a = address.trim().toLowerCase()
+  const sep = a.lastIndexOf('1')
+  const hrp = a.slice(0, sep)
+  if (hrp !== HRP[network]) throw new Error(`not a ${network} Bitcoin address (expected ${HRP[network]}1…)`)
+  const data = [...a.slice(sep + 1)].map(c => { const i = CHARSET.indexOf(c); if (i < 0) throw new Error('invalid character in address'); return i })
+  if (data.length < 7) throw new Error('address too short')
+  const version = data[0]
+  const check = polymod([...hrpExpand(hrp), ...data])
+  if (check !== (version === 0 ? 1 : 0x2bc830a3)) throw new Error('address checksum failed')
+  const words = data.slice(1, -6)
+  const prog: Bytes = []; let acc = 0; let bits = 0
+  for (const w of words) { acc = (acc << 5) | w; bits += 5; while (bits >= 8) { bits -= 8; prog.push((acc >> bits) & 0xff) } acc &= (1 << bits) - 1 }
+  if (bits >= 5 || acc !== 0) throw new Error('invalid address padding')
+  if (version > 16 || prog.length < 2 || prog.length > 40 || (version === 0 && prog.length !== 20 && prog.length !== 32)) throw new Error('invalid witness program')
+  return [version === 0 ? 0 : 0x50 + version, prog.length, ...prog]
+}
+
 // ── transactions ────────────────────────────────────────────────────────────
 export interface BtcInput { txid: string, vout: number, sequence: number, witness: Bytes[] }
 export interface BtcOutput { script: Bytes, value: number }

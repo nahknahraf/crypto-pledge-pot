@@ -121,9 +121,13 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
     - `EsploraBackend`: mempool.space or blockstream, on mainnet, signet or testnet. Checked live (read-only) against mempool.space: outputs, confirmations, the outspend witness, median time and fee estimates.
   - **Fees** are estimated from the backend's rate × the spend's real vsize, with a 2 sat/vB floor.
   - **`npm run lp`** takes `BRIDGE_CHAIN=btc|btc-signet|btc-testnet|btc-regtest`. I started it against a regtest node with a throwaway wallet: it serves `/api/lp` with the BTC asset and refuses quotes until it holds BSV.
-  - **Still open:**
-    - a funded signet or mainnet run;
-    - PSBT signing in a browser wallet.
+  - **Any wallet, on chain.** No PSBT signing is needed.
+    - The page makes a throwaway refund key, the HTLC's sender, and hands the donor a refund ticket to save.
+    - The donor pays the HTLC address from any wallet; the page finds the payment on chain.
+    - A refund goes to the donor's own segwit or taproot address. `decodeSegwitAddress` handles bech32 and bech32m, checked against bitcoind's own addresses.
+    - The code is `swap/browserBtc.ts` (`swapBtcToSats`, `refundBtc`); the page is `#/bring-btc` with `VITE_LP_BTC_URL`.
+    - Tested on regtest: the happy path over HTTP, and a refund to a taproot address using only the ticket. Mutation check: ignoring the refund address fails the test.
+  - **Still open:** a funded signet or mainnet run, and a click-through of the page.
   - **Checked before use:** the binary is checked against `SHA256SUMS`, and `SHA256SUMS.asc` carries 8 good builder signatures. It lives in `~/opt/bitcoin-32.1`; `BITCOIND_BIN` overrides that.
 - **Lightning:** the LP runs a node that supports hold invoices (e.g. LND `AddHoldInvoice`).
   1. The donor pays the invoice. Nothing settles.

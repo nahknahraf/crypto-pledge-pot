@@ -7,10 +7,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Hash, PrivateKey, Transaction, Utils } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox'
 import { bitcoindBinary, startRegtest, type Regtest } from '../swap/bitcoind'
-import { btcPublicKey, claimTx, htlcScript, p2wpkh, parseHtlcScript, refundTx, segwitAddress, serializeTx, type BtcTx } from '../swap/btc'
+import { btcPublicKey, claimTx, decodeSegwitAddress, htlcScript, p2wpkh, parseHtlcScript, refundTx, segwitAddress, serializeTx, type BtcTx } from '../swap/btc'
 import { BitcoindBackend, bitcoindWalletFunder, BtcChain } from '../swap/btcChain'
 import type { SpendFinder } from '../swap/bsv'
 import { DonorSwap } from '../swap/donorSwap'
+import { refundBtc, swapBtcToSats, type BtcRefundTicket } from '../swap/browserBtc'
+import { createLiquidityApp } from '../swap/lpHttp'
+import type { Server } from 'node:http'
 import { DEFAULT_LIQUIDITY, LiquidityAgent } from '../swap/liquidityAgent'
 import { createMockChain, type MockChain } from './helpers/mockchain'
 
@@ -44,7 +47,7 @@ describe.skipIf(bitcoindBinary() === undefined)('bridge on a real Bitcoin node (
     node = await startRegtest()
     btc = new BtcChain({ backend: new BitcoindBackend(node.rpc), network: 'regtest', signers: [donorBtc, lpBtc], funder: bitcoindWalletFunder(node.rpc, node.wallet) })
     chain = await createMockChain()
-    lpWallet = await chain.makeWallet(); await chain.fund(lpWallet, 50_000_000)
+    lpWallet = await chain.makeWallet(); await chain.fund(lpWallet, 100_000_000)
   }, 120_000)
   afterAll(async () => { await chain?.close(); await node?.stop() })
 
@@ -107,5 +110,49 @@ describe.skipIf(bitcoindBinary() === undefined)('bridge on a real Bitcoin node (
     expect((await btc.htlc(r.sourceHtlcId!))!.state).toBe('refunded')
     const fee = 9_000 - await btc.account(btcPublicKey(donorBtc)).balance()
     expect(fee).toBeGreaterThan(200); expect(fee).toBeLessThan(350)
+  }, 120_000)
+
+  it('decodes the node\'s own addresses (segwit v0 and taproot/bech32m) to the scripts it reports; refuses typos', async () => {
+    for (const type of ['bech32', 'bech32m']) {
+      const a = await node.rpc.call<string>('getnewaddress', ['', type], node.wallet)
+      const info = await node.rpc.call<{ scriptPubKey: string }>('getaddressinfo', [a], node.wallet)
+      expect(Utils.toHex(decodeSegwitAddress(a, 'regtest'))).toBe(info.scriptPubKey)
+      expect(() => decodeSegwitAddress(a.slice(0, -1) + (a.endsWith('q') ? 'p' : 'q'), 'regtest')).toThrow(/checksum/)
+      expect(() => decodeSegwitAddress(a, 'main')).toThrow(/not a main/)
+    }
+  })
+
+  const withLp = async <T>(lp: LiquidityAgent, fn: (url: string) => Promise<T>): Promise<T> => {
+    const sv: Server = await new Promise(resolve => { const x = createLiquidityApp(lp).listen(0, '127.0.0.1', () => resolve(x)) })
+    try { return await fn(`http://127.0.0.1:${(sv.address() as any).port}`) } finally { await new Promise(resolve => sv.close(resolve)) }
+  }
+  const payFromNode = async (address: string, amount: number): Promise<void> => { await node.rpc.call('sendtoaddress', [address, amount / 1e8], node.wallet); await node.mine(1) }
+
+  it('any wallet: the donor pays the HTLC address by hand (no txid given), the page finds it, and the swap completes over HTTP', async () => {
+    const lp = agent()
+    const wallet = await chain.makeWallet()
+    const refundTo = await node.rpc.call<string>('getnewaddress', ['', 'bech32m'], node.wallet)
+    const tickets: BtcRefundTicket[] = []
+    const { record } = await withLp(lp, async url => await swapBtcToSats(wallet, chain.chainTracker, { lpUrl: url, network: 'regtest', backend: new BitcoindBackend(node.rpc), refundTo, retryMs: 200, fundingPollMs: 200 }, 10_000, payFromNode, t => tickets.push({ ...t })))
+    expect(record.state).toBe('claimed')
+    expect(tickets[0].htlcId).toBeUndefined() // the ticket exists BEFORE anything is paid
+    expect(tickets.at(-1)!.htlcId).toBe(record.sourceHtlcId)
+    expect(await spendable(wallet)).toBeGreaterThan(20_000_000 - 2_000)
+    await lp.step()
+    expect(lp.state(record.quote.id)).toBe('settled')
+  }, 120_000)
+
+  it('any wallet, swap fails: with only the saved ticket, the donor refunds the BTC to their own (taproot) address after the timeout', async () => {
+    const lp = new LiquidityAgent(lpWallet, btc, btcPublicKey(lpBtc), findSpend, async () => await spendable(lpWallet), { ...DEFAULT_LIQUIDITY, satsPerUsdc: RATE, maxUsdc: 1e8, minSourceConfirmations: 50 })
+    const refundTo = await node.rpc.call<string>('getnewaddress', ['', 'bech32m'], node.wallet)
+    let ticket: BtcRefundTicket | undefined
+    const { record } = await withLp(lp, async url => await swapBtcToSats(await chain.makeWallet(), chain.chainTracker, { lpUrl: url, network: 'regtest', backend: new BitcoindBackend(node.rpc), refundTo, retryMs: 50, maxRetries: 1, fundingPollMs: 200 }, 10_000, payFromNode, t => { ticket = JSON.parse(JSON.stringify(t)) }))
+    expect(record.lock).toBeUndefined() // the agent kept waiting for 50 confirmations; the donor gave up
+    await expect(refundBtc(ticket!, { backend: new BitcoindBackend(node.rpc) })).rejects.toThrow(/early/)
+    await node.setMockTime(ticket!.refundAfter! + 3_600); await node.mine(11)
+    await refundBtc(ticket!, { backend: new BitcoindBackend(node.rpc) })
+    await node.mine(1)
+    const got = await node.rpc.call<number>('getreceivedbyaddress', [refundTo], node.wallet)
+    expect(Math.round(got * 1e8)).toBeGreaterThan(10_000 - 400)
   }, 120_000)
 })

@@ -2221,3 +2221,17 @@ Suite: 249 passed, 3 skipped.
 - **Runs:** five seeds × 200 steps all passed. Each run made 63–74 locks, 4–13 claims, 11–20 refunds and 81–95 correct refusals. The suite runs 150 steps by default, and `FUZZ_SEED`, `FUZZ_STEPS` and `FUZZ_REPORT` reproduce or extend a run.
 - **Mutation check:** letting anyone claim is caught at step 57.
 - **Why not Foundry:** a Foundry pass would add a download for the same kind of check.
+
+**9.11 On-chain BTC from any wallet.** This replaces PSBT signing in browser wallets, which wallets support unevenly for custom scripts.
+- **How it works:**
+  - The donor's page makes a throwaway refund key, which acts as the HTLC's sender, and hands over a refund ticket to save before anything is paid.
+  - The donor pays the HTLC address from any wallet.
+  - `BtcChain` finds the output on chain through a new `BtcBackend.utxos` (bitcoind `scantxoutset` or Esplora `/scripthash/:h/utxo`). A funder may now return no txid.
+  - A refund goes to `refundTo`, an address of the donor's own wallet. `decodeSegwitAddress` decodes segwit v0 (bech32) and v1+ (bech32m) addresses.
+- **New code:** `swap/browserBtc.ts` (`swapBtcToSats`, `refundBtc`) and an on-chain section on `#/bring-btc`. The page offers a ticket download, a `bitcoin:` link, an "I have paid" button, and a refund-with-ticket box.
+- **Tested on regtest:**
+  - The decoder agrees with bitcoind's `getaddressinfo` for both address types, and refuses typos and other networks.
+  - The happy path over HTTP: the ticket exists before the payment, and the swap settles.
+  - A failed swap is refunded to a taproot address with only the ticket. It's refused as too early first, then succeeds once the timeout has passed.
+  - **Mutation check:** ignoring `refundTo` fails the test.
+- **Results:** the app builds clean; the suite has 272 passed and 3 skipped.

@@ -79,6 +79,7 @@ The donor side of a swap (`swap/donorSwap.ts`) is a library, not a separate agen
   - with a permit, in one transaction;
   - swapped from another token on a DEX through `SwapAndLock`, in one transaction (`lockAndRequest(…, lockWith)`);
 - in a browser, the donor's own EVM wallet signs (`swap/browserEvm.ts`), and `swap/browserSwap.ts` runs the whole flow for the **Bring USDC** page.
+- on-chain BTC also works from any wallet: `swap/browserBtc.ts` gives the donor a refund ticket, shows the HTLC address to pay, and finds the payment on chain;
 - over Lightning, the donor pays from any wallet: `swap/browserLightning.ts` checks the agent's invoice locally (`swap/bolt11.ts`), then pays through WebLN or by hand, for the **Bring BTC** page.
 
 The source chain is pluggable: `SourceChain` (`swap/usdcChain.ts`) has an `asset` (USDC, 6 decimals, by default; BTC, 8). `EvmUsdcChain`, `BtcChain` and `LightningChain` implement it, so the agent and the donor library don't know which chain they're on. Two optional hooks cover Lightning: `request` (the agent issues a hold invoice first) and `release` (it cancels that invoice when it gives up).
