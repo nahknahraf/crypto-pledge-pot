@@ -22,6 +22,7 @@ import { createDataProviderApp, serveDataProvider } from '../data-provider/dataP
 import { createAgentApp } from '../fundraising-agent/http'
 import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../fundraising-agent/ledger'
 import { createCappedPayer } from '../fundraising-agent/pay402'
+import { planCampaign } from '../fundraising-agent/campaignPlan'
 import { createCryptoPledgePotService } from './app'
 import { CryptoPledgePotDb } from './db'
 
@@ -92,21 +93,23 @@ export async function runAgentDemo (opts: AgentDemoOptions = {}): Promise<AgentD
   const agentServer = await listen(agentServerApp, opts.agentPort ?? 8791)
   const agentApi = new CryptoPledgePotApi(url, agentWallet)
   const start = now()
+  // The same terms as the real agent: one spending plan (fundraising-agent/campaignPlan.ts), 1,200 sats.
+  const terms = planCampaign({ readingsPerMilestone: 5, pricePerReading: 50, feeAllowancePerMilestone: 150, operator: 'the CryptoPledgePot team (offline demo)' })
   const agent = new CryptoPledgePotAgent({
     mission,
     campaign: {
       title: 'AirWatch: an AI agent buying open air-quality data',
-      description: 'I am an autonomous AI agent. Back me and I will buy air-quality readings from a pay-per-call data API, one BSV micropayment per reading, and publish a report for each milestone with a link to every payment. You only fund the next milestone after you have seen my report.',
-      goal: 25_000,
+      description: terms.description,
+      goal: terms.goal,
       deadline: start + 3_600,
       refundAfter: start + 30 * 86_400,
-      milestones: [{ title: 'First readings: 5 cities', percent: 30 }, { title: 'Full coverage: 10 cities', percent: 40 }, { title: 'Refresh and publish', percent: 30 }],
+      milestones: terms.milestones,
       kind: 'agent',
       agentUrl: opts.agentPublicUrl ?? `http://localhost:${portOf(agentServer)}`
     },
     dataUrl: `http://${dataHost}`,
     pricePerCall: 50,
-    maxSpendPerMilestone: 250,
+    maxSpendPerMilestone: terms.maxSpendPerMilestone,
     feeReserve: 1_000
   }, {
     wallet: agentWallet,
@@ -138,11 +141,11 @@ export async function runAgentDemo (opts: AgentDemoOptions = {}): Promise<AgentD
 
   const beats: Array<{ text: string, run: () => Promise<void> }> = [
     { text: 'An AI agent launches its own fundraising campaign: "AirWatch"', run: async () => { await step('launched'); status.campaignId = id() } },
-    { text: 'Ana backs it with 12,000 sats', run: async () => { await backers.Ana.donate(await meta(), 12_000, { name: 'Ana', message: 'Curious what an agent does with this.' }) } },
-    { text: 'Ben backs it with 6,000 sats', run: async () => { await backers.Ben.donate(await meta(), 6_000, { name: 'Ben' }) } },
-    { text: 'Chloe sends a 1,000-sat micro-pledge', run: async () => { await backers.Chloe.donate(await meta(), 1_000, { name: 'Chloe', message: 'A tiny tip from a student 🙂' }) } },
-    { text: 'Dev backs it with 8,000 sats', run: async () => { await backers.Dev.donate(await meta(), 8_000, { name: 'Dev', message: 'Open data FTW' }) } },
-    { text: 'Eli backs it with 3,000 sats: the 25,000-sat goal is passed', run: async () => { await backers.Eli.donate(await meta(), 3_000, { name: 'Eli' }) } },
+    { text: 'Ana backs it with 500 sats', run: async () => { await backers.Ana.donate(await meta(), 500, { name: 'Ana', message: 'Curious what an agent does with this.' }) } },
+    { text: 'Ben backs it with 300 sats', run: async () => { await backers.Ben.donate(await meta(), 300, { name: 'Ben' }) } },
+    { text: 'Chloe sends a 100-sat micro-pledge', run: async () => { await backers.Chloe.donate(await meta(), 100, { name: 'Chloe', message: 'A tiny tip from a student 🙂' }) } },
+    { text: 'Dev backs it with 200 sats', run: async () => { await backers.Dev.donate(await meta(), 200, { name: 'Dev', message: 'Open data FTW' }) } },
+    { text: 'Eli backs it with 200 sats: the 1,200-sat goal is passed', run: async () => { await backers.Eli.donate(await meta(), 200, { name: 'Eli' }) } },
     { text: 'The deadline passes with the goal met: milestone 1 is approved', run: async () => { offset += 3_601 } },
     { text: 'The agent withdraws milestone 1 from escrow into its own wallet', run: async () => { await step('released') } },
     { text: 'The agent plans its purchases and pays the data API per call', run: async () => { await step('worked') } },

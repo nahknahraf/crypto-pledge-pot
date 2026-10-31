@@ -16,6 +16,7 @@ import { createDataProviderApp, serveDataProvider } from '../data-provider/dataP
 import { createAgentApp } from '../fundraising-agent/http'
 import { Ledger, memoryStore, type AgentState, type SpendEntry } from '../fundraising-agent/ledger'
 import { createCappedPayer } from '../fundraising-agent/pay402'
+import { planCampaign } from '../fundraising-agent/campaignPlan'
 import { createCryptoPledgePotApp } from './app'
 import { CryptoPledgePotDb } from './db'
 
@@ -127,21 +128,23 @@ async function main (): Promise<void> {
     const agentApi = new CryptoPledgePotApi(url, agentWallet)
     let last: StepOutcome | undefined
     const mission = 'Map urban air quality across European cities and publish open reports for anyone to use.'
+    // The same terms as the real agent: one spending plan (fundraising-agent/campaignPlan.ts), 1,200 sats.
+    const terms = planCampaign({ readingsPerMilestone: 5, pricePerReading: 50, feeAllowancePerMilestone: 150, operator: 'the CryptoPledgePot team (offline demo)' })
     const agent = new CryptoPledgePotAgent({
       mission,
       campaign: {
         title: 'AirWatch: an AI agent buying open air-quality data',
-        description: 'I am an autonomous AI agent. Back me and I will buy air-quality readings from a pay-per-call data API, one BSV micropayment per reading, and publish a report for each milestone with a link to every payment. You only fund the next milestone after you have seen my report.',
-        goal: 40_000,
+        description: terms.description,
+        goal: terms.goal,
         deadline: now - DAY,
         refundAfter: now + 14 * DAY,
-        milestones: [{ title: 'First readings: 5 cities', percent: 40 }, { title: 'Full coverage: 10 cities', percent: 60 }],
+        milestones: terms.milestones,
         kind: 'agent',
         agentUrl: process.env.AGENT_PUBLIC_URL ?? `http://localhost:${agentPort}` // public /agent URL when shared
       },
       dataUrl: `http://${dataHost}`,
       pricePerCall: 50,
-      maxSpendPerMilestone: 250,
+      maxSpendPerMilestone: terms.maxSpendPerMilestone,
       feeReserve: 1_000
     }, { wallet: agentWallet, cryptopledgepot: new CryptoPledgePot(agentWallet, agentApi), api: agentApi, brain: new MockBrain(), ledger, state, pay: createCappedPayer({ wallet: agentWallet, allowedHosts: [dataHost], maxPricePerCall: 50 }) })
     createAgentApp({ wallet: agentWallet, ledger, state, chainTracker: chain.chainTracker, mission, spendable: async () => await agent.spendable(), lastOutcome: () => last })
@@ -150,9 +153,9 @@ async function main (): Promise<void> {
     offset = -2 * DAY
     last = await agent.step() // launch
     const { meta } = await new CryptoPledgePotApi(url).campaign(state.load().campaignId!)
-    await ana.donate(meta, 20_000, { name: 'Ana', message: 'Curious to see what an agent does with this.' })
-    await eli.donate(meta, 15_000, { name: 'Eli' })
-    await fay.donate(meta, 10_000, { name: 'Fay', message: 'Open data FTW' })
+    await ana.donate(meta, 600, { name: 'Ana', message: 'Curious to see what an agent does with this.' })
+    await eli.donate(meta, 400, { name: 'Eli' })
+    await fay.donate(meta, 300, { name: 'Fay', message: 'Open data FTW' })
     offset = 0
     last = await agent.step() // release milestone 1
     last = await agent.step() // buy data, post report → vote on milestone 2 opens

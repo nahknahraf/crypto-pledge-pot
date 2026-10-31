@@ -22,10 +22,11 @@ describe('the AirWatch live story', () => {
 
   it('ends with the agent campaign completed and every escrowed sat released', async () => {
     const c = await new CryptoPledgePotApi(demo.url).campaign(demo.status().campaignId!)
-    expect(c).toMatchObject({ status: 'completed', raised: 30_000, released: 30_000, escrowed: 0, donors: 5, milestonesReleased: 3 })
+    expect(c).toMatchObject({ status: 'completed', raised: 1_300, released: 1_300, escrowed: 0, donors: 5, milestonesReleased: 3 })
     expect(c.meta.kind).toBe('agent')
-    expect(c.milestones[1].votes).toMatchObject({ yes: 20_000, no: 6_000, voters: 3 }) // Ben voted no
-    expect(c.milestones[2].votes).toMatchObject({ yes: 16_000, voters: 3 })
+    expect(c.meta.goal).toBe(1_200) // terms from the spending plan, as in production
+    expect(c.milestones[1].votes).toMatchObject({ yes: 700, no: 300, voters: 3 }) // Ben voted no
+    expect(c.milestones[2].votes).toMatchObject({ yes: 800, voters: 3 })
     expect(c.milestones[1].update?.note).toMatch(/5 readings bought for 250 sats/)
     expect(c.milestones[2].update?.note).toMatch(/5 readings bought for 250 sats/) // the refused city is replaced by a re-plan
   })
