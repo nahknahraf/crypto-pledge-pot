@@ -51,6 +51,15 @@ Everything in the video is **BSV mainnet**: real sats, BSV Desktop, WhatsOnChain
 - that the Bring USDC or Bring BTC page was used with real wallets (it hasn't been clicked through yet);
 - that the brain was Claude, if the start-up line said `brain mock`.
 
-**Before you start:** check that no browser automation is running while BSV Desktop is open. Every payment in the video is clicked and approved by a person.
+**Before you start:**
+- Run `npm run preflight`. It checks, read-only, that:
+  - the server is on mainnet;
+  - the data provider serves real data;
+  - the agent runs the Claude brain, has a campaign and a fee float of at least 3,000 sats;
+  - the donor agent is in co-pilot mode;
+  - the key is set, the app is up, and BSV Desktop is listening.
+
+  It exits non-zero if anything is wrong. It never calls the wallet or spends.
+- Check that no browser automation is running while BSV Desktop is open. Every payment in the video is clicked and approved by a person.
 
 Open work is in [`TODO.md`](TODO.md).

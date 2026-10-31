@@ -23,6 +23,8 @@ export interface AgentHttpOptions {
   lastOutcome: () => StepOutcome | undefined
   /** Recent activity lines (decisions, payments, refusals), newest last. */
   activity?: () => Array<{ at: number, line: string }>
+  /** Which brain plans the purchases ('claude:…' or 'mock'), so anyone can see what is deciding. */
+  brainName?: string
 }
 
 export function createAgentApp (o: AgentHttpOptions): Express {
@@ -40,6 +42,7 @@ export function createAgentApp (o: AgentHttpOptions): Express {
     res.json({
       identityKey: publicKey,
       mission: o.mission,
+      brain: o.brainName ?? null,
       campaignId: o.state.load().campaignId ?? null,
       balance: await o.spendable(),
       spent: o.ledger.totals(),

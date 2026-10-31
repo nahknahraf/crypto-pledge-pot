@@ -38,7 +38,8 @@
     "demo:bridge:btc": "vite-node --config vitest.config.ts swap/btcBridgeDemoMain.ts",
     "demo:bridge:ln": "vite-node --config vitest.config.ts swap/lnBridgeDemoMain.ts",
     "keys:new": "vite-node --config vitest.config.ts scripts/keysNew.ts",
-    "lp:fund": "vite-node --config vitest.config.ts scripts/lpFund.ts"
+    "lp:fund": "vite-node --config vitest.config.ts scripts/lpFund.ts",
+    "preflight": "vite-node --config vitest.config.ts scripts/preflight.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

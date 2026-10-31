@@ -2254,3 +2254,17 @@ Suite: 249 passed, 3 skipped.
 - **"Must not claim" is now precise:**
   - no swap has run on mainnet or on a public testnet (only Anvil, the Base fork, and regtest Bitcoin Core and LND, with the BSV side on the mock chain);
   - the Bring pages haven't been clicked through with real wallets.
+
+**9.14 `npm run preflight`.** The video's "Before recording" list is now a read-only check. `scripts/preflightChecks.ts` is a pure function with injected fetch, env and port probe. It checks:
+- the server's network;
+- the data provider's source;
+- the agent's brain, campaign and fee float. `/api/agent` now reports `brain`; it didn't before;
+- the donor agent's co-pilot mode and donor key;
+- that the Anthropic key is set (never shown);
+- the web app on :5174, the port from `app/vite.config.ts`, not Vite's default;
+- BSV Desktop's port (3321/2121): a TCP connect only.
+
+"No browser automation" can't be checked, so it is a reminder.
+
+- **Tests** (`preflight`): all good, every failure mode, and a down service reported as a reason without leaking secrets.
+- **Run for real now:** everything is down except BSV Desktop, as expected; exit 1.

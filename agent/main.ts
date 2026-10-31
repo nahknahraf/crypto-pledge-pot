@@ -90,7 +90,7 @@ async function main (): Promise<void> {
 
   let last: StepOutcome | undefined
   const chainTracker = new ArcadeChainTracker(chain === 'main' ? ARCADE_MAINNET : ARCADE_TESTNET)
-  createAgentApp({ wallet, ledger, state, chainTracker, mission, spendable: async () => await agent.spendable(), lastOutcome: () => last, activity: activity.recent })
+  createAgentApp({ wallet, ledger, state, chainTracker, mission, spendable: async () => await agent.spendable(), lastOutcome: () => last, activity: activity.recent, brainName: brain.name })
     .listen(port, () => console.log(`[agent] identity ${setup.identityKey} · brain ${brain.name} · status on http://localhost:${port}/api/agent`))
 
   const tick = async (): Promise<void> => {
