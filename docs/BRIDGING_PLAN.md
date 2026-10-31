@@ -164,6 +164,8 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
 
 ## 5. Phase 4–5: fiat on-ramp and wrapped stablecoins
 
+**Provider check, 2026-10-31:** [`ONRAMP_RESEARCH.md`](ONRAMP_RESEARCH.md). The recommended route is fiat → USDC on Base through an on-ramp (Coinbase Onramp's docs confirm delivery to any self-custody address), then the Bring USDC swap. Direct BSV card purchases are unverified. Wrapped stablecoins on BSV remain research only. Choosing a provider is your decision, and it needs a provider account and API key.
+
 - **On-ramp:** embed a provider's widget configured with the user's own receive address (BSV, or USDC on Base followed by Phase 1). The UI says plainly that the provider holds the money until delivery and handles KYC.
 - **Threshold bridge / BSV-21 stablecoins:** research only until a production bridge with audited contracts exists. It would need:
   - a BSV-21 variant of the escrow (it tracks the token amount instead of sats; the overlay is the source of truth, per AGENTS.md);
@@ -245,4 +247,4 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 - [x] **Lightning (Phase 3b):** hold-invoice swaps work on real LND nodes (regtest); see §4.
 - [ ] **Lightning on a real network:** needs an LND node with inbound liquidity (`BRIDGE_CHAIN=ln`).
 - [x] **A web page for the Lightning swap:** `#/bring-btc` (set `VITE_LP_LN_URL`). A WebLN wallet pays by itself; otherwise the page shows the checked invoice to pay from any wallet. The app builds, but the page has not been clicked through with real wallets.
-- [ ] **On-ramp and wrapped stablecoins (Phases 4–5):** not started; they need provider research and accounts.
+- [ ] **On-ramp and wrapped stablecoins (Phases 4–5):** the provider check is done ([`ONRAMP_RESEARCH.md`](ONRAMP_RESEARCH.md)). Building it waits on you: a provider choice and its account and API key. Wrapped stablecoins remain research only.

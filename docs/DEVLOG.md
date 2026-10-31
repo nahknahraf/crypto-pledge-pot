@@ -2235,3 +2235,15 @@ Suite: 249 passed, 3 skipped.
   - A failed swap is refunded to a taproot address with only the ticket. It's refused as too early first, then succeeds once the timeout has passed.
   - **Mutation check:** ignoring `refundTo` fails the test.
 - **Results:** the app builds clean; the suite has 272 passed and 3 skipped.
+
+**9.12 On-ramp research** (`docs/ONRAMP_RESEARCH.md`, dated 2026-10-31, as the plan requires). Every fact is labelled verified, secondary or unverified, with its source.
+- **Verified** on Coinbase's developer docs:
+  - Coinbase Onramp "sends to any wallet address" (USDC on Base included);
+  - it needs a Secret API key and session tokens.
+- **Secondary:**
+  - MoonPay and Transak fees and coverage;
+  - major US exchanges no longer listing BSV;
+  - smaller exchanges' BSV withdrawals.
+- **Unverified:** Changelly's direct BSV card purchases (its page returns 403 to automated access).
+- **Recommendation:** fiat → USDC on Base → the existing Bring USDC swap. Building it waits on the user choosing a provider, plus its account and key.
+- **Nothing was added to the UI.**
