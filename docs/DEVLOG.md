@@ -2007,3 +2007,20 @@ Test (`donor.e2e`): proposed under "water"; the mandate changes to "school"; the
   - with the deterministic brains, everything passes;
   - a "gullible" brain that scores everything 100 still gets all 4 manipulations scored 0 by the code rules, and the eval correctly reports its brain-only miss (approving an evidence-free report).
 - I ran the CLI without a key and it works. I did **not** commit its output: mock results would read like a Claude eval. The real run needs the key.
+
+**8.30 Fund from an exchange** (bridging Phase 2, CeFi). The non-custodial way to bring exchange money in: the user withdraws from their own exchange account to an address of their own wallet. We never see the exchange account.
+- `client/receive.ts`:
+  - `newReceiveAddress` derives a fresh BRC-29 key with the public "anyone" counterparty. The exchange only needs a plain address, and the wallet can still recognise the payment. It is never `P2PKH(identityKey)`, which the test asserts.
+  - `claimReceived` checks SPV and internalizes every output that pays the address as a `wallet payment`.
+  - `paymentsTo` lists unspent payments to the address on WhatsOnChain.
+  - `atomicBeefOf` turns WhatsOnChain's plain BEEF into AtomicBEEF.
+- Dashboard panel **Fund from an exchange**: "New deposit address" (kept in the browser, because it's needed to claim) and "Check for payment".
+- Tests (`receive`, 4):
+  - an "exchange" wallet pays the address and the user's wallet receives 25,000 sats, spendable at once;
+  - addresses are fresh, a payment to another address claims 0, and a bad proof is refused;
+  - the WhatsOnChain listing is de-duplicated;
+  - plain and atomic BEEF are both accepted.
+
+**What broke:** `tx.verify` *throws* on an invalid merkle path instead of returning false, so the forged-proof case surfaced as a raw SDK error. `claimReceived` now reports it as an SPV failure. I also found that `wocBeef` returns plain BEEF, hence `atomicBeefOf`.
+
+**Not done:** a withdrawal from a real exchange.

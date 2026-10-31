@@ -21,6 +21,7 @@ The files are listed in the `test:happy` script in `package.json`. Some of them 
 | 7 | **Swap (simulated USDC):** quote → donor locks USDC → LP checks and locks sats → donor verifies and claims into their own wallet → LP collects with the revealed secret → pledge | `swapDemo`, `swap.e2e` | `npm run demo:swap` | mock chain + simulated ledger |
 | 8 | **Bridge (real EVM contract):** the same as 7, with a Solidity HTLC on a local EVM chain through viem | `happyPaths.e2e` (demo:bridge), `bridge.evm` | `npm run demo:bridge` | mock chain + Anvil |
 | 8b | **Liquidity agent as its own service:** a donor uses it over HTTP only (`LiquidityClient`); the agent crashes after locking sats, and a restarted process reads its state file and still collects the USDC | `bridge.service` | `npm run lp` (env in `swap/lpMain.ts`) | mock chain + Anvil |
+| 8c | **Fund from an exchange:** a withdrawal to a fresh deposit address of the user's own wallet is verified and internalized, and is spendable at once | `receive` | Dashboard → "Fund from an exchange" | mock chain (a real exchange: not tried) |
 | 9 | **Payments:** BRC-29 payment with SPV, spent before any block; NFT mint and transfer | `payments-nft.e2e` | — | mock chain |
 | 10 | **Paid API (HTTP 402):** BRC-105 and BRC-121 pay-per-request, with replay refused | `pay-per-request.e2e` | — | mock chain |
 | 11 | **BSV-21 tokens** (the starter kit we built on): deploy, send, merge, split, recover from the overlay | `e2e.mockchain` | — | mock chain |
@@ -46,7 +47,6 @@ The files are listed in the `test:happy` script in `package.json`. Some of them 
 
 - BTC and Lightning HTLCs;
 - DEX sourcing;
-- the CeFi "withdraw to your own address" helper;
 - on-ramps;
 - wrapped stablecoins on BSV;
 - the multi-LP quote board.

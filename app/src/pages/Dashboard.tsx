@@ -10,6 +10,9 @@ import type { CampaignView, PledgeView } from '../../../core/api'
 import { Notice, Progress, StatusBadge } from '../components/ui'
 import { dateTime, formatSats, WOC_TX } from '../format'
 import { api, confirmSpend, useWallet } from '../wallet'
+import { atomicBeefOf, claimReceived, newReceiveAddress, paymentsTo, type ReceiveAddress } from '../../../client/receive'
+import { wocBeef } from '../../../client/cryptoPledgePot'
+import { Utils } from '@bsv/sdk'
 
 type Msg = { ok: boolean, text: string, txid?: string }
 
@@ -53,7 +56,53 @@ export function Dashboard () {
       </div>
 
       <RecoverPanel onChange={() => { void load() }} />
+      <FundFromExchangePanel />
     </>
+  )
+}
+
+/**
+ * Fund from an exchange (or any sender that pays a plain address): a fresh deposit address from
+ * the user's OWN wallet (a BRC-29 derived key, never the identity key). The user withdraws to it
+ * themselves; "Check for payment" finds it on WhatsOnChain, verifies it and takes it into the wallet.
+ * The address is kept in this browser (it is needed to claim the payment).
+ */
+function FundFromExchangePanel () {
+  const { cryptopledgepot, network } = useWallet()
+  const net = network === 'testnet' ? 'test' : 'main'
+  const [to, setTo] = useState<ReceiveAddress | undefined>(() => { try { return JSON.parse(localStorage.getItem('cpp-deposit-address') ?? 'null') ?? undefined } catch { return undefined } })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<Msg>()
+  const run = async (fn: () => Promise<Msg>): Promise<void> => {
+    setBusy(true); setMsg(undefined)
+    try { setMsg(await fn()) } catch (e) { setMsg({ ok: false, text: (e as Error).message }) } finally { setBusy(false) }
+  }
+  return (
+    <div className="card">
+      <h2>Fund from an exchange</h2>
+      <p className="small muted">Withdraw BSV from an exchange you use to a deposit address of your own wallet. We never see your exchange account; check that your exchange supports BSV withdrawals.</p>
+      {to !== undefined && <p><code>{to.address}</code></p>}
+      <div className="row">
+        <button disabled={busy || cryptopledgepot === undefined} onClick={() => {
+          void run(async () => {
+            const a = await newReceiveAddress(cryptopledgepot!.wallet, net, cryptopledgepot!.originator)
+            localStorage.setItem('cpp-deposit-address', JSON.stringify(a)); setTo(a)
+            return { ok: true, text: 'New deposit address ready. Withdraw to it from your exchange, then check for the payment.' }
+          })
+        }}>New deposit address</button>
+        <button disabled={busy || cryptopledgepot === undefined || to === undefined} onClick={() => {
+          void run(async () => {
+            let total = 0
+            for (const txid of await paymentsTo(to!.address, net)) {
+              // The wallet verifies the proof itself when it internalizes the payment.
+              total += await claimReceived(cryptopledgepot!.wallet, to!, atomicBeefOf(Utils.toArray(await wocBeef(txid, net), 'hex'), txid), undefined, cryptopledgepot!.originator)
+            }
+            return total > 0 ? { ok: true, text: `Received ${formatSats(total)} into your wallet.` } : { ok: true, text: 'No payment yet. Withdrawals can take a few minutes to appear.' }
+          })
+        }}>Check for payment</button>
+      </div>
+      {msg !== undefined && <Notice kind={msg.ok ? 'ok' : 'err'}>{msg.text}</Notice>}
+    </div>
   )
 }
 
