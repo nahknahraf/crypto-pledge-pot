@@ -240,5 +240,5 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 - [ ] **BTC on signet or mainnet:** the code is ready (Esplora backend, fee estimation, `npm run lp` with `BRIDGE_CHAIN=btc-signet`). It needs a funded signet key (`LP_BTC_KEY`) and BSV inventory.
 - [x] **Lightning (Phase 3b):** hold-invoice swaps work on real LND nodes (regtest); see §4.
 - [ ] **Lightning on a real network:** needs an LND node with inbound liquidity (`BRIDGE_CHAIN=ln`).
-- [ ] **A web page for the Lightning swap:** the logic is done and tested (`swapLightningToSats`, `weblnPayer`); the page is not built yet.
+- [x] **A web page for the Lightning swap:** `#/bring-btc` (set `VITE_LP_LN_URL`). A WebLN wallet pays by itself; otherwise the page shows the checked invoice to pay from any wallet. The app builds, but the page has not been clicked through with real wallets.
 - [ ] **On-ramp and wrapped stablecoins (Phases 4–5):** not started; they need provider research and accounts.

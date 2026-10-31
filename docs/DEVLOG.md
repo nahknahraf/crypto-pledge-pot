@@ -2193,3 +2193,9 @@ Suite: 249 passed, 3 skipped.
   - The first run failed: the test's agent clock (30 days back) didn't match the helper's wall clock, so the invoice's timeout was too long to route. The helper now takes the same `clock` option.
 - **Mutation check:** disabling the payee check fails 2 tests.
 - **Suite:** 267 passed, 3 skipped.
+
+**9.8 The Bring BTC page** (`#/bring-btc`, set with `VITE_LP_LN_URL`). It runs `swapLightningToSats`:
+- A WebLN wallet (such as Alby) pays by itself.
+- Without one, the page shows the invoice, already checked, as text and a `lightning:` link.
+
+**A bug the build warnings caught.** `lightningChain.ts` imported base64 helpers from the Node-only `lnd.ts`, so Vite stubbed out `node:https` and `node:child_process` in the browser bundle, and the page would have broken at runtime. It now imports only a type from `lnd.ts` and uses the SDK for base64. The build is clean with no externalized modules, and the Lightning tests still pass. The page has not been clicked through with real wallets.

@@ -19,8 +19,12 @@
  * `payer` is called. Such a payment can't be observed here; it reads as locked with the timeout the invoice guarantees.
  */
 import { checkSwapInvoice, decodeInvoice, type DecodedInvoice } from './bolt11'
-import { b64, unb64, type LndRest } from './lnd'
+import { Utils } from '@bsv/sdk'
+import type { LndRest } from './lnd' // type only: this file is browser-safe (lnd.ts is Node)
 import type { SourceAccount, SourceAsset, SourceChain, SourceHtlc } from './usdcChain'
+
+const b64 = (hex: string): string => Utils.toBase64(Utils.toArray(hex, 'hex'))
+const unb64 = (s: string): string => Utils.toHex(Utils.toArray(s, 'base64'))
 
 export interface LightningChainOptions {
   /** The LND nodes this process controls (the agent's, or the donor's). May be empty for a donor with `payer`. */

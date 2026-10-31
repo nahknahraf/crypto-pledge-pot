@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { Campaign } from './pages/Campaign'
 import { Create } from './pages/Create'
 import { Dashboard } from './pages/Dashboard'
+import { BringBtc } from './pages/BringBtc'
 import { BringUsdc } from './pages/BringUsdc'
 import { Donor } from './pages/Donor'
 import { Home } from './pages/Home'
@@ -31,6 +32,7 @@ function Header () {
         <a href="#/dashboard">Dashboard</a>
         <a href="#/donor">My donor agent</a>
         <a href="#/bring-usdc">Bring USDC</a>
+        <a href="#/bring-btc">Bring BTC</a>
       </nav>
       {identityKey !== undefined
         ? <span className="chip" title={identityKey}>● {network === 'testnet' ? 'testnet · ' : ''}{short(identityKey)}</span>
@@ -75,7 +77,7 @@ function App () {
       <Header />
       <DemoBanner />
       <main className="page">
-        {campaign !== null ? <Campaign id={campaign[1]} /> : route === '/create' ? <Create /> : route === '/dashboard' ? <Dashboard /> : route === '/donor' ? <Donor /> : route === '/bring-usdc' ? <BringUsdc /> : <Home />}
+        {campaign !== null ? <Campaign id={campaign[1]} /> : route === '/create' ? <Create /> : route === '/dashboard' ? <Dashboard /> : route === '/donor' ? <Donor /> : route === '/bring-usdc' ? <BringUsdc /> : route === '/bring-btc' ? <BringBtc /> : <Home />}
       </main>
       <footer className="muted small">
         Donations sit in sCrypt escrow contracts on the BSV blockchain, and your keys stay in your wallet.{' '}
