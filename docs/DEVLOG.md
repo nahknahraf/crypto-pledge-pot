@@ -2165,3 +2165,18 @@ Suite: 249 passed, 3 skipped.
   - A channel reports active a moment before it can route ("insufficient local balance"), so `openChannel` waits for a route.
   - The BSV refund needs a lock time in the real past, so the test runs both Lightning clocks 30 days back, as `bridge.evm.failures` does.
 - **Verified** with `bridge.lightning` (4 tests) and a mutation check (removing the donor's amount check fails the refusal test). `npm run demo:bridge:ln` runs. `npm test`: 261 passed, 3 skipped.
+
+**9.6 Slither on the contracts.** I ran Slither 0.11.6 with solc 0.8.38, installed in a scratch virtualenv outside the repo, on `HashedTimelockERC20` and `SwapAndLock`.
+- **Reentrancy in `_lock`** (a token's `transferFrom` can call back into the HTLC). It's not exploitable: each lock must receive exactly its own amount, and `claim`/`refund` change state before they transfer. I still added a `nonReentrant` guard on every external function as defence in depth.
+  - The test token `ReentrantToken.sol` calls `lock` from inside `transferFrom`, and the lock reverts with "reentrancy".
+  - **Mutation check:** without the guard, the nested lock succeeds and the outer one fails for a different reason, so the test fails.
+  - Slither still lists the pattern because its balance detector doesn't model the guard.
+- **Token revert reasons.** `_call` used to report every token revert as "transfer". It now passes the token's own reason through, which made the guard visible and gives clearer errors in general.
+- **Accepted as by design:**
+  - the strict equality is the fee-on-transfer check;
+  - the timestamp comparisons drive timeouts measured in hours.
+- **`SwapAndLock`:** only a strict-equality false positive (`ret.length == 0`).
+- **Two test races, found under full parallel load, fixed in the tests:**
+  - Lightning: the payee's channel balance updates a moment after the payer sees success, so the test now waits for it.
+  - `demoWorld.smoke` (the earlier flake): it stopped polling at 4 campaigns, before the AI-agent campaign existed, so it now polls until every expected campaign is there.
+- **Result:** two clean full runs, 262 passed and 3 skipped.

@@ -36,26 +36,36 @@ contract HashedTimelockERC20 {
 
     mapping(bytes32 => Lock) public locks;
     uint256 public nonce;
+    uint256 private entered = 1;
+
+    /// Tokens are external code: no call back into this contract while one of its calls runs.
+    /// (Each lock must receive exactly its own amount anyway; this is defence in depth, per a Slither review.)
+    modifier nonReentrant() {
+        require(entered == 1, "reentrancy");
+        entered = 2;
+        _;
+        entered = 1;
+    }
 
     event Locked(bytes32 indexed id, address indexed sender, address indexed receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter);
     event Claimed(bytes32 indexed id, bytes32 secret);
     event Refunded(bytes32 indexed id);
 
-    function lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external returns (bytes32 id) {
+    function lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external nonReentrant returns (bytes32 id) {
         return _lock(msg.sender, receiver, token, amount, hashlock, refundAfter);
     }
 
     /// Lock tokens paid by the caller, refundable to `refundTo`. For contracts that act for a user in one
     /// transaction (SwapAndLock): the user, not the contract, gets the refund. The caller pays, so nobody
     /// can lock someone else's tokens.
-    function lockFor(address refundTo, address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external returns (bytes32 id) {
+    function lockFor(address refundTo, address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external nonReentrant returns (bytes32 id) {
         require(refundTo != address(0), "refundTo");
         return _lock(refundTo, receiver, token, amount, hashlock, refundAfter);
     }
 
     /// The same as lock, with an EIP-2612 permit instead of a separate approve transaction (USDC supports it).
     /// If someone front-runs the permit, it is already spent but the allowance is set, so the lock still works.
-    function lockWithPermit(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external returns (bytes32 id) {
+    function lockWithPermit(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external nonReentrant returns (bytes32 id) {
         try IERC20Permit(token).permit(msg.sender, address(this), amount, deadline, v, r, s) {} catch {}
         return _lock(msg.sender, receiver, token, amount, hashlock, refundAfter);
     }
@@ -74,7 +84,7 @@ contract HashedTimelockERC20 {
         emit Locked(id, sender, receiver, token, amount, hashlock, refundAfter);
     }
 
-    function claim(bytes32 id, bytes32 secret) external {
+    function claim(bytes32 id, bytes32 secret) external nonReentrant {
         Lock storage l = locks[id];
         require(l.state == State.Locked, "state");
         require(msg.sender == l.receiver, "receiver");
@@ -86,7 +96,7 @@ contract HashedTimelockERC20 {
         _call(l.token, abi.encodeCall(IERC20.transfer, (l.receiver, l.amount)));
     }
 
-    function refund(bytes32 id) external {
+    function refund(bytes32 id) external nonReentrant {
         Lock storage l = locks[id];
         require(l.state == State.Locked, "state");
         require(msg.sender == l.sender, "sender");
@@ -96,9 +106,13 @@ contract HashedTimelockERC20 {
         _call(l.token, abi.encodeCall(IERC20.transfer, (l.sender, l.amount)));
     }
 
-    /// Accepts tokens that return true and tokens that return nothing.
+    /// Accepts tokens that return true and tokens that return nothing. A token's own revert reason is passed through.
     function _call(address token, bytes memory data) private {
         (bool ok, bytes memory ret) = token.call(data);
-        require(ok && (ret.length == 0 || abi.decode(ret, (bool))), "transfer");
+        if (!ok) {
+            if (ret.length > 0) assembly { revert(add(ret, 32), mload(ret)) }
+            revert("transfer");
+        }
+        require(ret.length == 0 || abi.decode(ret, (bool)), "transfer");
     }
 }

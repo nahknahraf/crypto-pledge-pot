@@ -69,7 +69,8 @@ describe.skipIf(bitcoindBinary() === undefined || lndBinary() === undefined)('br
     expect(lp.state(r.quote.id)).toBe('settled')
     await waitFor(async () => (await donorLn.htlc(r.hashlock))?.state === 'claimed', 'the payment to succeed')
     expect((await donorLn.htlc(r.hashlock))!.secret).toBe(r.secret)
-    expect(await agentLn.account(agentNode.pubkey).balance()).toBe(agentBefore + 10_000)
+    // The payer sees SUCCEEDED a moment before the payee's channel balance is updated.
+    await waitFor(async () => await agentLn.account(agentNode.pubkey).balance() === agentBefore + 10_000, 'the agent\'s channel balance')
   }, 120_000)
 
   it('the donor refuses an invoice that is not what was agreed; a cancelled invoice pays the donor back at once', async () => {

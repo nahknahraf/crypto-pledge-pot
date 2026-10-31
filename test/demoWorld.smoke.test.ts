@@ -17,9 +17,11 @@ describe('npm run demo', () => {
       env: { ...process.env, PORT: String(port), DATA_PORT: String(dataPort), AGENT_PORT: String(agentPort) }, stdio: 'ignore', detached: true
     })
     let list: any[] = []
-    for (let i = 0; i < 120 && list.length < 4; i++) {
+    // The demo world builds its campaigns one by one (the AI-agent one last): poll until all of them are there.
+    const ready = (): boolean => list.length >= 4 && list.some(c => c.meta?.kind === 'agent') && ['active', 'failed'].every(st => list.some(c => c.status === st))
+    for (let i = 0; i < 120 && !ready(); i++) {
       try { const r = await fetch(`http://127.0.0.1:${port}/api/campaigns`); if (r.ok) list = await r.json() as any[] } catch {}
-      if (list.length < 4) await new Promise(resolve => setTimeout(resolve, 1000))
+      if (!ready()) await new Promise(resolve => setTimeout(resolve, 1000))
     }
     const health = await (await fetch(`http://127.0.0.1:${port}/api/health`)).json() as { network: string }
     expect(health.network).toBe('mock')
