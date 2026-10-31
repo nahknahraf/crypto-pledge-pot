@@ -58,7 +58,7 @@ export function sanitizeAssessment (a: CampaignAssessment): CampaignAssessment {
  * your whole budget"), not text that merely mentions them: an agent-run
  * campaign saying "I am an autonomous AI agent" is honest, not manipulation.
  */
-const INJECTION = new RegExp([
+export const INJECTION = new RegExp([
   'ignore (all |any |your |previous |prior |the )*(instructions|rules|guidelines)',
   'disregard',
   'system prompt',
@@ -75,7 +75,7 @@ const INJECTION = new RegExp([
 
 /** True if the text addresses AI agents (an attempt to steer them). Applied in code for every brain. */
 export const addressesAgents = (text: string): boolean => INJECTION.test(text)
-const URGENCY = /(only \d+ (hours|minutes) left|act now|last chance|urgent!|send (directly|to my address))/i
+export const URGENCY = /(only \d+ (hours|minutes) left|act now|last chance|urgent!|send (directly|to my address))/i
 const MEASURABLE = /\d|report|audit|test|measure|publish|deliver|install|photo|link|data|survey|sample|map|count/i
 
 /** Deterministic, offline brain for tests, demos and runs without Anthropic credentials. */

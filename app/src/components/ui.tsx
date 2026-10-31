@@ -12,7 +12,7 @@ export function Progress ({ value, goal }: { value: number, goal: number }) {
   )
 }
 
-const LABEL: Record<CampaignStatus, string> = { active: 'Raising', funded: 'Funded', failed: 'Missed goal', completed: 'Completed' }
+const LABEL: Record<CampaignStatus, string> = { active: 'Raising', funded: 'Funded', failed: 'Missed goal', completed: 'Completed', breached: 'Broke its plan' }
 
 export const StatusBadge = ({ status }: { status: CampaignStatus }) => <span className={`badge ${status}`}>{LABEL[status]}</span>
 

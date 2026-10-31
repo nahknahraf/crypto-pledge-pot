@@ -26,21 +26,25 @@ export function creatorRecord (all: CampaignView[], creatorIdentityKey: string, 
   for (const c of all) {
     if (c.meta.creatorIdentityKey !== creatorIdentityKey || c.id === exceptId) continue
     if (c.status === 'completed') r.completed++
-    else if (c.status === 'failed') r.failed++
+    else if (c.status === 'failed' || c.status === 'breached') r.failed++
     else r.active++
   }
   return r
 }
 
-export function screen (c: CampaignView, m: Mandate, record: CreatorRecord, portfolio: Portfolio, now: number): ScreenResult {
+/**
+ * `repeat`: a campaign already given to may be given to again (giving plans).
+ * `ignoreKeywords`: skip the mandate's keyword filter (a giving plan has its own cause).
+ */
+export function screen (c: CampaignView, m: Mandate, record: CreatorRecord, portfolio: Portfolio, now: number, opts: { repeat?: boolean, ignoreKeywords?: boolean } = {}): ScreenResult {
   const passed: string[] = []
   const failed: string[] = []
   const check = (ok: boolean, yes: string, no: string): void => { (ok ? passed : failed).push(ok ? yes : no) }
 
   check(c.status === 'active' && now < c.meta.deadline, 'still raising', `not raising any more (${c.status})`)
-  check(portfolio.byCampaign[c.id] === undefined, 'not pledged to yet', 'already pledged to (or proposed)')
+  if (opts.repeat !== true) check(portfolio.byCampaign[c.id] === undefined, 'not pledged to yet', 'already pledged to (or proposed)')
 
-  if (m.keywords.length > 0) {
+  if (m.keywords.length > 0 && opts.ignoreKeywords !== true) {
     const text = `${c.meta.title} ${c.meta.description} ${c.meta.milestones.map(x => x.title).join(' ')}`.toLowerCase()
     const hit = m.keywords.find(k => text.includes(k.toLowerCase()))
     check(hit !== undefined, `mentions "${hit ?? ''}"`, `mentions none of: ${m.keywords.join(', ')}`)

@@ -8,10 +8,12 @@
  * On-chain records (OP_FALSE OP_RETURN, provably unspendable, 0 sats):
  *   campaign anchor:  'cryptopledgepot' 'campaign' <campaignId> <canonical JSON>
  *   donation memo:    'cryptopledgepot' 'pledge'   <campaignId> <JSON {name, message}>
+ *   breach record:    'cryptopledgepot' 'breach'   <campaignId> <JSON BreachRecord> (written by the compliance agent)
  * Anyone can rebuild the index from the chain with these.
  */
 import { Hash, OP, Script, Utils, type LockingScript, type WalletProtocol } from '@bsv/sdk'
 import { cumulativeSchedule, MAX_MILESTONES, pledgeLockingScript, type PledgeTerms } from './pledge'
+import { validatePaymentPlan, verifyPaymentPlanSignature, type PaymentPlan } from './paymentPlan'
 
 /**
  * Protocol tag: names the OP_RETURN records and every key-derivation protocol.
@@ -74,6 +76,13 @@ export interface CampaignMeta {
    * anyone (including donor agents) can audit its ledger against them.
    */
   agentLimits?: { pricePerCallSats: number, maxSpendPerMilestoneSats: number }
+  /**
+   * NGO payment plan (core/paymentPlan.ts): how each milestone's money will be
+   * spent. Part of the campaign id, so it is fixed once the campaign exists.
+   */
+  paymentPlan?: PaymentPlan
+  /** The creator's signature over the plan (DER hex, PAYMENT_PLAN_PROTOCOL, keyID = nonce, counterparty 'anyone'). */
+  paymentPlanSignature?: string
 }
 
 /** JSON with sorted keys, no whitespace: the form that is hashed and anchored. */
@@ -114,6 +123,17 @@ export function validateCampaign (meta: CampaignMeta): void {
     if (!Number.isSafeInteger(l.pricePerCallSats) || l.pricePerCallSats < 1 || !Number.isSafeInteger(l.maxSpendPerMilestoneSats) || l.maxSpendPerMilestoneSats < l.pricePerCallSats) fail('agentLimits must be positive whole sats, with the milestone limit at least one call')
   }
   if (meta.agentUrl !== undefined && (!/^https?:\/\/[^\s]+$/.test(meta.agentUrl) || meta.agentUrl.length > 200)) fail('agentUrl must be an http(s) URL')
+  if ((meta.paymentPlan === undefined) !== (meta.paymentPlanSignature === undefined)) fail('a payment plan needs the creator\'s signature, and a signature needs a plan')
+  if (meta.paymentPlan !== undefined) {
+    try { validatePaymentPlan(meta.paymentPlan, meta.milestones.length) } catch (e) { fail((e as Error).message) }
+    if (!/^([0-9a-f]{2}){8,80}$/.test(meta.paymentPlanSignature ?? '')) fail('paymentPlanSignature must be a DER signature in hex')
+  }
+}
+
+/** True when the campaign has no payment plan, or its plan carries a valid signature by the creator. */
+export async function paymentPlanSigned (meta: CampaignMeta): Promise<boolean> {
+  if (meta.paymentPlan === undefined) return true
+  return await verifyPaymentPlanSignature(meta.paymentPlan, meta.paymentPlanSignature ?? '', meta.creatorIdentityKey, meta.nonce)
 }
 
 /** Escrow terms for a pledge of `satoshis` from `donorKey` to this campaign. */
@@ -155,10 +175,17 @@ export function pledgeMemoScript (campaignId: string, memo: PledgeMemo, tag: Pro
   return opReturn([utf8(tag), utf8('pledge'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(clean))])
 }
 
+/** Public, permanent record that a campaign breached its payment plan. */
+export interface BreachRecord { milestone: number, unaccountedSats: number, repaidSats: number, graceEndedAt: number, lines: Array<{ lineId: string, plannedSats: number, spentSats: number }> }
+
+export const breachRecordScript = (campaignId: string, record: BreachRecord, tag: ProtocolTag = CRYPTOPLEDGEPOT): Script =>
+  opReturn([utf8(tag), utf8('breach'), Utils.toArray(campaignId, 'hex'), utf8(canonicalJson(record))])
+
 export type CryptoPledgePotRecord =
   | { kind: 'campaign', tag: ProtocolTag, campaignId: string, meta: CampaignMeta }
   | { kind: 'pledge', tag: ProtocolTag, campaignId: string, memo: PledgeMemo }
   | { kind: 'report', tag: ProtocolTag, campaignId: string, milestone: number, sha256: string }
+  | { kind: 'breach', tag: ProtocolTag, campaignId: string, record: BreachRecord }
 
 /** Decode a CryptoPledgePot OP_RETURN output, or undefined if it is not one. */
 export function parseCryptoPledgePotRecord (script: Script | string): CryptoPledgePotRecord | undefined {
@@ -184,13 +211,15 @@ export function parseCryptoPledgePotRecord (script: Script | string): CryptoPled
     if (text(1) === 'pledge') {
       return { kind: 'pledge', tag, campaignId, memo: { name: typeof payload.name === 'string' ? payload.name : undefined, message: typeof payload.message === 'string' ? payload.message : undefined } }
     }
+    if (text(1) === 'breach') return { kind: 'breach', tag, campaignId, record: payload }
   } catch { /* not ours */ }
   return undefined
 }
 
 // ── Status ─────────────────────────────────────────────────────────────────
 
-export type CampaignStatus = 'active' | 'funded' | 'failed' | 'completed'
+/** 'breached': the creator broke its payment plan (core/compliance.ts); set by the indexer's view, never by campaignStatus(). */
+export type CampaignStatus = 'active' | 'funded' | 'failed' | 'completed' | 'breached'
 
 export function campaignStatus (meta: CampaignMeta, raised: number, milestonesReleased: number, now = Math.floor(Date.now() / 1000)): CampaignStatus {
   if (milestonesReleased >= meta.milestones.length) return 'completed'

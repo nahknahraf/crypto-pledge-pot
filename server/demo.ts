@@ -7,7 +7,9 @@
  *
  *   npm run demo        # API on :8787, then `npm run app` → http://localhost:5174
  */
+import { P2PKH, PrivateKey } from '@bsv/sdk'
 import { CryptoPledgePot } from '../client/cryptoPledgePot'
+import { defaultLegalTerms } from '../core/paymentPlan'
 import { CryptoPledgePotApi } from '../client/cryptoPledgePotApi'
 import { createMockChain, memoryKnex } from '../test/helpers/mockchain'
 import { CryptoPledgePotAgent, type StepOutcome } from '../agent/agent'
@@ -157,6 +159,37 @@ async function main (): Promise<void> {
     last = await agent.step() // release milestone 1
     last = await agent.step() // buy data, post report → vote on milestone 2 opens
     await fay.vote(state.load().campaignId!, 2, true)
+  }
+
+  // 6. An NGO with a signed payment plan: milestone 1 was released 32 days ago,
+  //    it paid the filter vendor but never the pump vendor, so it is in its
+  //    7-day grace period (report the pumps or repay 30% of the tranche).
+  {
+    const filters = new P2PKH().lock(PrivateKey.fromRandom().toAddress()).toHex()
+    const pumps = new P2PKH().lock(PrivateKey.fromRandom().toAddress()).toHex()
+    offset = -40 * DAY
+    const { campaignId, meta } = await eli.launch({
+      title: 'Clean water for three primary schools in Kitui',
+      description: 'Ceramic water filters and hand pumps for three primary schools (about 900 children). Every shilling follows a signed payment plan: vendors are paid on chain and checked by the compliance agent.',
+      goal: 300_000,
+      deadline: now - 33 * DAY,
+      refundAfter: now + 60 * DAY,
+      milestones: [{ title: 'Buy filters and pumps', percent: 50 }, { title: 'Install and train staff', percent: 50 }],
+      paymentPlan: {
+        v: 1, tolerancePercent: 10, reportDays: 30, graceDays: 7, legalTerms: defaultLegalTerms(),
+        milestones: [
+          { lines: [{ id: 'filters', category: 'Water filters', percent: 70, payee: { kind: 'onchain', name: 'AquaPure Ltd', lockingScript: filters } }, { id: 'pumps', category: 'Hand pumps', percent: 30, payee: { kind: 'onchain', name: 'PumpCo Kenya', lockingScript: pumps } }] },
+          { lines: [{ id: 'install', category: 'Installation and training', percent: 100, payee: { kind: 'onchain', name: 'AquaPure Ltd', lockingScript: filters } }] }
+        ]
+      }
+    })
+    await ana.donate(meta, 180_000, { name: 'Ana', message: 'Clean water first.' })
+    await dev.donate(meta, 120_000, { name: 'Dev' })
+    offset = -32 * DAY
+    await eli.release(campaignId)
+    offset = -31 * DAY
+    await eli.payPlanLine(campaignId, 1, 'filters', 105_000, 'Invoice AP-2026-117')
+    offset = 0
   }
 
   console.log(`CryptoPledgePot demo API on ${url} (mock chain, seeded). Run \`npm run app\` and open http://localhost:5174`)

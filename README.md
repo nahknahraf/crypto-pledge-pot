@@ -25,6 +25,7 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 |---|---|
 | **Fundraising agent** (`agent/`) | An AI that raises its own budget on CryptoPledgePot, buys data from a pay-per-call API (one micropayment per call, never above a published cap), and anchors each report on chain |
 | **Donor agent** (`donor/`) | Gives on your behalf within your budget and rules. It checks each campaign (on-chain proofs, the agent's spending, manipulation attempts) and votes only on evidence. **Autopilot** pledges by itself; **co-pilot** writes you a short memo and waits for your approval |
+| **Compliance agent** (`compliance/`) | Watches every campaign with an NGO payment plan: checks the spending after each release against the signed plan, starts a 7-day grace period for off-plan spending, and writes a breach record on chain if it is not fixed |
 | **Liquidity agent** (`swap/`) | Turns another chain's money (USDC) into sats with an atomic swap, so a donor with no BSV can still pledge. Either both sides get paid or both get refunds |
 
 ## What works in each piece
@@ -40,7 +41,8 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | On mainnet | 🟡 real campaign, pledge and release transactions exist | txids in [`docs/USAGE_AND_VALUE.md`](docs/USAGE_AND_VALUE.md); the full agent run on mainnet is still to do |
 | Fundraising agent | ✅ offline, with a scripted brain or Claude; 🟡 real Claude needs `ANTHROPIC_API_KEY` | 31 tests; `npm run demo:agent` |
 | Pay-per-call data API (HTTP 402) | ✅ real Open-Meteo data, synthetic fallback | `agent.pay402`, `pay-per-request` tests |
-| Donor agent | ✅ autopilot and co-pilot, budget caps, manipulation → score 0 (enforced in code for every brain) | 25 tests; `npm run demo:donor`; Donor page in the app |
+| Donor agent | ✅ autopilot and co-pilot, budget caps, manipulation → score 0 (enforced in code for every brain); campaign search from a few words; giving plans on a schedule that ask you when nothing fits | `donor.*` tests; `npm run demo:donor`, `npm run donor:search -- children in need`; Donor page in the app |
+| NGO payment plans + compliance agent | ✅ plan signed into the campaign id, next milestone only after on-plan spending, grace period, pro-rata repayment, breach and early refunds | `compliance`, `paymentPlan` tests; `npm run compliance`; plan builder in the app; [`docs/NGO_PAYMENT_PLAN.md`](docs/NGO_PAYMENT_PLAN.md) |
 | Liquidity agent / swaps | 🟡 the BSV side is real; the USDC side is simulated in `demo:swap`, and a **real Solidity HTLC on a local EVM chain** in `demo:bridge` | 15 tests; `npm run demo:swap`, `npm run demo:bridge` |
 | Real bridges | 🟡 EVM: the happy path works on a local chain (Anvil); a public testnet is untested · ❌ BTC, Lightning, DeFi, CeFi are planned | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
@@ -87,6 +89,7 @@ The table of which standard is used where is in the technical README.
 | [`docs/VIDEO_SCRIPT.md`](docs/VIDEO_SCRIPT.md) | the 2.5-minute demo video, one page |
 | [`docs/VERIFICATION_PLAN.md`](docs/VERIFICATION_PLAN.md) | how each piece is verified, normal and edge cases |
 | [`docs/AGENT_TEST_PLAN.md`](docs/AGENT_TEST_PLAN.md) | edge-case tests for the three agents |
+| [`docs/NGO_PAYMENT_PLAN.md`](docs/NGO_PAYMENT_PLAN.md) | NGO payment plans, the compliance agent, grace period and breach |
 | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) | real money from other chains, DeFi and CeFi |
 | [`docs/JUDGING_REPORT.md`](docs/JUDGING_REPORT.md) | honest self-assessment against the track criteria |
 | [`docs/DEVLOG.md`](docs/DEVLOG.md) | what we built, why, and what broke |

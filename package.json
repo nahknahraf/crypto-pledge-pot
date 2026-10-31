@@ -21,6 +21,7 @@
     "demo": "vite-node --config vitest.config.ts server/demo.ts",
     "agent": "vite-node --config vitest.config.ts agent/main.ts --",
     "data-provider": "vite-node --config vitest.config.ts agent/providerMain.ts",
+    "compliance": "vite-node --config vitest.config.ts compliance/main.ts",
     "import": "vite-node --config vitest.config.ts server/importTx.ts --",
     "share": "vite build app && vite preview app",
     "share:internet": "bash scripts/share.sh",
@@ -30,6 +31,7 @@
     "demo:swap": "vite-node --config vitest.config.ts swap/swapDemoMain.ts",
     "demo:donor": "vite-node --config vitest.config.ts donor/donorDemoMain.ts",
     "demo:bridge": "vite-node --config vitest.config.ts swap/bridgeDemoMain.ts",
+    "donor:search": "vite-node --config vitest.config.ts donor/searchMain.ts --",
     "evm:compile": "node evm/compile.cjs",
     "evm:deploy": "vite-node --config vitest.config.ts swap/evmDeployMain.ts"
   },
