@@ -10,6 +10,8 @@ import { Transaction } from '@bsv/sdk'
 import type { Wallet } from '@bsv/wallet-toolbox'
 import { bitcoindBinary, startRegtest, type Regtest } from '../swap/bitcoind'
 import type { SpendFinder } from '../swap/bsv'
+import { checkSwapInvoice, decodeInvoice } from '../swap/bolt11'
+import { swapLightningToSats } from '../swap/browserLightning'
 import { DonorSwap } from '../swap/donorSwap'
 import { LiquidityClient } from '../swap/lpClient'
 import { createLiquidityApp } from '../swap/lpHttp'
@@ -122,6 +124,36 @@ describe.skipIf(bitcoindBinary() === undefined || lndBinary() === undefined)('br
       expect(r.state).toBe('claimed')
       await lp.step()
       await waitFor(async () => (await donorLn.htlc(r.hashlock))?.state === 'claimed', 'the payment to settle')
+    } finally { await new Promise(resolve => server.close(resolve)) }
+  }, 120_000)
+
+  it('our BOLT 11 decoder reads LND\'s invoices exactly as LND does (what a donor with any wallet checks)', async () => {
+    const hashlock = 'ab'.repeat(32)
+    const refundAfter = past() + 5 * 3600
+    const invoice = await agentLn.request(agentNode.pubkey, { amount: 7_000, hashlock, refundAfter })
+    const lnd = await donor.rest.call<any>('GET', `/v1/payreq/${invoice}`)
+    const ours = decodeInvoice(invoice)
+    expect(ours).toMatchObject({ network: 'regtest', amountSat: Number(lnd.num_satoshis), paymentHash: lnd.payment_hash, payee: lnd.destination, minFinalCltv: Number(lnd.cltv_expiry), timestamp: Number(lnd.timestamp) })
+    expect(ours.payee).toBe(agentNode.pubkey)
+    expect(checkSwapInvoice(invoice, { paymentHash: hashlock, amountSat: 7_000, payee: agentNode.pubkey, minFinalCltv: 30, network: 'regtest' })).toEqual([])
+    expect(checkSwapInvoice(invoice, { paymentHash: hashlock, amountSat: 7_000, payee: donor.pubkey, minFinalCltv: 30 })).toEqual(['the invoice pays a different node than the liquidity agent'])
+    await agentLn.cancel(agentNode.pubkey, hashlock)
+  }, 60_000)
+
+  it('a donor with no Lightning node: any wallet pays (here the donor\'s LND, fire-and-forget like WebLN), through the agent\'s HTTP service', async () => {
+    const lp = agent()
+    const server: Server = await new Promise(resolve => { const sv = createLiquidityApp(lp).listen(0, '127.0.0.1', () => resolve(sv)) })
+    try {
+      const wallet = await chain.makeWallet()
+      const payer = async (invoice: string): Promise<void> => { donor.rest.stream('/v2/router/send', { payment_request: invoice, timeout_seconds: 60, fee_limit_sat: '100' }, () => {}) }
+      const steps: string[] = []
+      const r = await swapLightningToSats(wallet, chain.chainTracker, { lpUrl: `http://127.0.0.1:${(server.address() as any).port}`, retryMs: 300, clock: past }, 5_000, payer, l => steps.push(l))
+      expect(r.state).toBe('claimed')
+      expect(steps.join('\n')).toMatch(/invoice checked/)
+      expect(await spendable(wallet)).toBeGreaterThan(10_000_000 - 2_000)
+      await lp.step()
+      expect(lp.state(r.quote.id)).toBe('settled')
+      await waitFor(async () => (await agentLn.htlc(r.hashlock))?.state === 'claimed', 'the invoice to settle')
     } finally { await new Promise(resolve => server.close(resolve)) }
   }, 120_000)
 })

@@ -2180,3 +2180,16 @@ Suite: 249 passed, 3 skipped.
   - Lightning: the payee's channel balance updates a moment after the payer sees success, so the test now waits for it.
   - `demoWorld.smoke` (the earlier flake): it stopped polling at 4 campaigns, before the AI-agent campaign existed, so it now polls until every expected campaign is there.
 - **Result:** two clean full runs, 262 passed and 3 skipped.
+
+**9.7 Lightning from any wallet.** A donor no longer needs their own Lightning node.
+- **Invoice decoding.** `swap/bolt11.ts` decodes BOLT 11 invoices without a library: checksum, amount, payment hash, payee, `min_final_cltv`, expiry.
+  - The payee is recovered from the invoice signature with the SDK's `RecoverPublicKey`.
+  - **Checked against:** the BOLT 11 spec example (including the recovered payee), and real LND invoices, compared field by field with LND's own `/v1/payreq`.
+- **Local checks.** `LightningChain.lock` now checks the invoice itself (`checkSwapInvoice`) instead of asking a node to decode it. With a `payer` callback it pays from any wallet.
+  - Such a payment can't be observed here, so it reads as locked, with the timeout the invoice guarantees.
+- **One-call helper.** `swapLightningToSats` (`swap/browserLightning.ts`) runs the whole swap; `weblnPayer` covers browser wallets.
+  - It starts the payment without waiting, because a held payment completes only when the agent settles.
+- **Test:** a donor with no node pays fire-and-forget through the agent's HTTP service, claims the sats, and the agent settles.
+  - The first run failed: the test's agent clock (30 days back) didn't match the helper's wall clock, so the invoice's timeout was too long to route. The helper now takes the same `clock` option.
+- **Mutation check:** disabling the payee check fails 2 tests.
+- **Suite:** 267 passed, 3 skipped.

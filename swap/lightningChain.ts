@@ -13,13 +13,23 @@
  * Ids are the payment hash (hex). Addresses are node public keys. Amounts are sats (BTC, 8 decimals).
  * The HTLC's timeout is in blocks; refundAfter is estimated at `blockSeconds` per block from now.
  * This process sees an HTLC through whichever of its nodes knows it: the payee's invoice, or the payer's payment.
+ *
+ * Any wallet: a donor without their own node passes `payer` (WebLN in a browser, a QR code, a node).
+ * The invoice is checked locally (swap/bolt11.ts: hash, amount, payee from the signature, timeout) before
+ * `payer` is called. Such a payment can't be observed here; it reads as locked with the timeout the invoice guarantees.
  */
+import { checkSwapInvoice, decodeInvoice, type DecodedInvoice } from './bolt11'
 import { b64, unb64, type LndRest } from './lnd'
 import type { SourceAccount, SourceAsset, SourceChain, SourceHtlc } from './usdcChain'
 
 export interface LightningChainOptions {
-  /** The LND nodes this process controls (the agent's, or the donor's). */
+  /** The LND nodes this process controls (the agent's, or the donor's). May be empty for a donor with `payer`. */
   nodes: LndRest[]
+  /**
+   * Pays an invoice from any wallet. It must START the payment and return without waiting for it to
+   * complete: a held payment only completes when the agent settles, after the donor's BSV claim.
+   */
+  payer?: (invoice: string) => Promise<void>
   /** Seconds per block for timeout estimates. Default 600. */
   blockSeconds?: number
   /** The clock (unix seconds); default the wall clock. Tests move it to play out timeouts. */
@@ -33,6 +43,8 @@ export class LightningChain implements SourceChain {
   readonly name: string
   readonly asset: SourceAsset = { symbol: 'BTC', decimals: 8 }
   private readonly pubkeys = new Map<LndRest, string>()
+  /** Invoices paid through `payer`, with when: the only record of them this process has. */
+  private readonly paidExternally = new Map<string, DecodedInvoice & { paidAt: number }>()
   private readonly blockSeconds: number
 
   constructor (private readonly o: LightningChainOptions) {
@@ -92,6 +104,8 @@ export class LightningChain implements SourceChain {
         return { ...base, state: 'locked' }
       }
     }
+    const ext = this.paidExternally.get(id)
+    if (ext !== undefined) return { id, sender: 'external wallet', receiver: ext.payee, amount: ext.amountSat ?? 0, hashlock: id, refundAfter: ext.paidAt + ext.minFinalCltv * this.blockSeconds, state: 'locked' }
     return undefined
   }
 
@@ -103,15 +117,16 @@ export class LightningChain implements SourceChain {
       /** Pay the hold invoice, after checking it is exactly what we agreed. Resolves once the payment is held. */
       lock: async ({ receiver, amount, hashlock, refundAfter, request }) => {
         if (request === undefined) throw new Error(`${this.name}: no invoice to pay (the liquidity agent issues one first)`)
-        const n = await this.nodeOf(address)
-        const d = await n.call<any>('GET', `/v1/payreq/${request}`)
-        const problems = [
-          d.payment_hash !== hashlock && 'the invoice is for a different hash',
-          Number(d.num_satoshis) !== amount && `the invoice asks ${d.num_satoshis} sats, not ${amount}`,
-          d.destination !== receiver && 'the invoice pays a different node',
-          (await this.now()) + (Number(d.cltv_expiry) - 1) * this.blockSeconds < refundAfter - this.blockSeconds && 'the invoice\'s timeout is shorter than agreed'
-        ].filter(Boolean)
+        // Checked here, from the invoice itself (the payee is recovered from its signature), not by asking a node.
+        const minFinalCltv = Math.ceil((refundAfter - (await this.now())) / this.blockSeconds) - 1
+        const problems = checkSwapInvoice(request, { paymentHash: hashlock, amountSat: amount, payee: receiver, minFinalCltv, now: Math.floor(Date.now() / 1000) })
         if (problems.length > 0) throw new Error(`${this.name}: not paying: ${problems.join('; ')}`)
+        if (this.o.payer !== undefined) {
+          await this.o.payer(request)
+          this.paidExternally.set(hashlock, { ...decodeInvoice(request), paidAt: await this.now() })
+          return hashlock
+        }
+        const n = await this.nodeOf(address)
         await new Promise<void>((resolve, reject) => {
           const stop = n.stream('/v2/router/send', { payment_request: request, timeout_seconds: 60, fee_limit_sat: String(this.o.feeLimitSat ?? 100) }, m => {
             if (m.status === 'IN_FLIGHT' && (m.htlcs ?? []).some((h: any) => h.status === 'IN_FLIGHT')) resolve() // held by the payee; the stream stays open

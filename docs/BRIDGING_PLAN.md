@@ -148,6 +148,10 @@ Record the check, with the date, in this file. Exchange support for BSV changes 
     - the same swap through the HTTP service.
     - Mutation check: without the donor's amount check, the refusal test fails.
   - **Run it:** `npm run demo:bridge:ln`, or `npm run lp` with `BRIDGE_CHAIN=ln` and the agent's own LND.
+  - **Any wallet:** a donor needs no Lightning node of their own.
+    - `swap/bolt11.ts` decodes the invoice without a library and recovers the payee from its signature. It matches the BOLT 11 spec example, and LND's own decoding of real invoices.
+    - `swapLightningToSats` (`swap/browserLightning.ts`) checks the hash, amount, payee and timeout locally, then pays through a `payer` callback (`weblnPayer` for browser wallets such as Alby).
+    - It is tested end to end over HTTP against real LND nodes.
   - **Still open:**
     - a real-network run;
     - routing through other nodes (tested only on a direct channel);
@@ -236,4 +240,5 @@ What the Phase 1a happy path does **not** do yet, in rough order:
 - [ ] **BTC on signet or mainnet:** the code is ready (Esplora backend, fee estimation, `npm run lp` with `BRIDGE_CHAIN=btc-signet`). It needs a funded signet key (`LP_BTC_KEY`) and BSV inventory.
 - [x] **Lightning (Phase 3b):** hold-invoice swaps work on real LND nodes (regtest); see §4.
 - [ ] **Lightning on a real network:** needs an LND node with inbound liquidity (`BRIDGE_CHAIN=ln`).
+- [ ] **A web page for the Lightning swap:** the logic is done and tested (`swapLightningToSats`, `weblnPayer`); the page is not built yet.
 - [ ] **On-ramp and wrapped stablecoins (Phases 4–5):** not started; they need provider research and accounts.
