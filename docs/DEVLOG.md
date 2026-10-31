@@ -2120,3 +2120,22 @@ Full suite: **241 passing**, plus 3 opt-in fork tests that pass with `FORK_URL`.
 4. **S10.** It was already done (`minSourceConfirmations`); the plan was stale.
 
 Suite: 249 passed, 3 skipped.
+
+**9.3 The Bitcoin leg of the bridge.** Bitcoin Core 32.1 was downloaded to `~/opt/bitcoin-32.1`. Before use, the tarball was checked against `SHA256SUMS`, and `SHA256SUMS.asc` carries 8 good signatures from builder keys in `bitcoin-core/guix.sigs`, imported into an isolated keyring.
+- **No new dependency.** `swap/btc.ts` writes the P2WSH HTLC itself (plus a 32-byte size check on the secret), along with segwit serialization, the BIP 143 sighash, low-S DER signatures and bech32. bitcoind is the judge: it rejects any byte that is wrong.
+- **The adapter.** `swap/btcChain.ts` is a `SourceChain` over bitcoind RPC:
+  - The HTLC id is `txid:vout:witnessScript`. It is self-verifying: the reader checks that the output pays sha256(script) and reads the terms from the script.
+  - `now()` is the median time past, the clock CLTV uses.
+  - The secret is read from the claim's witness, found in the mempool or by walking blocks from the lock's block.
+  - A balance comes from `scantxoutset`.
+- **Generic agents.** `SourceChain` gained an optional `asset` (symbol and decimals). The liquidity agent prices by it, and its messages name the asset ("BTC lock", "0.00010000 BTC"). The USDC behaviour and messages are unchanged.
+- **Regtest.** `swap/bitcoind.ts` starts a throwaway regtest node with a fresh data directory and random RPC credentials, deleted when it stops.
+- **Tests** (`bridge.btc`, 4 tests):
+  - the BIP 173 vector, and the script round trip and its refusals;
+  - the full swap, with a wait for 1 confirmation;
+  - a lock for the wrong amount is rejected, then the donor refunds after T1;
+  - bitcoind itself refuses an early refund (non-final), a wrong secret and the wrong key.
+  - Mutation check: a wrong sighash type makes both swap tests fail.
+- **Demo:** `npm run demo:bridge:btc`.
+- **Not done yet:** signet or mainnet (an Esplora backend), fee estimation, PSBT in a browser wallet, Lightning.
+- **A flaky test, not a bug.** One full-suite run had `demoWorld.smoke` fail. It passes alone and on reruns. The likely cause is a free-port race between parallel test files, so the regtest node no longer reserves a P2P port.

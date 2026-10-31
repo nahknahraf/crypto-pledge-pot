@@ -33,8 +33,13 @@ export interface SourceAccount {
   refund: (id: string) => Promise<void>
 }
 
+/** What a source chain's amounts are: integer base units with `decimals` (USDC: 6; BTC: 8, i.e. satoshis). */
+export interface SourceAsset { symbol: string, decimals: number }
+
 export interface SourceChain {
   readonly name: string
+  /** Defaults to USDC (6 decimals). Every amount on this chain, and a quote's `usdc` field, is in its base units. */
+  readonly asset?: SourceAsset
   account: (address: string) => SourceAccount
   htlc: (id: string) => Promise<SourceHtlc | undefined>
   /** The chain's own time (unix seconds). Async: on a real chain it is a network call (the latest block). */
@@ -43,6 +48,13 @@ export interface SourceChain {
 
 export const USDC = 1_000_000 // micro-USDC per USDC
 export const formatUsdc = (micro: number): string => `${(micro / USDC).toFixed(2)} USDC`
+export const assetOf = (c: SourceChain): SourceAsset => c.asset ?? { symbol: 'USDC', decimals: 6 }
+/** Base units per whole unit (1 USDC = 1e6; 1 BTC = 1e8). */
+export const unitOf = (c: SourceChain): number => 10 ** assetOf(c).decimals
+export const formatAmount = (c: SourceChain, n: number): string => {
+  const a = assetOf(c)
+  return a.symbol === 'USDC' && a.decimals === 6 ? formatUsdc(n) : `${(n / 10 ** a.decimals).toFixed(a.decimals)} ${a.symbol}`
+}
 
 export class SimulatedUsdcChain implements SourceChain {
   readonly name = 'USDC (simulated Base ledger)'

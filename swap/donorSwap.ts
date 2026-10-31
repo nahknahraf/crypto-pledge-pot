@@ -16,7 +16,7 @@ import { Transaction, Utils, type ChainTracker, type WalletInterface } from '@bs
 import { newSecret, parseSwapScript } from '../core/swap'
 import { claimSats, newSwapKey, type BsvLock } from './bsv'
 import type { LiquidityProvider, Quote } from './liquidityAgent'
-import { formatUsdc, type SourceAccount, type SourceChain } from './usdcChain'
+import { formatAmount, type SourceAccount, type SourceChain } from './usdcChain'
 
 export interface DonorSwapOptions {
   /** How long the donor's USDC lock runs (seconds). */
@@ -42,6 +42,9 @@ export interface SwapRecord {
 export class DonorSwap {
   private readonly usdc: SourceAccount
 
+  /** An amount on the source chain, with its unit ("20.00 USDC", "0.00050000 BTC"). */
+  private fmt (n: number): string { return formatAmount(this.source, n) }
+
   constructor (
     readonly wallet: WalletInterface,
     readonly source: SourceChain,
@@ -57,7 +60,7 @@ export class DonorSwap {
     const key = await newSwapKey(this.wallet)
     const quote = await lp.quote(usdc, key.publicKey)
     const { secret, hashlock } = newSecret()
-    return { quote, secret, hashlock, receiverKeyID: key.keyID, state: 'quoted', steps: [`quote: ${formatUsdc(usdc)} → ${quote.sats.toLocaleString('en-US')} sats`] }
+    return { quote, secret, hashlock, receiverKeyID: key.keyID, state: 'quoted', steps: [`quote: ${this.fmt(usdc)} → ${quote.sats.toLocaleString('en-US')} sats`] }
   }
 
   /** Lock the USDC (refundable to the donor after T1) and tell the agent; returns the agent's BSV lock. */
@@ -70,7 +73,7 @@ export class DonorSwap {
     const args = { receiver: r.quote.lpAddress, amount: r.quote.usdc, hashlock: r.hashlock, refundAfter }
     r.sourceHtlcId = await (lockWith ?? this.usdc.lock)(args)
     r.state = 'source-locked'
-    r.steps.push(`locked ${formatUsdc(r.quote.usdc)} on ${this.source.name}, refundable to you after the timeout`)
+    r.steps.push(`locked ${this.fmt(r.quote.usdc)} on ${this.source.name}, refundable to you after the timeout`)
     return await this.requestLock(lp, r)
   }
 
@@ -124,7 +127,7 @@ export class DonorSwap {
   async refundSource (r: SwapRecord): Promise<SwapRecord> {
     await this.usdc.refund(r.sourceHtlcId!)
     r.state = 'refunded'
-    r.steps.push(`refunded ${formatUsdc(r.quote.usdc)} to you on ${this.source.name}`)
+    r.steps.push(`refunded ${this.fmt(r.quote.usdc)} to you on ${this.source.name}`)
     return r
   }
 }

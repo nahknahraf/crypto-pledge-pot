@@ -18,7 +18,7 @@ import type { WalletInterface } from '@bsv/sdk'
 import { memoryStore, type Store } from '../agent/ledger'
 import { secretFromClaim, type SwapTerms } from '../core/swap'
 import { findLock, lockSats, newSwapKey, refundSats, type BsvLock, type SpendFinder } from './bsv'
-import { formatUsdc, USDC, type SourceAccount, type SourceChain } from './usdcChain'
+import { assetOf, formatAmount, unitOf, USDC, type SourceAccount, type SourceChain } from './usdcChain'
 
 export interface LiquidityConfig {
   /** Sats per 1 USDC that the agent pays (its price, spread included). */
@@ -85,6 +85,10 @@ export class LiquidityAgent implements LiquidityProvider {
    * `store` keeps the swaps across restarts (use fileStore in a real process): after a crash the
    * agent must still collect the USDC for sats it already locked, or refund them.
    */
+  /** An amount on the source chain, with its unit ("20.00 USDC", "0.00050000 BTC"). */
+  private fmt (n: number): string { return formatAmount(this.source, n) }
+  private get sym (): string { return assetOf(this.source).symbol }
+
   constructor (
     readonly wallet: WalletInterface,
     readonly source: SourceChain,
@@ -106,16 +110,16 @@ export class LiquidityAgent implements LiquidityProvider {
 
   async quote (usdc: number, donorBsvKey: string): Promise<Quote> {
     if (!Number.isSafeInteger(usdc) || usdc <= 0) throw new Error('amount must be positive')
-    if (usdc > this.config.maxUsdc) throw new Error(`above this agent's limit of ${formatUsdc(this.config.maxUsdc)}`)
+    if (usdc > this.config.maxUsdc) throw new Error(`above this agent's limit of ${this.fmt(this.config.maxUsdc)}`)
     if (!/^0[23][0-9a-f]{64}$/.test(donorBsvKey)) throw new Error('donor key must be a compressed public key')
-    const sats = Math.floor((usdc / USDC) * this.config.satsPerUsdc)
+    const sats = Math.floor((usdc / unitOf(this.source)) * this.config.satsPerUsdc)
     const openExposure = [...this.swaps.values()].filter(s => s.state === 'quoted' || s.state === 'locking' || s.state === 'locked').reduce((t, s) => t + s.quote.sats, 0)
     if ((await this.spendable()) - openExposure - sats < this.config.feeReserve) throw new Error('not enough BSV inventory for this swap right now')
     const now = await this.source.now()
     const q: Quote = { id: `q${this.swaps.size + 1}`, usdc, sats, lpAddress: this.usdc.address, donorBsvKey, expiresAt: now + this.config.quoteValidity, minSourceRefundAfter: now + this.config.minSourceWindow }
     this.swaps.set(q.id, { quote: q, state: 'quoted' })
     this.persist()
-    this.say(`quoted ${formatUsdc(usdc)} → ${sats.toLocaleString('en-US')} sats (${q.id})`)
+    this.say(`quoted ${this.fmt(usdc)} → ${sats.toLocaleString('en-US')} sats (${q.id})`)
     return q
   }
 
@@ -127,20 +131,20 @@ export class LiquidityAgent implements LiquidityProvider {
     if ((await this.source.now()) > s.quote.expiresAt) reject('the quote expired')
     // One source lock pays for one BSV lock. Without this, a donor could present the same USDC lock
     // against two quotes, claim both BSV locks with the one secret, and leave us one USDC claim.
-    if ([...this.swaps.values()].some(o => o !== s && o.state !== 'rejected' && o.sourceHtlcId === sourceHtlcId)) reject('that USDC lock is already used for another swap')
+    if ([...this.swaps.values()].some(o => o !== s && o.state !== 'rejected' && o.sourceHtlcId === sourceHtlcId)) reject(`that ${this.sym} lock is already used for another swap`)
     s.sourceHtlcId = sourceHtlcId // reserve it now: a concurrent call for the same lock sees it from here on
     this.persist()
     const h = await this.source.htlc(sourceHtlcId)
-    if (h === undefined || h.state !== 'locked') reject('no locked USDC found on the other chain')
+    if (h === undefined || h.state !== 'locked') reject(`no locked ${this.sym} found on the other chain`)
     if (h!.confirmations !== undefined && h!.confirmations < this.config.minSourceConfirmations) {
       // Not a refusal: the quote stays open, the donor asks again once the lock is deeper.
       s.sourceHtlcId = undefined
       this.persist()
-      throw new Error(`wait: the USDC lock has ${h!.confirmations} of ${this.config.minSourceConfirmations} confirmations; ask again shortly`)
+      throw new Error(`wait: the ${this.sym} lock has ${h!.confirmations} of ${this.config.minSourceConfirmations} confirmations; ask again shortly`)
     }
-    if (h!.receiver !== this.usdc.address) reject('the USDC lock does not pay this agent')
-    if (h!.amount !== s.quote.usdc) reject(`the USDC lock is ${formatUsdc(h!.amount)}, the quote was ${formatUsdc(s.quote.usdc)}`)
-    if (h!.refundAfter < s.quote.minSourceRefundAfter) reject('the USDC lock\'s timeout is too short to be safe')
+    if (h!.receiver !== this.usdc.address) reject(`the ${this.sym} lock does not pay this agent`)
+    if (h!.amount !== s.quote.usdc) reject(`the ${this.sym} lock is ${this.fmt(h!.amount)}, the quote was ${this.fmt(s.quote.usdc)}`)
+    if (h!.refundAfter < s.quote.minSourceRefundAfter) reject(`the ${this.sym} lock's timeout is too short to be safe`)
     const refundAfter = h!.refundAfter - this.config.safetyMargin // T2 < T1: the donor can always claim first
     const key = await newSwapKey(this.wallet)
     const pending = { terms: { hashlock: h!.hashlock, receiver: s.quote.donorBsvKey, sender: key.publicKey, refundAfter }, satoshis: this.lockedAmount(s.quote) }
@@ -158,7 +162,7 @@ export class LiquidityAgent implements LiquidityProvider {
     }
     Object.assign(s, { lock, state: 'locked', pending: undefined })
     this.persist() // from here on a restart must not lose this swap: it holds our sats
-    this.say(`saw ${formatUsdc(h!.amount)} locked for us; locked ${lock.satoshis.toLocaleString('en-US')} sats for the donor (tx ${lock.txid.slice(0, 12)}…)`)
+    this.say(`saw ${this.fmt(h!.amount)} locked for us; locked ${lock.satoshis.toLocaleString('en-US')} sats for the donor (tx ${lock.txid.slice(0, 12)}…)`)
     return lock
   }
 
@@ -177,7 +181,7 @@ export class LiquidityAgent implements LiquidityProvider {
         await this.usdc.claim(s.sourceHtlcId!, secret)
         s.state = 'settled'
         this.persist()
-        this.say(`donor claimed the sats; read the secret from BSV and collected ${formatUsdc(s.quote.usdc)}`)
+        this.say(`donor claimed the sats; read the secret from BSV and collected ${this.fmt(s.quote.usdc)}`)
       } else if (spend === undefined && (await this.source.now()) >= s.lock.terms.refundAfter) {
         await refundSats(this.wallet, s.lock, s.senderKeyID!)
         s.state = 'refunded'
@@ -197,7 +201,7 @@ export class LiquidityAgent implements LiquidityProvider {
         this.say(`recovered our lock for ${s.quote.id} after a restart (tx ${found.txid.slice(0, 12)}…)`)
       } else {
         Object.assign(s, { state: 'rejected', note: 'our BSV lock was never broadcast', pending: undefined })
-        this.say(`${s.quote.id}: no lock was made before the restart; the donor refunds their USDC after the timeout`)
+        this.say(`${s.quote.id}: no lock was made before the restart; the donor refunds their ${this.sym} after the timeout`)
       }
       this.persist()
     }

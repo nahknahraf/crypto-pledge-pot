@@ -61,13 +61,13 @@ The model only chooses *what* to buy and writes the text. Prices, caps, hosts an
 
 | | |
 |---|---|
-| **Job** | Sell sats for USDC on another chain, atomically, so a donor with no BSV can pledge |
+| **Job** | Sell sats for USDC on an EVM chain, or for BTC, atomically, so a donor with no BSV can pledge |
 | **Runs as** | `npm run lp` (`:8793/api/lp`: `GET` status, `POST /quote`, `POST /lock`). Configured by env (`swap/lpMain.ts`) |
 | **Holds** | Its own sats inventory (BSV) and the USDC it collects (EVM). **Never the donor's money**: the donor's USDC sits in an HTLC that only the secret or the timeout can open |
 | **State** | `data/lp-swaps.json`: every quote and lock. It is saved before and after each lock, so a restart still collects or refunds |
 | **Loop** | `quote` → `acceptSourceLock` (reads the donor's lock **on the EVM chain**: pays us, right amount, long enough timeout, not already used) → lock sats on BSV for the donor's key, with an earlier timeout → `step`: when the donor claims, read the secret from the BSV claim and claim the USDC; if they never claim, refund our sats after our timeout |
 | **Never** | locks sats before seeing the source lock on chain with `minSourceConfirmations`; loses track of a lock it broadcast (a `locking` intent is saved first and recovered from the wallet basket); accepts one source lock for two swaps (including concurrent requests); quotes above its limit or its inventory; lets its timeout end after the donor's |
-| **Alone** | `swap.edges`, `swap.e2e` (simulated USDC), `bridge.evm` and `bridge.service` (real Solidity HTLC on Anvil, the agent over HTTP, a crash and restart); `npm run demo:bridge` |
+| **Alone** | `swap.edges`, `swap.e2e` (simulated USDC), `bridge.evm` and `bridge.service` (real Solidity HTLC on Anvil, the agent over HTTP, a crash and restart), `bridge.btc` (P2WSH HTLC on a Bitcoin Core regtest node); `npm run demo:bridge`, `npm run demo:bridge:btc` |
 
 The donor side of a swap (`swap/donorSwap.ts`) is a library, not a separate agent:
 
@@ -79,6 +79,8 @@ The donor side of a swap (`swap/donorSwap.ts`) is a library, not a separate agen
   - with a permit, in one transaction;
   - swapped from another token on a DEX through `SwapAndLock`, in one transaction (`lockAndRequest(…, lockWith)`);
 - in a browser, the donor's own EVM wallet signs (`swap/browserEvm.ts`), and `swap/browserSwap.ts` runs the whole flow for the **Bring USDC** page.
+
+The source chain is pluggable: `SourceChain` (`swap/usdcChain.ts`) has an `asset` (USDC, 6 decimals, by default; BTC, 8). `EvmUsdcChain` and `BtcChain` implement it, so the agent and the donor library don't know which chain they're on.
 
 Money can also come in without a swap: **Fund from an exchange** (`client/receive.ts`) gives a fresh deposit address of the user's own wallet.
 
