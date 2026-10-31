@@ -43,9 +43,10 @@ Agentic Payments*. Team: Farhan · Finja · Louisa.
 | Donor agent | ✅ autopilot and co-pilot, budget caps, manipulation → score 0 (enforced in code for every brain) | 25 tests; `npm run demo:donor`; Donor page in the app |
 | Liquidity agent / swaps | 🟡 the BSV side is real; the USDC side is simulated in `demo:swap`, and a **real Solidity HTLC on a local EVM chain** in `demo:bridge` | 15 tests; `npm run demo:swap`, `npm run demo:bridge` |
 | Real bridges | 🟡 EVM: the happy path works on a local chain (Anvil); a public testnet is untested · ❌ BTC, Lightning, DeFi, CeFi are planned | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) |
+| API3 price guard (swap) | ✅ the Solidity HTLC checks the quoted rate against a BSV/USD price signed by an Airnode on API3 AirnodeHub (±2%, fresh data) and refuses unfair or stale quotes; verified with a real API3 signature · 🟡 a paid live fetch and Base Sepolia are not run yet | 9 tests; [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](docs/API3_CROSSCHAIN_SWAP_GUARD.md) |
 | Docker + internet sharing | ✅ one compose file, Caddy, ngrok | [`DOCKER_README.md`](DOCKER_README.md), [`docs/SHARING.md`](docs/SHARING.md) |
 
-In total there are **156 tests**, all passing (`npm test`), and both typechecks are clean.
+In total there are **165 tests**, all passing (`npm test`), and both typechecks are clean.
 
 ## Try it
 
@@ -58,6 +59,7 @@ npm run test:happy     # only the happy paths (docs/HAPPY_PATHS.md)
 npm run demo:agent     # the AI-agent story, offline (then: npm run app → http://localhost:5174)
 npm run demo:swap      # USDC → sats → pledge, in the terminal (simulated USDC)
 npm run demo:bridge    # the same with a real Solidity HTLC on a local EVM chain
+npm run api3:price     # the API3 request the price-guarded HTLC accepts (and, with a testnet key, a live signed price)
 npm run demo:donor     # the donor agent: co-pilot memo + approval, then autopilot
 ```
 
@@ -88,5 +90,6 @@ The table of which standard is used where is in the technical README.
 | [`docs/VERIFICATION_PLAN.md`](docs/VERIFICATION_PLAN.md) | how each piece is verified, normal and edge cases |
 | [`docs/AGENT_TEST_PLAN.md`](docs/AGENT_TEST_PLAN.md) | edge-case tests for the three agents |
 | [`docs/BRIDGING_PLAN.md`](docs/BRIDGING_PLAN.md) | real money from other chains, DeFi and CeFi |
+| [`docs/API3_CROSSCHAIN_SWAP_GUARD.md`](docs/API3_CROSSCHAIN_SWAP_GUARD.md) | the API3 track: how the swap contract verifies signed BSV/USD data on chain |
 | [`docs/JUDGING_REPORT.md`](docs/JUDGING_REPORT.md) | honest self-assessment against the track criteria |
 | [`docs/DEVLOG.md`](docs/DEVLOG.md) | what we built, why, and what broke |

@@ -10,16 +10,24 @@
  * chains together. The secret becomes public in the Claimed event, which is
  * how the liquidity agent learns it if it ever needs to.
  *
+ * API3 price guard: with `priceGuarded`, the contract is a PriceGuardedHTLC.
+ * Its lock is lockWithPrice: it also takes the sats the liquidity agent quoted
+ * and a signed BSV/USD response from API3 AirnodeHub, and the contract refuses
+ * the lock if the quote is more than its tolerance (e.g. 2%) away from that
+ * price or the data is stale. See docs/API3_CROSSCHAIN_SWAP_GUARD.md.
+ *
  * Keys: each account() needs a viem signer for that address. In this code
  * they are local accounts (Anvil's test keys or a testnet key from env). In a
  * browser the donor's own EVM wallet would sign instead (EIP-1193); see
  * docs/BRIDGING_PLAN.md.
  */
-import { createPublicClient, createWalletClient, getAddress, http, parseEventLogs, type Abi, type Account, type Address, type Chain, type Hex, type PublicClient } from 'viem'
+import { createPublicClient, createWalletClient, getAddress, http, parseEventLogs, toHex, type Abi, type Account, type Address, type Chain, type Hex, type PublicClient } from 'viem'
 import artifacts from '../evm/artifacts.json'
+import type { SignedResponse } from './api3Price'
 import type { SourceAccount, SourceChain, SourceHtlc } from './usdcChain'
 
 export const HTLC_ABI = artifacts.HashedTimelockERC20.abi as Abi
+export const GUARDED_HTLC_ABI = artifacts.PriceGuardedHTLC.abi as Abi
 export const TOKEN_ABI = artifacts.TestUSDC.abi as Abi
 
 export interface EvmChainOptions {
@@ -34,6 +42,8 @@ export interface EvmChainOptions {
   signers: Account[]
   /** Blocks to wait after each transaction (1 on Anvil, more on a public chain). */
   confirmations?: number
+  /** The HTLC is a PriceGuardedHTLC: locks go through lockWithPrice with an API3 price proof. */
+  priceGuarded?: boolean
 }
 
 const STATES = ['none', 'locked', 'claimed', 'refunded'] as const
@@ -83,9 +93,14 @@ export class EvmUsdcChain implements SourceChain {
     return {
       address: addr,
       balance: async () => Number(await this.client.readContract({ address: this.opts.token, abi: TOKEN_ABI, functionName: 'balanceOf', args: [addr] }) as bigint),
-      lock: async ({ receiver, amount, hashlock, refundAfter }) => {
+      lock: async ({ receiver, amount, hashlock, refundAfter, quotedSats, priceProof }) => {
         await write(this.opts.token, TOKEN_ABI, 'approve', [this.opts.htlc, BigInt(amount)])
-        const hash = await write(this.opts.htlc, HTLC_ABI, 'lock', [getAddress(receiver), this.opts.token, BigInt(amount), hex32(hashlock), BigInt(refundAfter)])
+        const base = [getAddress(receiver), this.opts.token, BigInt(amount), hex32(hashlock), BigInt(refundAfter)]
+        const hash = this.opts.priceGuarded === true
+          ? await write(this.opts.htlc, GUARDED_HTLC_ABI, 'lockWithPrice', [...base, ...priceArgs(quotedSats, priceProof)])
+          // PriceGuardedHTLC's ABI is a superset of HashedTimelockERC20's (same lock selector), so a guarded
+          // contract's UseLockWithPrice revert is decoded by name instead of as an unknown error.
+          : await write(this.opts.htlc, GUARDED_HTLC_ABI, 'lock', base)
         const receipt = await this.client.getTransactionReceipt({ hash })
         const [locked] = parseEventLogs({ abi: HTLC_ABI, eventName: 'Locked', logs: receipt.logs }) as unknown as Array<{ args: { id: Hex } }>
         if (locked === undefined) throw new Error(`${this.name}: no Locked event in ${hash}`)
@@ -97,17 +112,45 @@ export class EvmUsdcChain implements SourceChain {
   }
 }
 
-/** Deploy the HTLC and (for local tests) a TestUSDC token. Returns their addresses. */
-export async function deployBridgeContracts (rpcUrl: string, chain: Chain, deployer: Account, opts: { withTestToken: boolean }): Promise<{ htlc: Address, token?: Address }> {
+/** The extra lockWithPrice arguments: quoted sats, then the signed response (timestamp, data as bytes, signature). */
+function priceArgs (quotedSats: number | undefined, p: SignedResponse | undefined): unknown[] {
+  if (quotedSats === undefined || p === undefined) throw new Error('this HTLC checks the rate: the quote needs quotedSats and an API3 price proof (priceProof)')
+  return [BigInt(quotedSats), BigInt(p.timestamp), toHex(p.data), p.signature]
+}
+
+/** Settings of a PriceGuardedHTLC (see evm/contracts/PriceGuardedHTLC.sol). */
+export interface PriceGuardSettings {
+  /** The Airnode's signing address (CoinPaprika's on AirnodeHub, or a local test key). */
+  airnode: Address
+  /** Hash of the accepted request (deriveRequestHash(BSV_USD_REQUEST)). */
+  requestHash: Hex
+  /** Largest allowed rate deviation in basis points (200 = 2%). */
+  maxDeviationBps: number
+  /** Longest age of the signed response, seconds. */
+  maxResponseAge: number
+  /** Longest age of the price observation, seconds. */
+  maxPriceAge: number
+  /** How the data writes updatedAt: 'iso' (CoinPaprika) or 'millis' (Nodary). */
+  priceTime?: 'iso' | 'millis'
+}
+
+/** 2% tolerance, a response at most 5 minutes old, a price at most 15 minutes old (CoinPaprika updates every few minutes). */
+export const DEFAULT_PRICE_GUARD: Omit<PriceGuardSettings, 'airnode' | 'requestHash'> = { maxDeviationBps: 200, maxResponseAge: 5 * 60, maxPriceAge: 15 * 60, priceTime: 'iso' }
+
+/** Deploy the HTLC (price-guarded if `priceGuard` is given) and, for local tests, a TestUSDC token. */
+export async function deployBridgeContracts (rpcUrl: string, chain: Chain, deployer: Account, opts: { withTestToken: boolean, priceGuard?: PriceGuardSettings }): Promise<{ htlc: Address, token?: Address }> {
   const client = createPublicClient({ chain, transport: http(rpcUrl) })
   const wallet = createWalletClient({ account: deployer, chain, transport: http(rpcUrl) })
-  const deploy = async (c: { abi: unknown, bytecode: string }): Promise<Address> => {
-    const hash = await wallet.deployContract({ abi: c.abi as Abi, bytecode: c.bytecode as Hex, args: [] })
+  const deploy = async (c: { abi: unknown, bytecode: string }, args: unknown[] = []): Promise<Address> => {
+    const hash = await wallet.deployContract({ abi: c.abi as Abi, bytecode: c.bytecode as Hex, args })
     const r = await client.waitForTransactionReceipt({ hash })
     if (r.contractAddress == null) throw new Error('deploy failed')
     return r.contractAddress
   }
-  const htlc = await deploy(artifacts.HashedTimelockERC20)
+  const g = opts.priceGuard
+  const htlc = g === undefined
+    ? await deploy(artifacts.HashedTimelockERC20)
+    : await deploy(artifacts.PriceGuardedHTLC, [g.airnode, g.requestHash, BigInt(g.maxDeviationBps), BigInt(g.maxResponseAge), BigInt(g.maxPriceAge), 6, g.priceTime === 'millis' ? 1 : 0])
   const token = opts.withTestToken ? await deploy(artifacts.TestUSDC) : undefined
   return { htlc, token }
 }

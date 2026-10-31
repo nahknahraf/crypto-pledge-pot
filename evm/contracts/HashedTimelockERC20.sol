@@ -34,7 +34,12 @@ contract HashedTimelockERC20 {
     event Claimed(bytes32 indexed id, bytes32 secret);
     event Refunded(bytes32 indexed id);
 
-    function lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external returns (bytes32 id) {
+    function lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) external virtual returns (bytes32 id) {
+        return _lock(receiver, token, amount, hashlock, refundAfter);
+    }
+
+    /// The lock itself, shared with contracts that add checks before it (PriceGuardedHTLC).
+    function _lock(address receiver, address token, uint256 amount, bytes32 hashlock, uint64 refundAfter) internal returns (bytes32 id) {
         require(receiver != address(0), "receiver");
         require(amount > 0, "amount");
         require(refundAfter > block.timestamp, "refundAfter");
