@@ -1,5 +1,7 @@
 # Submission kit (from SubmissionTODO.md)
 
+**Paste-ready Devfolio fields: [`DEVFOLIO.md`](DEVFOLIO.md).**
+
 Status legend: ✅ ready · 🟡 ready, needs your action · ❌ missing.
 
 ## 1. Devfolio project page
@@ -12,7 +14,7 @@ Status legend: ✅ ready · 🟡 ready, needs your action · ❌ missing.
 | **The problem it solves** | Below | ✅ |
 | **Challenges we ran into** | Below | ✅ |
 | **Technologies used** | Below | ✅ |
-| **Tracks (up to 3)** | BSV Blockchain (core). Add the AI/agents track(s) your hackathon lists | 🟡 your choice |
+| **Tracks (up to 3)** | BSV: *DeFi Rails for Agentic Payments* (the README's track). Add up to two more if they fit | 🟡 your choice |
 | **Teammates added as builders** | On Devfolio | 🟡 |
 
 **The problem it solves.** Crowdfunding hands a creator a lump sum, and backers lose all leverage the moment they pay. An AI agent that needs a budget is worse: nobody can give it a blank cheque. CryptoPledgePot changes that:

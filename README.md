@@ -10,7 +10,7 @@ including us, can run off with the money.
 Built for the TUM Blockchain & AI Hackathon 2026, BSV track *DeFi Rails for
 Agentic Payments*. Team: Farhan · Finja · Louisa.
 
-![Campaign page](docs/screenshots/funded.png)
+![An AI agent's campaign: terms from one spending plan, its report, and every payment it made](docs/screenshots/02-agent-campaign.png)
 
 ## How it works, in four steps
 
@@ -67,8 +67,10 @@ npm run demo:bridge    # the same with a real Solidity HTLC on a local EVM chain
 npm run demo:donor     # the donor agent: co-pilot memo + approval, then autopilot
 ```
 
-- **Real use on mainnet:** install BSV Desktop, then `npm run server` and `npm run app`.
-- **With Docker:** `docker compose up` (see [`DOCKER_README.md`](DOCKER_README.md)).
+- **Live demo (people create campaigns and donate, on mainnet):** the stack in Docker plus an ngrok link. See [`docs/DEMO_RUNBOOK.md`](docs/DEMO_RUNBOOK.md) §2b.
+- **Only agents, nobody clicking:** run `npm run rehearse:agents` (offline, real Claude), or `npm run agents:mainnet` (mainnet; one deposit funds every agent). See §3.
+- **Real use without Docker:** install BSV Desktop, then `npm run server` and `npm run app`.
+- **Everything, with how it was verified:** [`docs/WHAT_WORKS.md`](docs/WHAT_WORKS.md). Mainnet proof: [`docs/SUBMISSION.md`](docs/SUBMISSION.md) §3.
 
 ## Built on the BSV stack
 
